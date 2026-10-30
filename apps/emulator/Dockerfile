@@ -14,7 +14,7 @@ RUN npm run build -w @visual-tracert/emulator
 
 # --- Runtime: node, and the tools that wire the devices (ip, bridge, nsenter) --
 FROM node:22-alpine
-RUN apk add --no-cache iproute2 util-linux
+RUN apk add --no-cache iproute2 util-linux tcpdump
 LABEL org.opencontainers.image.title="visual-tracert-emulator" \
       org.opencontainers.image.description="Emulación de visual-tracert: dispositivos en contenedores unidos por cables veth"
 WORKDIR /app

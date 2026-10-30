@@ -6,7 +6,7 @@ import { isStarted } from "./zones";
 import { randomMac } from "./net";
 import type { Device, DeviceType, Endpoint, Link, Topology } from "./types";
 
-export const emptyTopology = (name = spanish("Laboratorio sin título")): Topology => ({ version: 2, name, devices: [], links: [] });
+export const emptyTopology = (name = spanish("Laboratorio sin título")): Topology => ({ version: 3, name, devices: [], links: [] });
 
 function uniqueId(base: string, taken: Set<string>): string {
   const slug = base.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "device";

@@ -1,7 +1,9 @@
 // A cable between two devices, drawn from tile to tile whatever handle it
-// was made from, with a port dot at each end. While a simulation is played,
-// the frame of the current event travels along it.
-import { BaseEdge, EdgeLabelRenderer, useInternalNode, type Edge, type EdgeProps, type InternalNode } from "@xyflow/react";
+// was made from, with a port dot at each end and the name of the port by it
+// (from where to where: Gi0/1 ── Fa0/1), unless the canvas is zoomed far
+// out. While a simulation is played, the frame of the current event travels
+// along it.
+import { BaseEdge, EdgeLabelRenderer, useInternalNode, useStore as useFlow, type Edge, type EdgeProps, type InternalNode } from "@xyflow/react";
 import { memo, useEffect, useRef } from "react";
 import type { Protocol } from "../sim/engine";
 import { TILE } from "./DeviceNode";
@@ -16,11 +18,23 @@ export type LinkEdgeData = {
 export type LinkEdgeType = Edge<LinkEdgeData, "link">;
 
 const GAP = 6;
+/** below this zoom the port names would only be noise */
+const LABEL_ZOOM = 0.55;
 const PACKET_SECONDS = 0.6;
 
 function tileCenter(node: InternalNode) {
   const { x, y } = node.internals.positionAbsolute;
   return { x: x + TILE / 2, y: y + TILE / 2 };
+}
+
+/** how far along the line from a tile's centre it leaves the whole node:
+ * the tile and its text (name, address, profile) beside it */
+function leaves(node: InternalNode, from: { x: number; y: number }, ux: number, uy: number) {
+  const { x, y } = node.internals.positionAbsolute;
+  const width = node.measured.width ?? TILE, height = node.measured.height ?? TILE;
+  const along = (low: number, high: number, origin: number, step: number) =>
+    step > 0 ? (high - origin) / step : step < 0 ? (low - origin) / step : Infinity;
+  return Math.min(along(x, x + width, from.x, ux), along(y, y + height, from.y, uy));
 }
 
 /** where the line from a's centre to b's centre leaves a's tile */
@@ -49,14 +63,24 @@ function Packet({ path, protocol, dropped }: { path: string; protocol: Protocol;
 function LinkEdgeView({ id, source, target, data, selected }: EdgeProps<LinkEdgeType>) {
   const a = useInternalNode(source);
   const b = useInternalNode(target);
+  const near = useFlow(state => state.transform[2] >= LABEL_ZOOM);
   if(!a || !b || !data) return null;
   const ca = tileCenter(a), cb = tileCenter(b);
   const pa = border(ca, cb), pb = border(cb, ca);
   const path = `M${pa.x},${pa.y} L${pb.x},${pb.y}`;
   const packet = data.packet;
   const travel = packet && (packet.towards === "b" ? path : `M${pb.x},${pb.y} L${pa.x},${pa.y}`);
-  const labelAt = (p: { x: number; y: number }, q: { x: number; y: number }) => ({ x: p.x + (q.x - p.x) * .18, y: p.y + (q.y - p.y) * .18 });
-  const la = labelAt(pa, pb), lb = labelAt(pb, pa);
+  // just past the node it starts from (its text included, wherever the
+  // cable leaves it), so neither covers the other; never past the middle
+  const labelAt = (node: InternalNode, from: { x: number; y: number }, to: { x: number; y: number }, name: string) => {
+    const length = Math.hypot(to.x - from.x, to.y - from.y) || 1;
+    const ux = (to.x - from.x) / length, uy = (to.y - from.y) / length;
+    // half the label, measured along the cable: about 7px a character, 18px tall
+    const half = Math.abs(ux) * (name.length * 3.6 + 7) + Math.abs(uy) * 9;
+    const along = Math.min(leaves(node, from, ux, uy) + half + 4, length / 2 - 4);
+    return { x: from.x + ux * along, y: from.y + uy * along };
+  };
+  const la = labelAt(a, ca, cb, data.aInterface), lb = labelAt(b, cb, ca, data.bInterface);
 
   return (
     <>
@@ -64,10 +88,10 @@ function LinkEdgeView({ id, source, target, data, selected }: EdgeProps<LinkEdge
       <circle className="port" cx={pa.x} cy={pa.y} r={4} />
       <circle className="port" cx={pb.x} cy={pb.y} r={4} />
       {packet && travel && <Packet key={packet.key} path={travel} protocol={packet.protocol} dropped={packet.dropped} />}
-      {selected && (
+      {(near || selected) && (
         <EdgeLabelRenderer>
-          <span className="port-label" style={{ transform: `translate(-50%,-50%) translate(${la.x}px,${la.y}px)` }}>{data.aInterface}</span>
-          <span className="port-label" style={{ transform: `translate(-50%,-50%) translate(${lb.x}px,${lb.y}px)` }}>{data.bInterface}</span>
+          <span className={`port-label${selected ? " selected" : ""}`} style={{ transform: `translate(-50%,-50%) translate(${la.x}px,${la.y}px)` }}>{data.aInterface}</span>
+          <span className={`port-label${selected ? " selected" : ""}`} style={{ transform: `translate(-50%,-50%) translate(${lb.x}px,${lb.y}px)` }}>{data.bInterface}</span>
         </EdgeLabelRenderer>
       )}
     </>

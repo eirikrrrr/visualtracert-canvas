@@ -93,6 +93,34 @@ export const docker = {
     return JSON.parse(reply.text);
   },
 
+  /** removes an image; Docker refuses while a container uses it */
+  async removeImage(ref: string): Promise<void> {
+    await json("DELETE", `/images/${encodeURIComponent(ref)}`);
+  },
+
+  /** builds an image from a build context (a tar), and says what it printed */
+  async build(tag: string, context: Buffer): Promise<{ ok: boolean; log: string }> {
+    const reply = await new Promise<Reply>((resolve, reject) => {
+      const req = request({
+        socketPath: SOCKET, method: "POST", timeout: 900_000,
+        path: `/build?t=${encodeURIComponent(tag)}&rm=1&forcerm=1`,
+        headers: { "Content-Type": "application/x-tar", "Content-Length": context.length },
+      }, res => {
+        const chunks: Buffer[] = [];
+        res.on("data", chunk => chunks.push(chunk));
+        res.on("end", () => resolve({ status: res.statusCode ?? 0, text: Buffer.concat(chunks).toString("utf8") }));
+        res.on("error", reject);
+      });
+      req.on("timeout", () => req.destroy(new Error("Docker no terminó de construir a tiempo.")));
+      req.on("error", reject);
+      req.end(context);
+    });
+    // a stream of JSON lines: what each step printed, and the error that stopped it
+    const lines = reply.text.split("\n").map(line => { try{ return JSON.parse(line); }catch(_){ return null; } }).filter(Boolean);
+    const log = lines.map(line => line.stream ?? (line.error ? `ERROR: ${line.error}\n` : line.status ? `${line.status}\n` : "")).join("");
+    return { ok: reply.status < 300 && !lines.some(line => line.error), log: log || reply.text };
+  },
+
   async list(labels: Record<string, string>): Promise<ContainerSummary[]> {
     const filters = JSON.stringify({ label: Object.entries(labels).map(([key, value]) => `${key}=${value}`) });
     return json("GET", `/containers/json?all=true&filters=${encodeURIComponent(filters)}`);
@@ -150,6 +178,12 @@ export const docker = {
       req.on("error", reject);
       req.end(data);
     });
+  },
+
+  /** a command left running in a container (a service started at boot) */
+  async execDetached(id: string, cmd: string[]): Promise<void> {
+    const created = await json<{ Id: string }>("POST", `/containers/${id}/exec`, { Cmd: cmd, AttachStdout: false, AttachStderr: false });
+    await json("POST", `/exec/${created.Id}/start`, { Detach: true });
   },
 
   async resize(exec: string, size: { cols: number; rows: number }): Promise<void> {

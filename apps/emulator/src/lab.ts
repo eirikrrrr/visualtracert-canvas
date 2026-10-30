@@ -5,9 +5,10 @@
 // emulator and a lab can always be cleaned up.
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { isIp, spanish, type ImageInfo, type T, type Topology } from "@visual-tracert/model";
+import { IMAGES, isIp, spanish, type ImageId, type ImageInfo, type T, type Topology } from "@visual-tracert/model";
 import { docker, type ContainerSummary } from "./docker";
-import { LABELS, planLab } from "./plan";
+import { LABELS, planLab, type ProfileCatalog } from "./plan";
+import { loadProfiles, profileStatus } from "./profiles";
 
 const run = promisify(execFile);
 /** a host command (ip, nsenter): its error says what failed */
@@ -20,9 +21,13 @@ async function host(args: string[]): Promise<void> {
   }
 }
 
-/** a device's container: small, without a network, stopped at once; it may
- * change its own network (NET_ADMIN, in its namespace only) from its CLI */
-const MEMORY = 96 * 1024 * 1024;
+// a device's container: small, without a network, stopped at once; it may
+// change its own network (NET_ADMIN, in its namespace only) from its CLI
+const MB = 1024 * 1024;
+
+/** whether images that need a privileged container (SR Linux) may run: off
+ * unless the server says so, since a privileged container is root here */
+export const ALLOW_PRIVILEGED = /^(1|true|yes|on)$/i.test(process.env.ALLOW_PRIVILEGED ?? "");
 
 // one change of a lab at a time
 const queues = new Map<string, Promise<unknown>>();
@@ -78,7 +83,9 @@ export function destroy(lab: string): Promise<LabState> {
 /** builds the lab from its topology, after removing what was running */
 export function deploy(lab: string, topology: Topology, t: T = spanish): Promise<LabState & { warnings: string[] }> {
   return serial(lab, async () => {
-    const plan = planLab(lab, topology, t);
+    const profiles: ProfileCatalog = new Map(await Promise.all((await loadProfiles()).map(async profile =>
+      [profile.id, { profile, ready: (await profileStatus(profile)).state === "built" }] as const)));
+    const plan = planLab(lab, topology, t, profiles, { allowPrivileged: ALLOW_PRIVILEGED });
     await removeAll(lab);
     for(const image of new Set(plan.nodes.map(node => node.image))) await docker.ensureImage(image);
     const pids = new Map<string, number>();
@@ -86,10 +93,13 @@ export function deploy(lab: string, topology: Topology, t: T = spanish): Promise
       await Promise.all(plan.nodes.map(async node => {
         const id = await docker.create(node.container, {
           Image: node.image,
-          Cmd: ["sleep", "2147483647"],
+          // a shell kept alive; or what the image runs (a server, a router's daemons)
+          ...(node.run === "sleep" ? { Entrypoint: ["sleep"], Cmd: ["2147483647"] } : node.cmd ? { Cmd: node.cmd } : {}),
+          ...(node.user ? { User: node.user } : {}),
+          ...(node.env ? { Env: node.env } : {}),
           Hostname: node.hostname,
-          Labels: { [LABELS.lab]: lab, [LABELS.device]: node.device, [LABELS.fingerprint]: plan.fingerprint },
-          HostConfig: { NetworkMode: "none", Init: true, Memory: MEMORY, CapAdd: ["NET_ADMIN"] },
+          Labels: { [LABELS.lab]: lab, [LABELS.device]: node.device, [LABELS.fingerprint]: plan.fingerprint, [LABELS.image]: node.imageId },
+          HostConfig: { NetworkMode: "none", Init: node.run === "sleep", Memory: node.memory * MB, CapAdd: ["NET_ADMIN", ...node.caps], Privileged: node.privileged },
         });
         await docker.start(id);
         pids.set(node.device, await docker.pid(id));
@@ -102,6 +112,11 @@ export function deploy(lab: string, topology: Topology, t: T = spanish): Promise
       }
       await Promise.all(plan.nodes.map(node =>
         host(["nsenter", "-t", String(pids.get(node.device)), "-n", "sh", "-ec", node.script.join("\n")])));
+      // what each one starts once wired: left running, it does not hold the deployment
+      await Promise.all(plan.nodes.filter(node => node.startup.length).map(async node => {
+        const container = (await docker.list({ [LABELS.lab]: lab, [LABELS.device]: node.device }))[0];
+        if(container) await docker.execDetached(container.Id, ["/bin/sh", "-c", node.startup.join("\n")]);
+      }));
     }catch(error){
       // whatever was half built goes: the ends still here, and the containers
       await Promise.all(plan.links.map(link => host(["ip", "link", "del", link.a.temp]).catch(() => undefined)));
@@ -150,10 +165,13 @@ export interface Size {
   rows: number;
 }
 
-/** an interactive shell on a device: its login shell, on a terminal */
-export async function openShell(lab: string, device: string, size: Size, t: T = spanish) {
+/** an interactive shell on a device: one of its image's (vtysh on a router,
+ * bash, sh), the first one when none is asked */
+export async function openShell(lab: string, device: string, size: Size, shell: string | undefined, t: T = spanish) {
   const container = await containerOf(lab, device, t);
-  return docker.shell(container.Id, ["/bin/sh", "-l"], size);
+  const image = IMAGES[container.Labels[LABELS.image] as ImageId] ?? IMAGES.alpine;
+  const chosen = image.shells.find(item => item.id === shell) ?? image.shells[0];
+  return docker.shell(container.Id, chosen.cmd, size);
 }
 
 /** what Docker has of an image: none until a lab first pulls it */
@@ -162,6 +180,8 @@ export async function imageStatus(info: ImageInfo) {
   return {
     ...info,
     pulled: Boolean(image),
+    // a privileged one is downloaded, but runs only where the server allows it
+    allowed: !info.privileged || ALLOW_PRIVILEGED,
     ...(image ? {
       imageId: image.Id,
       digest: image.RepoDigests?.[0]?.split("@")[1] ?? null,

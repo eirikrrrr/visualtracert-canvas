@@ -2,15 +2,20 @@
 // whole structure and reports problems with a line when it can, so an
 // invalid document never replaces the topology on the canvas.
 //
-// Version 2 groups the devices in topologies (`topology: [{ id, name,
-// status, color, text, devices: [...] }]`) and has lab `options`; version 1
-// (`devices: [...]` at the root) is still read, as a single topology.
-import { isMap, isSeq, LineCounter, parseDocument, stringify } from "yaml";
+// Version 3 keeps what the network is apart from how it is drawn:
+//   topology: [{ id, name, status, devices: [...] }]   the configuration
+//   links: [...]
+//   canvas: { decorations, topologies: { id: { color, text } }, positions: { id: { x, y } } }
+// Version 2 (colours, notes and positions inside the topologies and devices,
+// `options.decorations`) and version 1 (`devices` at the root, a single
+// topology) are still read.
+import { Document, isMap, isSeq, LineCounter, parseDocument } from "yaml";
 import { spanish, type T } from "./i18n";
 import { CATALOG } from "./catalog";
 import { inCidr, ipToInt, isIp, isMac, parseCidr, randomMac } from "./net";
-import type { Device, DeviceStatus, DeviceType, DhcpPool, DnsRecord, Interface, Link, Route, Services, Topology, TopologyStatus, Zone } from "./types";
-import { decorated, DEVICE_STATUSES, devicesOf, TOPOLOGY_STATUSES, zonesOf } from "./zones";
+import type { Device, DeviceType, DhcpPool, DnsRecord, Interface, Link, Route, Services, Topology, Zone } from "./types";
+import { PROFILE_ID } from "./profiles";
+import { decorated, devicesOf, readStatus, zonesOf } from "./zones";
 
 export type DocFormat = "yaml" | "json";
 
@@ -26,8 +31,8 @@ function devicePlain(device: Device) {
     type: device.type,
     name: device.name,
     ...(device.status ? { status: device.status } : {}),
+    ...(device.profile ? { profile: device.profile } : {}),
     ...(device.description ? { description: device.description } : {}),
-    position: device.position,
     ...(device.gateway ? { gateway: device.gateway } : {}),
     ...(device.dns ? { dns: device.dns } : {}),
     interfaces: device.interfaces.map(iface => ({
@@ -44,28 +49,32 @@ function devicePlain(device: Device) {
 }
 
 function toPlain(topology: Topology) {
+  const zones = zonesOf(topology);
+  const styles = zones.map(zone => [zone.id, {
+    ...(zone.color ? { color: zone.color } : {}),
+    ...(zone.text ? { text: zone.text } : {}),
+    ...(!devicesOf(topology, zone.id).length && zone.position ? { position: zone.position } : {}),
+  }] as const).filter(([, style]) => Object.keys(style).length);
   return {
-    version: 2,
+    version: 3,
     name: topology.name,
     ...(topology.description ? { description: topology.description } : {}),
-    options: { decorations: decorated(topology) },
-    topology: zonesOf(topology).map(zone => {
-      const devices = devicesOf(topology, zone.id);
-      return {
-        id: zone.id,
-        name: zone.name,
-        status: zone.status,
-        ...(zone.color ? { color: zone.color } : {}),
-        ...(zone.text ? { text: zone.text } : {}),
-        ...(!devices.length && zone.position ? { position: zone.position } : {}),
-        devices: devices.map(devicePlain),
-      };
-    }),
+    topology: zones.map(zone => ({
+      id: zone.id,
+      name: zone.name,
+      status: zone.status,
+      devices: devicesOf(topology, zone.id).map(devicePlain),
+    })),
     links: topology.links.map(link => ({
       id: link.id,
       a: `${link.a.device}:${link.a.interface}`,
       b: `${link.b.device}:${link.b.interface}`,
     })),
+    canvas: {
+      decorations: decorated(topology),
+      ...(styles.length ? { topologies: Object.fromEntries(styles) } : {}),
+      positions: Object.fromEntries(topology.devices.map(device => [device.id, device.position])),
+    },
   };
 }
 
@@ -75,8 +84,25 @@ const hasServices = (services: Services | undefined): services is Services =>
 export function serialize(topology: Topology, format: DocFormat): string {
   const plain = toPlain(topology);
   if(format === "json") return JSON.stringify(plain, null, 2) + "\n";
-  return stringify(plain, { indent: 2, lineWidth: 0, flowCollectionPadding: false });
+  // a position per line: { x: 60, y: 300 }
+  const doc = new Document(plain);
+  const positions = doc.getIn(["canvas", "positions"]);
+  if(isMap(positions)) for(const pair of positions.items) if(isMap(pair.value)) pair.value.flow = true;
+  return doc.toString({ indent: 2, lineWidth: 0 });
 }
+
+/** #rrggbb (or #rgb), lower case; undefined when it is not a colour */
+function colorOf(value: unknown): string | undefined {
+  const raw = String(value).trim();
+  const short = raw.match(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i);
+  return short ? `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`.toLowerCase() : /^#[0-9a-f]{6}$/i.test(raw) ? raw.toLowerCase() : undefined;
+}
+
+const pointOf = (value: unknown): { x: number; y: number } | undefined => {
+  if(!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const { x, y } = value as Record<string, unknown>;
+  return Number.isFinite(Number(x)) && Number.isFinite(Number(y)) ? { x: Number(x), y: Number(y) } : undefined;
+};
 
 export type ParseResult = { topology: Topology; problems: [] } | { topology: null; problems: DocProblem[] };
 
@@ -220,14 +246,17 @@ export function parse(text: string, format: DocFormat, t: T = spanish): ParseRes
     const dns = item.dns === undefined || item.dns === "" ? undefined : String(item.dns);
     if(dns && !isIp(dns)) problem(t("\"{id}\": el servidor DNS \"{dns}\" no es válido.", { id, dns }), at("dns"));
     const services = parseServices(item.services, id, (message, ...rest) => problem(message, at("services", ...rest)), t);
-    const status = item.status === undefined || item.status === "" ? undefined : String(item.status) as DeviceStatus;
-    if(status && !DEVICE_STATUSES.includes(status)) problem(t("\"{id}\": status es start o stop.", { id }), at("status"));
+    const status = item.status === undefined || item.status === "" ? undefined : readStatus(item.status, false);
+    if(item.status !== undefined && item.status !== "" && !status) problem(t("\"{id}\": status es up o down (también on/off o true/false).", { id }), at("status"));
+    const profile = item.profile === undefined || item.profile === "" ? undefined : String(item.profile);
+    if(profile && !PROFILE_ID.test(profile)) problem(t("\"{id}\": el perfil \"{profile}\" no es un id de perfil válido.", { id, profile }), at("profile"));
     devices.push({
       id,
       type: CATALOG[type] ? type : "pc",
       name: String(item.name ?? id),
       ...(zone ? { zone } : {}),
-      ...(status && DEVICE_STATUSES.includes(status) ? { status } : {}),
+      ...(status ? { status } : {}),
+      ...(profile && PROFILE_ID.test(profile) ? { profile } : {}),
       position: { x: Number(position.x) || 0, y: Number(position.y) || 0 },
       interfaces,
       ...(gateway && isIp(gateway) ? { gateway } : {}),
@@ -249,21 +278,20 @@ export function parse(text: string, format: DocFormat, t: T = spanish): ParseRes
     const id = String(item.id ?? `topology-${i + 1}`).trim();
     if(zoneIds.has(id)) problem(t("La topología \"{id}\" está repetida.", { id }), at("id"));
     zoneIds.add(id);
-    const status = String(item.status ?? "start") as TopologyStatus;
-    if(!TOPOLOGY_STATUSES.includes(status)) problem(t("Topología \"{id}\": status es start, stop o hybrid.", { id }), at("status"));
+    const status = item.status === undefined ? "up" : readStatus(item.status, true);
+    if(!status) problem(t("Topología \"{id}\": status es up, down o hybrid (también on/off o true/false).", { id }), at("status"));
+    // version 2: its colour and note here
     let color: string | undefined;
     if(item.color !== undefined && item.color !== ""){
-      const raw = String(item.color).trim();
-      const short = raw.match(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i);
-      color = short ? `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`.toLowerCase() : /^#[0-9a-f]{6}$/i.test(raw) ? raw.toLowerCase() : undefined;
-      if(!color) problem(t("Topología \"{id}\": el color \"{color}\" no es válido (ej. #3d7eff).", { id, color: raw }), at("color"));
+      color = colorOf(item.color);
+      if(!color) problem(t("Topología \"{id}\": el color \"{color}\" no es válido (ej. #3d7eff).", { id, color: String(item.color) }), at("color"));
     }
     const position = item.position as Record<string, unknown> | undefined;
     if(item.devices !== undefined && !Array.isArray(item.devices)) problem(t("Topología \"{id}\": devices debe ser una lista.", { id }), at("devices"));
     (Array.isArray(item.devices) ? item.devices : []).forEach((device, j) => parseDevice(device, (...rest) => at("devices", j, ...rest), j, id));
     zones.push({
       id, name: String(item.name ?? id).trim() || id,
-      status: TOPOLOGY_STATUSES.includes(status) ? status : "start",
+      status: status ?? "up",
       ...(color ? { color } : {}),
       ...(item.text ? { text: String(item.text) } : {}),
       ...(position && typeof position === "object" ? { position: { x: Number(position.x) || 0, y: Number(position.y) || 0 } } : {}),
@@ -273,10 +301,45 @@ export function parse(text: string, format: DocFormat, t: T = spanish): ParseRes
   if(root.devices !== undefined && !Array.isArray(root.devices)) problem(t("devices debe ser una lista."), ["devices"]);
   (Array.isArray(root.devices) ? root.devices : []).forEach((raw, index) => parseDevice(raw, (...rest) => ["devices", index, ...rest], index, undefined));
 
+  // how it is drawn: canvas (version 3), or options (version 2)
+  const isObject = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
   const options = root.options as Record<string, unknown> | undefined;
-  if(options !== undefined && (typeof options !== "object" || options === null || Array.isArray(options))) problem(t("options debe ser un objeto (decorations)."), ["options"]);
-  const decorations = options && typeof options === "object" ? options.decorations : undefined;
-  if(decorations !== undefined && typeof decorations !== "boolean") problem(t("options.decorations es true o false."), ["options", "decorations"]);
+  if(options !== undefined && !isObject(options)) problem(t("options debe ser un objeto (decorations)."), ["options"]);
+  const canvas = root.canvas;
+  if(canvas !== undefined && !isObject(canvas)) problem(t("canvas debe ser un objeto (decorations, topologies, positions)."), ["canvas"]);
+  const view = isObject(canvas) ? canvas : {};
+  const decorations = view.decorations ?? (isObject(options) ? options.decorations : undefined);
+  if(decorations !== undefined && typeof decorations !== "boolean") problem(t("canvas.decorations es true o false."), view.decorations !== undefined ? ["canvas", "decorations"] : ["options", "decorations"]);
+
+  const positions = view.positions;
+  if(positions !== undefined && !isObject(positions)) problem(t("canvas.positions debe ser un objeto: id del dispositivo → {x, y}."), ["canvas", "positions"]);
+  for(const [id, value] of Object.entries(isObject(positions) ? positions : {})){
+    const device = devices.find(item => item.id === id);
+    const point = pointOf(value);
+    if(!device) problem(t("canvas.positions: \"{id}\" no es ningún dispositivo.", { id }), ["canvas", "positions", id]);
+    else if(!point) problem(t("canvas.positions: la posición de \"{id}\" es {x, y}.", { id }), ["canvas", "positions", id]);
+    else device.position = point;
+  }
+
+  const styles = view.topologies;
+  if(styles !== undefined && !isObject(styles)) problem(t("canvas.topologies debe ser un objeto: id de la topología → {color, text}."), ["canvas", "topologies"]);
+  for(const [id, value] of Object.entries(isObject(styles) ? styles : {})){
+    const index = zones.findIndex(zone => zone.id === id);
+    const at = ["canvas", "topologies", id];
+    if(index < 0){ problem(t("canvas.topologies: \"{id}\" no es ninguna topología.", { id }), at); continue; }
+    if(!isObject(value)){ problem(t("canvas.topologies: \"{id}\" debe ser un objeto (color, text).", { id }), at); continue; }
+    const zone = { ...zones[index] };
+    if(value.color !== undefined && value.color !== ""){
+      const color = colorOf(value.color);
+      if(color) zone.color = color;
+      else problem(t("Topología \"{id}\": el color \"{color}\" no es válido (ej. #3d7eff).", { id, color: String(value.color) }), [...at, "color"]);
+    }
+    if(value.text !== undefined) zone.text = String(value.text) || undefined;
+    if(!zone.text) delete zone.text;
+    const point = pointOf(value.position);
+    if(point) zone.position = point;
+    zones[index] = zone;
+  }
 
   const links: Link[] = [];
   const linkIds = new Set<string>();
@@ -303,7 +366,7 @@ export function parse(text: string, format: DocFormat, t: T = spanish): ParseRes
   if(problems.length) return { topology: null, problems };
   return {
     topology: {
-      version: 2, name: String(root.name ?? t("Laboratorio sin título")),
+      version: 3, name: String(root.name ?? t("Laboratorio sin título")),
       ...(root.description ? { description: String(root.description) } : {}),
       ...(decorations === false ? { options: { decorations: false } } : {}),
       ...(zones.length ? { zones } : {}),

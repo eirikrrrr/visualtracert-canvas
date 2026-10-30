@@ -65,12 +65,51 @@ describe("planLab", () => {
   });
 
   it("builds only what the topologies start, and the cables between it", () => {
-    const hybrid = updateDevice(updateZone(exampleTopology(), "internet", zone => ({ ...zone, status: "hybrid" })), "dns", device => ({ ...device, status: "start" }));
+    const hybrid = updateDevice(updateZone(exampleTopology(), "internet", zone => ({ ...zone, status: "hybrid" })), "dns", device => ({ ...device, status: "up" }));
     const plan = planLab("lab", hybrid);
     expect(plan.nodes.map(item => item.device)).toContain("dns");
     expect(plan.nodes.map(item => item.device)).not.toContain("isp");
     expect(plan.links.some(link => link.a.device === "isp" || link.b.device === "isp")).toBe(false);
     expect(plan.warnings.join(" ")).toMatch(/No se inician.*ISP/);
+  });
+
+  it("runs each image as it needs, and a device's profile once it is built", () => {
+    const topology = updateDevice(updateDevice(open("lan-basica"), "pc-1", device => ({ ...device, type: "frr", profile: "frr-ospf" })), "pc-2", device => ({ ...device, profile: "ubuntu-red" }));
+    const profile = (id: string, base: "frr" | "ubuntu") => ({ id, name: id, base, packages: [], setup: [], startup: ["echo hola"] });
+    const plan = planLab("lab", topology, undefined, new Map([
+      ["frr-ospf", { profile: profile("frr-ospf", "frr"), ready: true }],
+      ["ubuntu-red", { profile: profile("ubuntu-red", "ubuntu"), ready: false }],
+    ]));
+    const frr = node(plan, "pc-1");
+    expect(frr).toMatchObject({ image: "visual-tracert/profile-frr-ospf:latest", imageId: "frr", run: "image", caps: ["SYS_ADMIN"], memory: 160 });
+    expect(frr.startup).toEqual(["touch /etc/frr/vtysh.conf", "echo hola"]);
+    // not built: the image of its type, and a warning
+    expect(node(plan, "pc-2")).toMatchObject({ image: "alpine:3.20", run: "sleep" });
+    expect(plan.warnings.join(" ")).toMatch(/ubuntu-red.*no está construido/);
+  });
+
+  it("configures SR Linux through sr_cli, and runs it only where privileged containers are allowed", () => {
+    const topology = updateDevice(open("cadena-routers"), "r2", device => ({
+      ...device, type: "srlinux",
+      interfaces: device.interfaces.map((iface, i) => ({ ...iface, name: `e1-${i + 1}` })),
+    }));
+    const fixed = { ...topology, links: topology.links.map(link => ({
+      ...link,
+      a: link.a.device === "r2" ? { ...link.a, interface: `e1-${Number(link.a.interface.split("/")[1]) + 1}` } : link.a,
+      b: link.b.device === "r2" ? { ...link.b, interface: `e1-${Number(link.b.interface.split("/")[1]) + 1}` } : link.b,
+    })) };
+    const refused = planLab("lab", fixed);
+    expect(refused.nodes.map(item => item.device)).not.toContain("r2");
+    expect(refused.warnings.join(" ")).toMatch(/privilegiado.*R2|privilegiado.*Router 2/);
+    const plan = planLab("lab", fixed, undefined, undefined, { allowPrivileged: true });
+    const r2 = node(plan, "r2");
+    expect(r2).toMatchObject({ privileged: true, imageId: "srlinux", user: "0", memory: 2048 });
+    // no Linux addresses: they go in through its CLI
+    expect(r2.script.join("\n")).not.toContain("ip addr add");
+    const startup = r2.startup.join("\n");
+    expect(startup).toMatch(/set \/ interface ethernet-1\/1 subinterface 0 ipv4 address 10\.0\.12\.2\/30/);
+    expect(startup).toMatch(/static-routes route 172\.16\.\d\.0\/24 next-hop-group vt-1/);
+    expect(startup).toContain("sr_cli source /tmp/visual-tracert.cfg");
   });
 
   it("quotes what comes from the document", () => {

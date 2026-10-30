@@ -26,16 +26,40 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
   rectángulo de color alrededor de ellos, con nombre, color, texto y estado. Se crean con «Nueva
   topología», se arrastran por su título con sus dispositivos y un dispositivo soltado dentro de otra
   pasa a ella. `options.decorations: false` deja de dibujarlas.
-- Estado de cada topología para la emulación: `start` (todos sus dispositivos), `stop` (ninguno) o
-  `hybrid` (solo los que tengan `status: start`). Lo que no se inicia se ve atenuado en Emulación.
+- Estado de cada topología para la emulación: `up` (todos sus dispositivos), `down` (ninguno) o
+  `hybrid` (solo los que tengan `status: up`); también se aceptan on/off y true/false. Lo que no
+  se inicia se ve atenuado en Emulación.
 
+- Marketplace (botón en la barra del lienzo): FRRouting (router real con vtysh), netshoot, NGINX,
+  Ubuntu, Debian y BusyBox, todas para arm64 y amd64. Se descargan en el servidor y sus dispositivos
+  aparecen en «Añadir dispositivo»; se pueden quitar.
+- Perfiles de imagen: una imagen con tus paquetes (apk o apt), comandos al construir y comandos al
+  arrancar el laboratorio. Se construyen como imagen local; un dispositivo elige el suyo
+  (`profile:`). Incluye puntos de partida: Ubuntu/Debian con red, FRR con OSPF y BGP, Alpine con
+  tcpdump.
+- La CLI elige entre las shells de la imagen (vtysh, bash, zsh, sh).
+- Los cables muestran la interfaz de cada extremo (se ocultan al alejar mucho el zoom), siempre fuera
+  del dispositivo, sin tapar su nombre ni su dirección.
+- La ventana de un dispositivo se puede abrir en una ventana del navegador aparte de la pestaña, para
+  ver varios dispositivos a la vez.
+- Captura de tráfico real (herramienta C, pestaña «Captura» de la ventana de un dispositivo o desde
+  las propiedades de un cable): tcpdump en el espacio de red del dispositivo, los paquetes
+  decodificados en la página (Ethernet, VLAN, ARP, IPv4/IPv6, ICMP, UDP, TCP, DNS, DHCP, HTTP) con
+  sus capas y bytes, y descarga en .pcap para Wireshark.
+- Nokia SR Linux en el Marketplace: sus direcciones y rutas se aplican con sr_cli. Necesita un
+  contenedor privilegiado, que el emulador solo permite con `ALLOW_PRIVILEGED=1`.
+- Sistemas de fabricantes en el Marketplace (Cisco, Juniper, Arista, MikroTik, Huawei, Dell): por
+  qué no se pueden descargar aquí y la vía oficial para conseguir cada uno.
+- Los dispositivos con un perfil de imagen lo muestran en una etiqueta bajo su nombre.
+- DESIGN.md: el diseño de la web.
 - Editor del documento: plegar y desplegar secciones del YAML/JSON desde el margen, buscar
   (Ctrl+F), ver el mensaje de un error al pasar por encima y resaltado de corchetes.
 
 ### Cambiado
-- Documento versión 2: los dispositivos van dentro de `topology:` (cada elemento, una topología con
-  sus `devices`) y hay `options`. Los documentos de la versión 1 (`devices:` en la raíz) se siguen
-  leyendo, como una sola topología.
+- Documento versión 3: la configuración (`topology:`, cada elemento una topología con sus
+  `devices`, y `links`) va aparte de cómo se dibuja (`canvas:` con `decorations`, el color y el texto
+  de cada topología en `topologies` y `positions` de los dispositivos). Los documentos de las
+  versiones 1 y 2 se siguen leyendo.
 - En las propiedades de un dispositivo, la imagen va primero; en «Añadir dispositivo», cada grupo
   está cerrado hasta que se abre (al buscar se abren los que tienen resultados).
 - Los contenedores de los laboratorios tienen `NET_ADMIN` (solo en su propio espacio de red), para

@@ -8,15 +8,16 @@
 // switch (or access point) is a Linux bridge with each port in its access
 // VLAN. DHCP, DNS and web services are not emulated yet: they come back as
 // warnings. Each device runs as the image of its type (a generic one, as
-// Alpine Linux). Only the devices their topology starts are built (all of a
-// started one, those with status start of a hybrid one), with the cables
-// between them.
-import { fnv1a, imageOf, isStarted, networkFingerprint, parseCidr, roleOf, sameSubnet, spanish, type Device, type Interface, type Role, type T, type Topology } from "@visual-tracert/model";
+// Alpine Linux), or as the image of its profile when it has a built one.
+// Only the devices their topology starts are built (all of a started one,
+// those with status start of a hybrid one), with the cables between them.
+import { fnv1a, IMAGES, imageOf, isStarted, networkFingerprint, profileTag, type ImageId, type ImageProfile, parseCidr, roleOf, sameSubnet, spanish, type Device, type Interface, type Role, type T, type Topology } from "@visual-tracert/model";
 
 export const LABELS = {
   lab: "visual-tracert.lab",
   device: "visual-tracert.device",
   fingerprint: "visual-tracert.fingerprint",
+  image: "visual-tracert.image",
 } as const;
 
 export interface NodePlan {
@@ -24,8 +25,24 @@ export interface NodePlan {
   name: string;
   role: Role;
   container: string;
-  /** what Docker runs it as ("alpine:3.20") */
+  /** what Docker runs it as ("alpine:3.20", or a profile's local image) */
   image: string;
+  /** the catalog image it is (a profile's base): how it runs, its shells */
+  imageId: ImageId;
+  profile?: string;
+  /** "sleep": kept alive doing nothing; "image": its own command */
+  run: "sleep" | "image";
+  /** capabilities beyond NET_ADMIN */
+  caps: string[];
+  privileged: boolean;
+  /** its command, user and environment, when not the image's own */
+  cmd?: string[];
+  user?: string;
+  env?: string[];
+  /** memory, in MB */
+  memory: number;
+  /** shell commands run inside it once it is wired */
+  startup: string[];
   hostname: string;
   /** shell lines run inside the device's network namespace, in order */
   script: string[];
@@ -73,12 +90,24 @@ export function ifnameOf(name: string, taken: Set<string>): string {
   return candidate;
 }
 
-export function planLab(lab: string, topology: Topology, t: T = spanish): Plan {
-  const started = topology.devices.filter(device => isStarted(topology, device));
+/** the profiles a lab can use, and whether each one's image is built as it says */
+export type ProfileCatalog = Map<string, { profile: ImageProfile; ready: boolean }>;
+
+/** what the server allows: privileged containers (a network OS that needs it) */
+export interface PlanOptions {
+  allowPrivileged?: boolean;
+}
+
+export function planLab(lab: string, topology: Topology, t: T = spanish, profiles: ProfileCatalog = new Map(), options: PlanOptions = {}): Plan {
+  // a privileged image runs only where the server allows it
+  const refused = topology.devices.filter(device => isStarted(topology, device) && imageOf(device.type).privileged && !options.allowPrivileged);
+  const started = topology.devices.filter(device => isStarted(topology, device) && !refused.includes(device));
   const devices = new Map(started.map(device => [device.id, device]));
   const warnings: string[] = [];
   const idle = topology.devices.filter(device => !devices.has(device.id));
-  if(idle.length) warnings.push(t("No se inician por el estado de su topología: {devices}.", { devices: idle.map(device => device.name).join(", ") }));
+  const asleep = idle.filter(device => !refused.includes(device));
+  if(asleep.length) warnings.push(t("No se inician por el estado de su topología: {devices}.", { devices: asleep.map(device => device.name).join(", ") }));
+  if(refused.length) warnings.push(t("No se inician porque necesitan un contenedor privilegiado y este servidor no lo permite (ALLOW_PRIVILEGED=1 en el emulador): {devices}.", { devices: refused.map(device => device.name).join(", ") }));
 
   // the Linux name of every port, in the order the device lists them
   const ifnames = new Map(started.map(device => {
@@ -109,17 +138,85 @@ export function planLab(lab: string, topology: Topology, t: T = spanish): Plan {
         `ip link set dev ${end.ifname} alias ${quote(iface.name)}`,
       );
     }
-    if(role === "switch") script.push(...bridgeScript(ports.map(port => port.iface), port => ports.find(item => item.iface === port)!.end.ifname));
+    const own = imageOf(device.type);
+    if(own.config === "srlinux") script.push(...ports.map(({ end }) => `ip link set ${end.ifname} up`));
+    else if(role === "switch") script.push(...bridgeScript(ports.map(port => port.iface), port => ports.find(item => item.iface === port)!.end.ifname));
     else script.push(...addressScript(device, role, ports, warnings, t));
+    // its profile, if there is one ready; if not, the image of its type
+    const chosen = device.profile ? profiles.get(device.profile) : undefined;
+    if(device.profile && !chosen) warnings.push(t("{device}: el perfil \"{profile}\" no existe en este servidor: usa {image}.", { device: device.name, profile: device.profile, image: imageOf(device.type).name }));
+    else if(chosen && !chosen.ready) warnings.push(t("{device}: el perfil \"{profile}\" no está construido (o cambió): usa {image}. Constrúyelo en el Marketplace.", { device: device.name, profile: chosen.profile.name, image: imageOf(device.type).name }));
+    const profile = chosen?.ready ? chosen.profile : undefined;
+    const image = profile ? IMAGES[profile.base] : imageOf(device.type);
     return {
       device: device.id, name: device.name, role, script,
       container: containerName(lab, device.id),
-      image: imageOf(device.type).ref,
+      image: profile ? profileTag(profile.id) : image.ref,
+      imageId: image.id,
+      ...(profile ? { profile: profile.id } : {}),
+      run: image.run,
+      caps: image.caps ?? [],
+      privileged: Boolean(image.privileged),
+      ...(image.cmd ? { cmd: image.cmd } : {}),
+      ...(image.user ? { user: image.user } : {}),
+      ...(image.env ? { env: image.env } : {}),
+      memory: image.memory ?? 96,
+      startup: [
+        ...(image.startup ?? []),
+        ...(image.config === "srlinux" ? srlinuxStartup(device, role, ports.map(port => port.iface), warnings, t) : []),
+        ...(profile?.startup ?? []),
+      ],
       hostname: slug(device.name, 63),
     };
   });
 
   return { lab, fingerprint: networkFingerprint(topology), nodes, links, warnings };
+}
+
+// SR Linux: its ports are e1-N (ethernet-1/N in its CLI); its addresses and
+// routes go in through sr_cli once it has booted and sees its ports
+export const srlinuxPort = (name: string) => name.match(/^e(\d+)-(\d+)$/)?.slice(1).join("/");
+
+export function srlinuxConfig(device: Device, role: Role, ports: Interface[], warnings: string[], t: T): string[] {
+  const lines = ["enter candidate"];
+  for(const iface of ports){
+    const port = srlinuxPort(iface.name);
+    if(!port){ warnings.push(t("{device}: {iface} no es un puerto de SR Linux (e1-1, e1-2…): no se configura.", { device: device.name, iface: iface.name })); continue; }
+    if(!iface.ip || !iface.prefix) continue;
+    const name = `ethernet-${port}`;
+    lines.push(
+      `set / interface ${name} admin-state enable`,
+      `set / interface ${name} subinterface 0 ipv4 admin-state enable`,
+      `set / interface ${name} subinterface 0 ipv4 address ${iface.ip}/${iface.prefix}`,
+      `set / network-instance default interface ${name}.0`,
+    );
+  }
+  if(role === "router"){
+    (device.routes ?? []).forEach((route, i) => {
+      const cidr = parseCidr(route.prefix)!;
+      lines.push(
+        `set / network-instance default next-hop-groups group vt-${i + 1} nexthop 1 ip-address ${route.via}`,
+        `set / network-instance default static-routes route ${cidr.network}/${cidr.prefix} next-hop-group vt-${i + 1}`,
+      );
+    });
+  }
+  lines.push("commit now");
+  return lines;
+}
+
+function srlinuxStartup(device: Device, role: Role, ports: Interface[], warnings: string[], t: T): string[] {
+  const config = srlinuxConfig(device, role, ports, warnings, t);
+  if(config.length <= 2) return [];
+  const first = ports.map(iface => srlinuxPort(iface.name)).find(Boolean);
+  return [
+    "cat > /tmp/visual-tracert.cfg <<'VTCFG'",
+    ...config,
+    "VTCFG",
+    // booted: its CLI answers, and it sees its first port
+    "for i in $(seq 1 120); do sr_cli -c 'show version' 2>/dev/null | grep -q 'Software Version *: v' && break; sleep 2; done",
+    ...(first ? [`for i in $(seq 1 60); do sr_cli -c 'show interface ethernet-${first}' 2>/dev/null | grep -q 'is up\\|is down' && break; sleep 2; done`] : []),
+    "sr_cli source /tmp/visual-tracert.cfg > /tmp/visual-tracert.log 2>&1",
+  ];
 }
 
 // a switch: one bridge, every cabled port in it, in its access VLAN

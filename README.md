@@ -106,6 +106,16 @@ través del nginx del editor (`/api`) y, para desarrollo, en `127.0.0.1:9151`. L
 laboratorio llevan la etiqueta `visual-tracert.lab` y se pueden borrar con
 `docker rm -f $(docker ps -aq --filter label=visual-tracert.lab)`.
 
+Los perfiles de imagen se guardan en el volumen `emulator-data` y se construyen con Docker en este
+servidor: sus comandos se ejecutan como `RUN` con acceso a Internet. FRRouting necesita además
+`SYS_ADMIN` dentro de su contenedor. Nokia SR Linux necesita un contenedor privilegiado (root en
+este equipo): el emulador solo lo permite si se arranca con `ALLOW_PRIVILEGED=1 docker compose up -d`.
+
+La captura de tráfico ejecuta tcpdump desde el emulador en el espacio de red del dispositivo, con
+el filtro validado, y la corta a los 64 MB.
+
+El diseño de la web (temas, tokens, componentes, lienzo e interacción) está en [DESIGN.md](DESIGN.md).
+
 La CLI de cada dispositivo es una shell de root dentro de su contenedor (sin red propia, 96 MB de
 memoria, con `NET_ADMIN` solo en su espacio de red), por WebSocket en
 `/api/labs/:lab/devices/:device/shell`. No hay usuarios: quien alcance el puerto 9150 alcanza esas

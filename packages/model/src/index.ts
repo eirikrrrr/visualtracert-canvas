@@ -5,6 +5,7 @@ export * from "./types";
 export * from "./net";
 export * from "./catalog";
 export * from "./images";
+export * from "./profiles";
 export * from "./document";
 export * from "./topology";
 export * from "./zones";

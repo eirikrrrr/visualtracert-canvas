@@ -18,7 +18,7 @@ export const SIDE_DEFAULT = 380;
 export const SIDE_MIN = 320;
 
 export type Selection = { kind: "device" | "link" | "zone"; id: string } | null;
-export type Tool = "select" | "ping";
+export type Tool = "select" | "ping" | "capture";
 /** simulation: the network is modelled here; emulation: real containers */
 export type Mode = "simulation" | "emulation";
 /** how a run is played back: at once ("realtime") or frame by frame at a speed */
@@ -101,7 +101,11 @@ export interface DeviceWindow {
   device: string;
   x: number;
   y: number;
-  tab: "properties" | "cli";
+  tab: "properties" | "cli" | "capture";
+  /** the port a capture was asked on (a cable clicked with the capture tool) */
+  capture?: string;
+  /** in a window of its own of the browser, outside this page */
+  detached?: boolean;
 }
 
 export interface Toast {
@@ -141,6 +145,8 @@ interface State {
   adding: boolean;
   /** the gallery of ready-made labs is open */
   gallery: boolean;
+  /** the Marketplace is open, on its images or on the profiles */
+  marketplace: "images" | "profiles" | null;
   /** device windows, the last one on top */
   windows: DeviceWindow[];
   /** width of the side panel, and whether it covers the canvas */
@@ -165,7 +171,8 @@ interface State {
   /** a new lab with a copy of a template */
   openTemplate: (id: string) => void;
   setGallery: (open: boolean) => void;
-  openWindow: (device: string, tab?: DeviceWindow["tab"]) => void;
+  setMarketplace: (open: State["marketplace"]) => void;
+  openWindow: (device: string, tab?: DeviceWindow["tab"], detached?: boolean, capture?: string) => void;
   closeWindow: (device: string) => void;
   /** brings it to the top; with changes, also moves it or changes its tab */
   raiseWindow: (device: string, change?: Partial<Omit<DeviceWindow, "device">>) => void;
@@ -267,6 +274,7 @@ export const useStore = create<State>((set, get) => ({
   toast: null,
   adding: false,
   gallery: false,
+  marketplace: null,
   windows: [],
   sideWidth: loadSideWidth(),
   sideFull: false,
@@ -324,12 +332,13 @@ export const useStore = create<State>((set, get) => ({
     get().notify(t("Abierto «{name}» como laboratorio nuevo.", { name: t(template.name) }), "ok");
   },
   setGallery: gallery => set({ gallery }),
-  openWindow: (device, tab) => {
+  setMarketplace: marketplace => set({ marketplace }),
+  openWindow: (device, tab, detached, capture) => {
     const open = get().windows.find(item => item.device === device);
-    if(open){ get().raiseWindow(device, tab ? { tab } : undefined); return; }
+    if(open){ get().raiseWindow(device, { ...(tab ? { tab } : {}), ...(detached !== undefined ? { detached } : {}), ...(capture !== undefined ? { capture } : {}) }); return; }
     // each one a little apart from the last opened
     const n = get().windows.length % 6;
-    set({ windows: [...get().windows, { device, x: 72 + n * 28, y: 56 + n * 28, tab: tab ?? "properties" }] });
+    set({ windows: [...get().windows, { device, x: 72 + n * 28, y: 56 + n * 28, tab: tab ?? "properties", ...(detached ? { detached } : {}), ...(capture !== undefined ? { capture } : {}) }] });
   },
   closeWindow: device => set({ windows: get().windows.filter(item => item.device !== device) }),
   raiseWindow: (device, change) => {

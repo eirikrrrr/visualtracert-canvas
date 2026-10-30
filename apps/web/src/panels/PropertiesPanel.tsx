@@ -11,15 +11,16 @@ import { addZone, CATALOG, decorated, DEVICE_STATUSES, devicesOf, GROUPS, isStar
 import { addressOf } from "../sim/engine";
 import { Field } from "./Field";
 import { ImageCard } from "./ImageCard";
+import { openCapture } from "../editor/Canvas";
 import { STATUS_LABEL } from "../editor/ZoneNode";
 import type { DeviceStatus, TopologyStatus, Zone } from "@visual-tracert/model";
 
 const NEW_ZONE = "+new";
-const DEVICE_STATUS_LABEL: Record<DeviceStatus, string> = { start: tx("start: se inicia"), stop: tx("stop: no se inicia") };
+const DEVICE_STATUS_LABEL: Record<DeviceStatus, string> = { up: tx("up: se inicia"), down: tx("down: no se inicia") };
 const STATUS_HELP: Record<TopologyStatus, string> = {
-  start: tx("Se inician todos sus dispositivos."),
-  stop: tx("No se inicia ninguno de sus dispositivos."),
-  hybrid: tx("Solo se inician los dispositivos con status: start."),
+  up: tx("Se inician todos sus dispositivos."),
+  down: tx("No se inicia ninguno de sus dispositivos."),
+  hybrid: tx("Solo se inician los dispositivos con status: up."),
 };
 
 const checkIp = (value: string) => (!value || isIp(value) ? null : translate("Escribe una dirección IPv4, por ejemplo 192.168.1.1."));
@@ -64,6 +65,10 @@ export function DeviceProperties({ device, topology, windowed = false }: { devic
             aria-label={t("Abrir en una ventana")} onClick={() => useStore.getState().openWindow(device.id)}>
             <Icon name="undock" size={17} />
           </button>
+          <button type="button" className="icon-button" title={t("Abrir en una ventana del navegador, aparte de esta pestaña")}
+            aria-label={t("Abrir en una ventana del navegador")} onClick={() => useStore.getState().openWindow(device.id, undefined, true)}>
+            <Icon name="external" size={17} />
+          </button>
         </div>
       )}
 
@@ -103,8 +108,8 @@ export function DeviceProperties({ device, topology, windowed = false }: { devic
           </select>
           <small className="field-hint">
             {zone?.status === "hybrid"
-              ? (isStarted(topology, device) ? t("Su topología es híbrida: se inicia.") : t("Su topología es híbrida: sin status: start no se inicia."))
-              : t("Solo cuenta si su topología es híbrida (ahora: {status}).", { status: t(STATUS_LABEL[zone?.status ?? "start"]).toLowerCase() })}
+              ? (isStarted(topology, device) ? t("Su topología es híbrida: se inicia.") : t("Su topología es híbrida: sin status: up no se inicia."))
+              : t("Solo cuenta si su topología es híbrida (ahora: {status}).", { status: t(STATUS_LABEL[zone?.status ?? "up"]).toLowerCase() })}
           </small>
         </div>
       </div>
@@ -332,6 +337,12 @@ function LinkProperties({ link, topology }: { link: Link; topology: Topology }) 
       <div className="props-title"><div><h2>{t("Cable {id}", { id: link.id })}</h2><span className="muted small">{t("Cambia el puerto de cada extremo.")}</span></div></div>
       {end("a")}
       {end("b")}
+      <div className="props-actions">
+        <button type="button" className="ghost" title={t("Captura el tráfico real del cable (en Emulación)")}
+          onClick={() => openCapture(link.a.device, link.a.interface)}>
+          <Icon name="capture" size={16} />{t("Capturar tráfico en este cable")}
+        </button>
+      </div>
     </div>
   );
 }

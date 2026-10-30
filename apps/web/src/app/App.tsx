@@ -6,10 +6,12 @@ import { Canvas, FIT } from "../editor/Canvas";
 import { DocumentPanel } from "../panels/DocumentPanel";
 import { LogPanel } from "../panels/LogPanel";
 import { TemplateGallery } from "../panels/TemplateGallery";
+import { Marketplace } from "../panels/Marketplace";
 import { Palette } from "../panels/Palette";
 import { PropertiesPanel } from "../panels/PropertiesPanel";
 import { DeviceWindows } from "../panels/DeviceWindow";
 import { EmulationPanel } from "../emulation/EmulationPanel";
+import { useImages } from "../emulation/images";
 import { SimulationPanel } from "../panels/SimulationPanel";
 import { Toolbar } from "../panels/Toolbar";
 import { TopBar } from "../panels/TopBar";
@@ -34,8 +36,8 @@ function Shortcuts() {
     const onKey = (event: KeyboardEvent) => {
       if(typing(event.target)) return;
       const state = useStore.getState();
-      // the gallery is a modal dialog: its own keys only
-      if(state.gallery) return;
+      // the gallery and the Marketplace are modal dialogs: their own keys only
+      if(state.gallery || state.marketplace) return;
       const key = event.key.toLowerCase();
       if((event.ctrlKey || event.metaKey) && key === "z"){ event.preventDefault(); event.shiftKey ? state.redo() : state.undo(); return; }
       if((event.ctrlKey || event.metaKey) && key === "y"){ event.preventDefault(); state.redo(); return; }
@@ -49,6 +51,7 @@ function Shortcuts() {
       else if(key === "l"){ event.preventDefault(); state.toggleLog(); }
       else if(key === "v") state.setTool("select");
       else if(key === "p") state.setTool("ping");
+      else if(key === "c") state.setTool("capture");
       else if(key === "f") flow.fitView({ ...FIT, duration: 300 });
       else if(state.run && (key === "arrowright" || key === "arrowleft")){
         state.setPlaying(false);
@@ -198,6 +201,8 @@ export function App() {
   const sideFull = useStore(state => state.sideFull);
   const sideFloating = useStore(state => state.sideFloating);
   useEffect(() => { document.body.dataset.theme = theme; }, [theme]);
+  // what images this server has: the palette offers their devices
+  useEffect(() => { void useImages.getState().refresh(); }, []);
 
   return (
     <ReactFlowProvider>
@@ -210,6 +215,12 @@ export function App() {
             <Canvas />
             <Toolbar />
             <Palette />
+            {tool === "capture" && (
+              <div className="banner" role="status">
+                {t("Haz clic en un cable para capturar en él, o en un dispositivo para todas sus interfaces.")}
+                <button type="button" className="link" onClick={() => useStore.getState().setTool("select")}>{t("Cancelar")}</button>
+              </div>
+            )}
             {tool === "ping" && (
               <div className="banner" role="status">
                 {pingFrom ? t("Haz clic en el equipo de destino.") : t("Haz clic en el equipo que hace el ping.")}
@@ -225,6 +236,7 @@ export function App() {
         </main>
       </div>
       <TemplateGallery />
+      <Marketplace />
     </ReactFlowProvider>
   );
 }

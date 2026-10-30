@@ -1,4 +1,4 @@
-// Left toolbar: tools (select, ping), delete, view and history.
+// Left toolbar: tools (select, ping, capture), delete, view and history.
 import { useReactFlow } from "@xyflow/react";
 import { useMovable } from "../app/movable";
 import { deleteSelection, useStore } from "../app/store";
@@ -34,6 +34,8 @@ export function Toolbar() {
       <Grip {...movable.grip} label={t("Mover la barra de herramientas")} />
       <Tool icon="select" label={t("Seleccionar y mover")} keys="V" active={tool === "select"} onClick={() => setTool("select")} />
       <Tool icon="ping" label={t("Ping: clic en el origen y luego en el destino")} keys="P" active={tool === "ping"} onClick={() => setTool(tool === "ping" ? "select" : "ping")} />
+      <Tool icon="capture" label={t("Captura de tráfico: clic en un cable (o en un dispositivo, todas sus interfaces)")} keys="C" active={tool === "capture"}
+        onClick={() => setTool(tool === "capture" ? "select" : "capture")} />
       <Tool icon="trash" label={t("Eliminar la selección")} keys={t("Supr")} disabled={!selection} onClick={deleteSelection} />
       <span className="toolbar-sep" />
       <Tool icon="zoomIn" label={t("Acercar")} onClick={() => flow.zoomIn({ duration: 200 })} />

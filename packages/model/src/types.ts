@@ -3,6 +3,13 @@
 
 export type DeviceType =
   | "alpine"
+  | "ubuntu"
+  | "debian"
+  | "busybox"
+  | "nginx"
+  | "netshoot"
+  | "frr"
+  | "srlinux"
   | "router"
   | "switch"
   | "firewall"
@@ -60,10 +67,11 @@ export interface Services {
   http?: boolean;
 }
 
-/** How a topology comes up in the emulation: all its devices, none of them,
- * or (hybrid) only those whose status is "start". */
-export type TopologyStatus = "start" | "stop" | "hybrid";
-export type DeviceStatus = "start" | "stop";
+/** How a topology comes up in the emulation: all its devices (up), none of
+ * them (down), or (hybrid) only those whose status is up. The document also
+ * takes on/off, true/false (and start/stop, of earlier versions). */
+export type TopologyStatus = "up" | "down" | "hybrid";
+export type DeviceStatus = "up" | "down";
 
 /**
  * One of the topologies of a lab ("topology" in the document): a group of
@@ -90,6 +98,8 @@ export interface Device {
   zone?: string;
   /** whether it starts when its topology is hybrid */
   status?: DeviceStatus;
+  /** the image profile it runs as in the emulation; none, its type's image */
+  profile?: string;
   position: { x: number; y: number };
   interfaces: Interface[];
   /** default gateway of an end device */
@@ -119,7 +129,7 @@ export interface LabOptions {
 }
 
 export interface Topology {
-  version: 2;
+  version: 3;
   name: string;
   /** what the lab is about and what to try in it */
   description?: string;

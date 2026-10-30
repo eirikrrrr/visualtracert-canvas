@@ -4,20 +4,32 @@
 //   PUT    /api/labs/:lab           deploy it: the topology document (JSON)
 //   DELETE /api/labs/:lab           remove it
 //   POST   /api/labs/:lab/run       { device, command, target? } on a device
-//   GET    /api/images/:image       an image: what it is, and what Docker has of it
-//   WS     /api/labs/:lab/devices/:device/shell?cols=&rows=
+//   GET    /api/images              every image of the catalog, and what Docker has of each
+//   GET    /api/images/:image       one of them
+//   POST   /api/images/:image/pull  download it (Marketplace)
+//   DELETE /api/images/:image       remove it from this server
+//   GET    /api/profiles            the image profiles, each with its state
+//   PUT    /api/profiles/:id        save one (checked as the model says)
+//   POST   /api/profiles/:id/build  build its image: { ok, log, state }
+//   DELETE /api/profiles/:id        remove it, and its image
+//   WS     /api/labs/:lab/devices/:device/shell?cols=&rows=&shell=
 //          the device's CLI: binary frames are what the terminal reads and
 //          writes; text frames are {"type":"resize",cols,rows} from the page
 //          and {"type":"error",message} to it
+//   WS     /api/labs/:lab/devices/:device/capture?iface=&filter=
+//          a traffic capture on a port ("any": all): binary frames are pcap
+//          (its header first); text frames {"type":"status"|"error",message}
 // Messages come in the language the request asks for (Accept-Language, or
 // ?lang= on the WebSocket). The topology comes as the editor's JSON document
 // and is checked by the same parser as the editor.
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
-import { IMAGES, parse, translator, type ImageId, type Lang, type T } from "@visual-tracert/model";
+import { checkProfile, IMAGES, parse, PROFILE_ID, translator, type ImageId, type Lang, type T } from "@visual-tracert/model";
 import { version } from "../../../package.json";
-import { docker } from "./docker";
+import { CAPTURE_LIMIT, CaptureError, startCapture } from "./capture";
+import { docker, DockerError } from "./docker";
+import { buildProfile, loadProfiles, profileStatus, removeProfile, saveProfile } from "./profiles";
 import { COMMANDS, deploy, destroy, execute, imageStatus, openShell, status, type Command, type Size } from "./lab";
 
 const MAX_BODY = 2 * 1024 * 1024;
@@ -67,12 +79,63 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     return;
   }
 
-  const image = url.pathname.match(/^\/api\/images\/([^/]+)$/);
-  if(image && method === "GET"){
-    const info = IMAGES[decodeURIComponent(image[1]) as ImageId];
-    if(!info || !Object.hasOwn(IMAGES, image[1])) throw new HttpError(404, t("No existe esa imagen."));
+  // the catalog of images: what is downloaded, the Marketplace's downloads
+  if(url.pathname === "/api/images" && method === "GET"){
+    send(res, 200, await Promise.all(Object.values(IMAGES).map(imageStatus)));
+    return;
+  }
+  const image = url.pathname.match(/^\/api\/images\/([^/]+)(\/pull)?$/);
+  if(image){
+    const id = decodeURIComponent(image[1]);
+    if(!Object.hasOwn(IMAGES, id)) throw new HttpError(404, t("No existe esa imagen."));
+    const info = IMAGES[id as ImageId];
+    if(image[2]){
+      if(method !== "POST") throw new HttpError(405, "POST");
+      await docker.ensureImage(info.ref);
+    }else if(method === "DELETE"){
+      if(info.builtin) throw new HttpError(400, t("{image} viene con la app: no se puede quitar.", { image: info.name }));
+      try{
+        await docker.removeImage(info.ref);
+      }catch(error){
+        if(error instanceof DockerError && error.status === 409) throw new HttpError(409, t("{image} está en uso: detén los laboratorios que la usan.", { image: info.name }));
+        if(!(error instanceof DockerError && error.status === 404)) throw error;
+      }
+    }else if(method !== "GET") throw new HttpError(405, method);
     send(res, 200, await imageStatus(info));
     return;
+  }
+
+  // the image profiles
+  if(url.pathname === "/api/profiles" && method === "GET"){
+    send(res, 200, await Promise.all((await loadProfiles()).map(profileStatus)));
+    return;
+  }
+  const profile = url.pathname.match(/^\/api\/profiles\/([^/]+)(\/build)?$/);
+  if(profile){
+    const id = decodeURIComponent(profile[1]);
+    if(!PROFILE_ID.test(id)) throw new HttpError(400, t("El id del perfil va en minúsculas, números y guiones (hasta 40)."));
+    const saved = async () => (await loadProfiles()).find(item => item.id === id);
+    if(profile[2]){
+      if(method !== "POST") throw new HttpError(405, "POST");
+      const current = await saved();
+      if(!current) throw new HttpError(404, t("No existe ese perfil."));
+      const built = await buildProfile(current);
+      send(res, 200, { ...built, ...(await profileStatus(current)) });
+      return;
+    }
+    if(method === "PUT"){
+      const checked = checkProfile({ ...(await bodyOf(req) as object), id }, t);
+      if(!checked.profile) throw new HttpError(400, checked.problems.join(" "));
+      await saveProfile(checked.profile);
+      send(res, 200, await profileStatus(checked.profile));
+      return;
+    }
+    if(method === "DELETE"){
+      await removeProfile(id);
+      send(res, 200, { removed: id });
+      return;
+    }
+    throw new HttpError(405, method);
   }
 
   const match = url.pathname.match(/^\/api\/labs\/([^/]+)(\/run)?$/);
@@ -99,14 +162,14 @@ async function route(req: IncomingMessage, res: ServerResponse) {
   throw new HttpError(405, method);
 }
 
-const SHELL = /^\/api\/labs\/([^/]+)\/devices\/([^/]+)\/shell$/;
+const SHELL = /^\/api\/labs\/([^/]+)\/devices\/([^/]+)\/(shell|capture)$/;
 const sizeOf = (cols: unknown, rows: unknown): Size => ({
   cols: Math.min(Math.max(Math.round(Number(cols)) || 80, 20), 400),
   rows: Math.min(Math.max(Math.round(Number(rows)) || 24, 5), 200),
 });
 
 /** a page's terminal joined to a shell on the device, until either ends */
-async function attachShell(socket: WebSocket, lab: string, device: string, size: Size, t: T) {
+async function attachShell(socket: WebSocket, lab: string, device: string, size: Size, shell: string | undefined, t: T) {
   const fail = (message: string) => {
     socket.send(JSON.stringify({ type: "error", message }));
     socket.close(1011);
@@ -117,7 +180,7 @@ async function attachShell(socket: WebSocket, lab: string, device: string, size:
   socket.on("message", (data, binary) => handle(data as Buffer, binary));
   let session;
   try{
-    session = await openShell(lab, device, size, t);
+    session = await openShell(lab, device, size, shell, t);
   }catch(error){
     fail((error as Error).message);
     return;
@@ -143,6 +206,35 @@ async function attachShell(socket: WebSocket, lab: string, device: string, size:
   socket.on("close", end);
 }
 
+/** a capture streamed to the page, until it closes it (or the limit) */
+async function attachCapture(socket: WebSocket, lab: string, device: string, iface: string, filter: string, t: T) {
+  const say = (type: "status" | "error", message: string) => { if(socket.readyState === socket.OPEN) socket.send(JSON.stringify({ type, message })); };
+  let tcpdump;
+  try{
+    tcpdump = await startCapture(lab, device, iface, filter, t);
+  }catch(error){
+    say("error", error instanceof CaptureError ? error.message : (error as Error).message);
+    socket.close(1011);
+    return;
+  }
+  let sent = 0;
+  tcpdump.stdout.on("data", (chunk: Buffer) => {
+    if(socket.readyState !== socket.OPEN) return;
+    socket.send(chunk);
+    sent += chunk.length;
+    if(sent > CAPTURE_LIMIT){ say("status", t("Captura detenida: llegó al límite de {mb} MB.", { mb: CAPTURE_LIMIT / 1024 / 1024 })); tcpdump.kill("SIGTERM"); }
+  });
+  // what tcpdump says ("listening on…", or why it could not)
+  tcpdump.stderr.on("data", (chunk: Buffer) => {
+    for(const line of chunk.toString("utf8").split("\n").map(item => item.trim()).filter(Boolean)){
+      say(/^tcpdump: (listening|verbose)/.test(line) || /packets? (captured|received|dropped)/.test(line) ? "status" : "error", line.replace(/^tcpdump: /, ""));
+    }
+  });
+  tcpdump.on("close", () => socket.close(1000));
+  tcpdump.on("error", error => { say("error", error.message); socket.close(1011); });
+  socket.on("close", () => { if(tcpdump.exitCode === null) tcpdump.kill("SIGTERM"); });
+}
+
 function refuse(socket: Duplex, status: number, text: string) {
   socket.end(`HTTP/1.1 ${status} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
 }
@@ -164,7 +256,14 @@ export function startServer(port: number) {
     if(!LAB_ID.test(lab) || !device || device.length > 128){ refuse(socket, 400, "Bad Request"); return; }
     const t = translator(langOf(req, url));
     const size = sizeOf(url.searchParams.get("cols"), url.searchParams.get("rows"));
-    shells.handleUpgrade(req, socket, head, ws => { void attachShell(ws, lab, device, size, t); });
+    if(match[3] === "capture"){
+      const iface = (url.searchParams.get("iface") ?? "any").slice(0, 64);
+      const filter = url.searchParams.get("filter") ?? "";
+      shells.handleUpgrade(req, socket, head, ws => { void attachCapture(ws, lab, device, iface, filter, t); });
+      return;
+    }
+    const shell = url.searchParams.get("shell") ?? undefined;
+    shells.handleUpgrade(req, socket, head, ws => { void attachShell(ws, lab, device, size, shell, t); });
   });
   server.listen(port, () => console.log(`visual-tracert emulator ${version} on :${port}`));
   return server;

@@ -17,7 +17,7 @@ const THEME = {
   brightBlack: "#5c6678", brightRed: "#ff8787", brightGreen: "#7ee2a8", brightYellow: "#ffd479", brightBlue: "#8fbcff", brightMagenta: "#dab2ff", brightCyan: "#86e1f0", brightWhite: "#ffffff",
 };
 
-export function DeviceShell({ lab, device }: { lab: string; device: string }) {
+export function DeviceShell({ lab, device, shell }: { lab: string; device: string; shell?: string }) {
   const t = useT();
   const box = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<Status>({ kind: "connecting" });
@@ -37,7 +37,7 @@ export function DeviceShell({ lab, device }: { lab: string; device: string }) {
     refit();
 
     setStatus({ kind: "connecting" });
-    const socket = new WebSocket(emulator.shellUrl(lab, device, { cols: term.cols, rows: term.rows }));
+    const socket = new WebSocket(emulator.shellUrl(lab, device, { cols: term.cols, rows: term.rows }, shell));
     socket.binaryType = "arraybuffer";
     const encoder = new TextEncoder();
     let failure: string | undefined;
@@ -59,8 +59,10 @@ export function DeviceShell({ lab, device }: { lab: string; device: string }) {
     const resized = term.onResize(size => {
       if(socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "resize", cols: size.cols, rows: size.rows }));
     });
-    // the window resized, or shown again after another tab
-    const observer = new ResizeObserver(refit);
+    // the window resized, or shown again after another tab (it may be a
+    // window of its own: its own observer)
+    const Observer = element.ownerDocument.defaultView?.ResizeObserver ?? ResizeObserver;
+    const observer = new Observer(refit);
     observer.observe(element);
     return () => {
       observer.disconnect();
@@ -68,7 +70,7 @@ export function DeviceShell({ lab, device }: { lab: string; device: string }) {
       socket.close();
       term.dispose();
     };
-  }, [lab, device, session]);
+  }, [lab, device, shell, session]);
 
   return (
     <div className="shell">

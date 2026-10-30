@@ -7,7 +7,7 @@ import { ZONE_COLORS, type TopologyStatus, type Zone } from "@visual-tracert/mod
 import { memo, type CSSProperties } from "react";
 import { tx, useT } from "../i18n";
 
-export const STATUS_LABEL: Record<TopologyStatus, string> = { start: tx("Iniciada"), stop: tx("Detenida"), hybrid: tx("Híbrida") };
+export const STATUS_LABEL: Record<TopologyStatus, string> = { up: tx("Iniciada"), down: tx("Detenida"), hybrid: tx("Híbrida") };
 
 export type ZoneNodeData = {
   zone: Zone;

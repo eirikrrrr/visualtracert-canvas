@@ -1,9 +1,12 @@
 // The windows of devices (a double click on one): over the canvas, moved by
-// their title, resized by their corner, one per device. Each has the device's
-// properties (with its image) and its CLI: the shell of its container, in the
-// emulated lab. The CLI stays open while the other tab is shown.
+// their title, resized by their corner, one per device; or each in a window
+// of the browser of its own, to look at several devices side by side. Each
+// has the device's properties (with its image) and its CLI: the shell of its
+// container, in the emulated lab. The CLI stays open while the other tab is
+// shown.
 import { CATALOG, GROUPS, imageOf, isStarted, networkFingerprint, zoneOf, type Device } from "@visual-tracert/model";
-import { useEffect, useMemo, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useId, useMemo, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { runningImage, useImages } from "../emulation/images";
 import { followPointer } from "../app/movable";
 import { useStore, type DeviceWindow as WindowState } from "../app/store";
 import { Icon } from "../editor/icons";
@@ -11,6 +14,8 @@ import { DeviceShell } from "../emulation/DeviceShell";
 import { useEmulation } from "../emulation/store";
 import { useT } from "../i18n";
 import { DeviceProperties } from "./PropertiesPanel";
+import { Popup } from "./Popup";
+import { CaptureView } from "../capture/CaptureView";
 
 export function DeviceWindows() {
   const windows = useStore(state => state.windows);
@@ -33,7 +38,11 @@ function DeviceWindowView({ state, device, layer }: { state: WindowState; device
   const topology = useStore(store => store.topology);
   // the CLI starts the first time its tab is shown, and stays
   const [cliShown, setCliShown] = useState(state.tab === "cli");
-  useEffect(() => { if(state.tab === "cli") setCliShown(true); }, [state.tab]);
+  const [captureShown, setCaptureShown] = useState(state.tab === "capture");
+  useEffect(() => {
+    if(state.tab === "cli") setCliShown(true);
+    if(state.tab === "capture") setCaptureShown(true);
+  }, [state.tab]);
   const store = useStore.getState;
   const kind = CATALOG[device.type];
   const group = GROUPS.find(item => item.id === kind.group)!;
@@ -56,19 +65,26 @@ function DeviceWindowView({ state, device, layer }: { state: WindowState; device
   const tabs: { id: WindowState["tab"]; label: string }[] = [
     { id: "properties", label: t("Propiedades") },
     { id: "cli", label: t("CLI") },
+    { id: "capture", label: t("Captura") },
   ];
 
-  return (
-    <section className="device-window" role="dialog" aria-label={t("{device}: propiedades y CLI", { device: device.name })}
-      style={{ left: state.x, top: state.y, zIndex: 20 + layer }}
-      onPointerDownCapture={() => { if(layer !== store().windows.length - 1) store().raiseWindow(device.id); }}>
-      <header className="dw-head" onPointerDown={move} title={t("Arrastra para mover la ventana")}>
+  const detached = Boolean(state.detached);
+  const view = (
+    <section className={`device-window${detached ? " detached" : ""}`} role="dialog" aria-label={t("{device}: propiedades y CLI", { device: device.name })}
+      style={detached ? undefined : { left: state.x, top: state.y, zIndex: 20 + layer }}
+      onPointerDownCapture={() => { if(!detached && layer !== store().windows.length - 1) store().raiseWindow(device.id); }}>
+      <header className="dw-head" onPointerDown={detached ? undefined : move} title={detached ? undefined : t("Arrastra para mover la ventana")}>
         <span className="dw-icon"><Icon name={device.type} size={20} /></span>
         <div className="dw-title">
           <strong>{device.name}</strong>
           <span className="muted small">{t(kind.label)} · <span className="mono">{imageOf(device.type).ref}</span></span>
         </div>
         <span className={`tag tag-${group.id}`}>{t(group.label)}</span>
+        <button type="button" className="icon-button" onClick={() => store().raiseWindow(device.id, { detached: !detached })}
+          aria-label={detached ? t("Devolver a la página") : t("Abrir en una ventana del navegador")}
+          title={detached ? t("Devolver a la página (sobre el lienzo)") : t("Abrir en una ventana del navegador, aparte de esta pestaña")}>
+          <Icon name={detached ? "dock" : "external"} size={17} />
+        </button>
         <button type="button" className="icon-button" aria-label={t("Cerrar")} title={t("Cerrar (cierra también su CLI)")}
           onClick={() => store().closeWindow(device.id)}>
           <Icon name="close" size={17} />
@@ -78,7 +94,7 @@ function DeviceWindowView({ state, device, layer }: { state: WindowState; device
         {tabs.map(item => (
           <button key={item.id} type="button" role="tab" aria-selected={state.tab === item.id} className={state.tab === item.id ? "active" : ""}
             onClick={() => store().raiseWindow(device.id, { tab: item.id })}>
-            {item.id === "cli" && <Icon name="emulation" size={15} />}{item.label}
+            {item.id === "cli" && <Icon name="emulation" size={15} />}{item.id === "capture" && <Icon name="capture" size={15} />}{item.label}
           </button>
         ))}
       </div>
@@ -88,12 +104,21 @@ function DeviceWindowView({ state, device, layer }: { state: WindowState; device
       <div className="dw-body dw-cli" hidden={state.tab !== "cli"}>
         {cliShown && <DeviceCli device={device} />}
       </div>
+      <div className="dw-body dw-cli" hidden={state.tab !== "capture"}>
+        {captureShown && <DeviceCli device={device} capture={state.capture ?? ""} />}
+      </div>
     </section>
+  );
+  if(!detached) return view;
+  return (
+    <Popup name={`visual-tracert-${device.id}`} title={`${device.name} · visual-tracert`} onClose={() => store().closeWindow(device.id)}>
+      {view}
+    </Popup>
   );
 }
 
-/** the CLI, or what it takes to have one: the emulation, the lab deployed */
-function DeviceCli({ device }: { device: Device }) {
+/** the CLI (or a capture), or what it takes to have one: the emulation, the lab deployed */
+function DeviceCli({ device, capture }: { device: Device; capture?: string }) {
   const t = useT();
   const mode = useStore(state => state.mode);
   const labId = useStore(state => state.labId);
@@ -106,7 +131,11 @@ function DeviceCli({ device }: { device: Device }) {
 
   const deployed = Boolean(lab?.deployed && lab.lab === labId);
   const running = deployed && lab!.devices.some(item => item.device === device.id && item.state === "running");
-  const image = imageOf(device.type);
+  const profiles = useImages(state => state.profiles);
+  const image = runningImage(imageOf(device.type).id, device.profile, profiles);
+  const [shell, setShell] = useState(image.shells[0].id);
+  const shellId = useId();
+  const chosenShell = image.shells.some(item => item.id === shell) ? shell : image.shells[0].id;
 
   if(!emulating){
     return (
@@ -124,8 +153,8 @@ function DeviceCli({ device }: { device: Device }) {
     return (
       <div className="dw-note">
         <p>{zone?.status === "hybrid"
-          ? t("{device} no se inicia: su topología «{zone}» es híbrida y solo inicia los dispositivos con status: start.", { device: device.name, zone: zone.name })
-          : t("{device} no se inicia: su topología «{zone}» está detenida (status: stop).", { device: device.name, zone: zone?.name ?? "" })}</p>
+          ? t("{device} no se inicia: su topología «{zone}» es híbrida y solo inicia los dispositivos con status: up.", { device: device.name, zone: zone.name })
+          : t("{device} no se inicia: su topología «{zone}» está detenida (status: down).", { device: device.name, zone: zone?.name ?? "" })}</p>
         <button type="button" className="ghost" onClick={() => useStore.getState().select({ kind: "device", id: device.id })}>
           {t("Ver sus propiedades")}
         </button>
@@ -146,6 +175,8 @@ function DeviceCli({ device }: { device: Device }) {
       </div>
     );
   }
+  // the same conditions, and the capture instead of the shell
+  if(capture !== undefined) return <CaptureView lab={labId} device={device} topology={topology} iface={capture || undefined} />;
   return (
     <>
       <p className="muted small dw-cli-help">
@@ -155,7 +186,15 @@ function DeviceCli({ device }: { device: Device }) {
         {" "}{t("Prueba: ip addr, ip route, ping, traceroute.")}
       </p>
       {lab?.fingerprint !== fingerprint && <p className="emu-note">{t("La topología cambió desde el despliegue: vuelve a desplegar para aplicar los cambios.")}</p>}
-      <DeviceShell lab={labId} device={device.id} />
+      {image.shells.length > 1 && (
+        <div className="shell-pick">
+          <label htmlFor={shellId} className="muted small">{t("CLI")}</label>
+          <select id={shellId} className="mono" value={chosenShell} onChange={event => setShell(event.target.value)}>
+            {image.shells.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+          </select>
+        </div>
+      )}
+      <DeviceShell lab={labId} device={device.id} shell={chosenShell} />
     </>
   );
 }

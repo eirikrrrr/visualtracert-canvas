@@ -14,12 +14,69 @@ describe("document", () => {
 
   it("writes the devices inside their topologies, and reads the first version", () => {
     const text = serialize(exampleTopology(), "yaml");
-    expect(text).toMatch(/^topology:\n  - id: internet\n    name: Internet\n    status: start\n    color: "#0fa5b5"/m);
+    expect(text).toMatch(/^topology:\n  - id: internet\n    name: Internet\n    status: up\n    devices:/m);
     expect(text).not.toMatch(/^devices:/m);
-    expect(text).toContain("options:\n  decorations: true");
+    // how it is drawn, apart: one position per line
+    expect(text).toMatch(/^canvas:\n  decorations: true\n  topologies:\n    internet:\n      color: "#0fa5b5"/m);
+    expect(text).toContain("    pc-1: { x: 60, y: 300 }");
+    expect(text).not.toMatch(/^\s+position:/m);
     const old = parse("version: 1\nname: Viejo\ndevices:\n  - id: pc\n    type: pc\n    interfaces:\n      - name: eth0\n", "yaml");
     expect(old.topology?.devices.map(device => device.id)).toEqual(["pc"]);
     expect(serialize(old.topology!, "yaml")).toMatch(/topology:\n  - id: topology-1\n    name: Viejo/);
+  });
+
+  it("reads version 2: colours, notes and positions inside, options at the root", () => {
+    const text = [
+      "version: 2",
+      "options: { decorations: false }",
+      "topology:",
+      "  - id: lan",
+      "    status: hybrid",
+      "    color: \"#abc\"",
+      "    text: Nota",
+      "    devices:",
+      "      - id: pc",
+      "        type: pc",
+      "        status: on",
+      "        profile: mi-ubuntu",
+      "        position: { x: 10, y: 20 }",
+    ].join("\n");
+    const topology = parse(text, "yaml").topology!;
+    expect(topology.zones).toEqual([{ id: "lan", name: "lan", status: "hybrid", color: "#aabbcc", text: "Nota" }]);
+    expect(topology.devices[0]).toMatchObject({ position: { x: 10, y: 20 }, status: "up", profile: "mi-ubuntu", zone: "lan" });
+    expect(topology.options).toEqual({ decorations: false });
+  });
+
+  it("takes up/down, on/off, true/false and the old start/stop as statuses", () => {
+    const doc = (topology: string, device: string) => parse(`topology:\n  - id: t\n    status: ${topology}\n    devices:\n      - id: pc\n        type: pc\n        status: ${device}\n`, "yaml").topology!;
+    expect(doc("off", "true").zones![0].status).toBe("down");
+    expect(doc("true", "on").devices[0].status).toBe("up");
+    expect(doc("start", "stop")).toMatchObject({ zones: [{ status: "up" }], devices: [{ status: "down" }] });
+    expect(doc("hybrid", "false").devices[0].status).toBe("down");
+    // written as up and down
+    expect(serialize(doc("on", "off"), "yaml")).toMatch(/status: up\n    devices:\n      - id: pc\n        type: pc\n        name: pc\n        status: down/);
+  });
+
+  it("checks the canvas", () => {
+    const text = [
+      "topology:",
+      "  - id: lan",
+      "    devices:",
+      "      - id: pc",
+      "        type: pc",
+      "canvas:",
+      "  positions:",
+      "    pc: here",
+      "    ghost: { x: 1, y: 2 }",
+      "  topologies:",
+      "    nope: { color: red }",
+    ].join("\n");
+    const result = parse(text, "yaml");
+    const messages = result.problems.map(problem => problem.message).join("\n");
+    expect(messages).toMatch(/"pc" es \{x, y\}/);
+    expect(messages).toMatch(/"ghost" no es ningún dispositivo/);
+    expect(messages).toMatch(/"nope" no es ninguna topología/);
+    expect(result.problems.find(problem => /ghost/.test(problem.message))?.line).toBe(9);
   });
 
   it("checks the topologies, their status and the options", () => {
@@ -37,9 +94,9 @@ describe("document", () => {
     ].join("\n");
     const messages = parse(text, "yaml").problems.map(problem => problem.message).join("\n");
     expect(messages).toMatch(/decorations/);
-    expect(messages).toMatch(/start, stop o hybrid/);
+    expect(messages).toMatch(/up, down o hybrid/);
     expect(messages).toMatch(/color "blue"/);
-    expect(messages).toMatch(/status es start o stop/);
+    expect(messages).toMatch(/status es up o down/);
     expect(messages).toMatch(/"a" está repetida/);
   });
 
@@ -127,9 +184,9 @@ describe("topologies", () => {
     const base = exampleTopology();
     const started = (topology: typeof base) => topology.devices.filter(device => isStarted(topology, device)).map(device => device.id);
     expect(started(base)).toHaveLength(base.devices.length);
-    const stopped = updateZone(base, "internet", zone => ({ ...zone, status: "stop" }));
+    const stopped = updateZone(base, "internet", zone => ({ ...zone, status: "down" }));
     expect(started(stopped)).not.toContain("isp");
-    const hybrid = updateDevice(updateZone(base, "internet", zone => ({ ...zone, status: "hybrid" })), "dns", device => ({ ...device, status: "start" }));
+    const hybrid = updateDevice(updateZone(base, "internet", zone => ({ ...zone, status: "hybrid" })), "dns", device => ({ ...device, status: "up" }));
     expect(started(hybrid)).toContain("dns");
     expect(started(hybrid)).not.toContain("isp");
     // what starts is part of the network the emulator builds

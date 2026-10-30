@@ -43,6 +43,21 @@ export const CATALOG: Record<DeviceType, DeviceKind> = {
   alpine: { type: "alpine", label: tx("Alpine Linux"), role: "host", ports: range("eth", 0, 3), namePrefix: tx("Alpine"),
     description: tx("Contenedor Alpine Linux real: shell, ip, ping y traceroute de BusyBox."), keywords: tx("alpine linux contenedor docker imagen oficial busybox shell"),
     group: "images", image: "alpine" },
+  // the Marketplace's: shown once downloaded on this server
+  ubuntu: { type: "ubuntu", label: tx("Ubuntu"), role: "host", ports: range("eth", 0, 3), namePrefix: tx("Ubuntu"),
+    description: tx("Contenedor Ubuntu 24.04 con bash y apt."), keywords: tx("ubuntu linux contenedor apt bash"), group: "images", image: "ubuntu" },
+  debian: { type: "debian", label: tx("Debian"), role: "host", ports: range("eth", 0, 3), namePrefix: tx("Debian"),
+    description: tx("Contenedor Debian 12 con bash y apt."), keywords: tx("debian linux contenedor apt bash"), group: "images", image: "debian" },
+  busybox: { type: "busybox", label: tx("BusyBox"), role: "host", ports: range("eth", 0, 3), namePrefix: tx("BusyBox"),
+    description: tx("El contenedor más pequeño: sh, ip y ping."), keywords: tx("busybox minimo contenedor"), group: "images", image: "busybox" },
+  nginx: { type: "nginx", label: tx("NGINX"), role: "host", ports: range("eth", 0, 1), namePrefix: tx("NGINX"),
+    description: tx("Servidor web NGINX real en el puerto 80."), keywords: tx("nginx servidor web http"), group: "images", image: "nginx" },
+  netshoot: { type: "netshoot", label: tx("netshoot"), role: "host", ports: range("eth", 0, 3), namePrefix: tx("netshoot"),
+    description: tx("Herramientas de diagnóstico de red: tcpdump, mtr, iperf3, nmap…"), keywords: tx("netshoot diagnostico tcpdump nmap iperf"), group: "images", image: "netshoot" },
+  srlinux: { type: "srlinux", label: tx("Nokia SR Linux"), role: "router", ports: range("e1-", 1, 8), namePrefix: tx("SRL"),
+    description: tx("Router y switch de Nokia, con su CLI sr_cli."), keywords: tx("nokia sr linux srl router nos sr_cli enrutador"), group: "images", image: "srlinux" },
+  frr: { type: "frr", label: tx("FRRouting"), role: "router", ports: range("eth", 0, 7), namePrefix: tx("FRR"),
+    description: tx("Router FRRouting real con vtysh (OSPF, BGP, RIP…)."), keywords: tx("frr frrouting router ospf bgp vtysh enrutador"), group: "images", image: "frr" },
   router: { type: "router", label: tx("Router"), role: "router", ports: range("Gi0/", 0, 3), namePrefix: tx("Router"),
     description: tx("Enruta entre redes con rutas estáticas."), keywords: tx("enrutador gateway capa 3 l3"), ...generic },
   switch: { type: "switch", label: tx("Switch"), role: "switch", ports: range("Fa0/", 1, 8), namePrefix: tx("Switch"),
@@ -66,7 +81,7 @@ export const CATALOG: Record<DeviceType, DeviceKind> = {
 };
 
 /** The order of the device palette */
-export const PALETTE: DeviceType[] = ["alpine", "pc", "laptop", "server", "phone", "iot", "switch", "ap", "router", "firewall", "cloud"];
+export const PALETTE: DeviceType[] = ["alpine", "frr", "srlinux", "netshoot", "nginx", "ubuntu", "debian", "busybox", "pc", "laptop", "server", "phone", "iot", "switch", "ap", "router", "firewall", "cloud"];
 
 export const roleOf = (type: DeviceType): Role => CATALOG[type]?.role ?? "host";
 

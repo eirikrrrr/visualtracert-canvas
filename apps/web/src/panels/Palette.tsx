@@ -2,7 +2,10 @@
 // types, by group (official images first, then the generic ones), each group
 // closed until it is opened (a search opens those with matches), with a
 // search box: click, Enter or drag one onto the canvas to add it. It goes to
-// the topology it lands in. "Nueva topología" adds an empty one.
+// the topology it lands in. The images group has the images this server has
+// (Alpine, and what was downloaded from the Marketplace). "Marketplace"
+// opens the catalog of images and profiles; "Nueva topología" adds an empty
+// topology.
 // The list floats over the canvas on the side of the bar with more room, so
 // it stays in view wherever the bar was moved. The bar has room for more tools.
 import { useReactFlow } from "@xyflow/react";
@@ -14,7 +17,8 @@ import { DEVICE_DRAG_TYPE } from "../editor/Canvas";
 import { TILE } from "../editor/DeviceNode";
 import { Icon } from "../editor/icons";
 import { Grip } from "./Grip";
-import { addDevice, addZone, CATALOG, GROUPS, PALETTE, zonesOf, type DeviceGroup, type DeviceType } from "@visual-tracert/model";
+import { addDevice, addZone, CATALOG, GROUPS, imageOf, PALETTE, zonesOf, type DeviceGroup, type DeviceType } from "@visual-tracert/model";
+import { installed, useImages } from "../emulation/images";
 import { ZONE_EMPTY, zoneForNew } from "../editor/zones";
 
 const GAP = 8;
@@ -54,9 +58,11 @@ export function Palette() {
   const { screenToFlowPosition } = useReactFlow();
   const setOpen = (value: boolean) => useStore.getState().setAdding(value);
 
+  const images = useImages(state => state.images);
   const matches = useMemo(() => {
     const words = plain(query).split(/\s+/).filter(Boolean);
-    const found = PALETTE.filter(type => {
+    // the images not downloaded are in the Marketplace, not here
+    const found = PALETTE.filter(type => CATALOG[type].group !== "images" || installed(imageOf(type), images)).filter(type => {
       const kind = CATALOG[type];
       const group = GROUPS.find(item => item.id === kind.group)!;
       // in the language shown and in Spanish, the words most labs use
@@ -65,7 +71,7 @@ export function Palette() {
     });
     // in the order the groups are shown, so the arrows go down the list
     return GROUPS.flatMap(group => found.filter(type => CATALOG[type].group === group.id));
-  }, [query, t]);
+  }, [query, t, images]);
   const searching = query.trim() !== "";
   const isOpen = (group: DeviceGroup) => searching || opened.has(group);
   const toggle = (group: DeviceGroup) => setOpened(previous => {
@@ -170,6 +176,11 @@ export function Palette() {
                       </button>
                     );
                   })}
+                  {expanded && group.id === "images" && (
+                    <button type="button" className="link small add-more" onClick={() => { setOpen(false); useStore.getState().setMarketplace("images"); }}>
+                      <Icon name="store" size={15} />{t("Más imágenes en el Marketplace…")}
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -183,6 +194,10 @@ export function Palette() {
         <button type="button" className={`bar-button${open ? " active" : ""}`} aria-expanded={open} aria-haspopup="dialog"
           title={t("Añadir dispositivo (A)")} onClick={() => setOpen(!open)}>
           <Icon name="plus" size={18} />{t("Añadir dispositivo")}
+        </button>
+        <button type="button" className="bar-button" title={t("Marketplace: descarga imágenes y crea perfiles con tus paquetes")}
+          onClick={() => { setOpen(false); useStore.getState().setMarketplace("images"); }}>
+          <Icon name="store" size={18} />{t("Marketplace")}
         </button>
         <button type="button" className="bar-button" title={t("Nueva topología: un grupo de dispositivos con su rectángulo")} onClick={addTopology}>
           <Icon name="topology" size={18} />{t("Nueva topología")}

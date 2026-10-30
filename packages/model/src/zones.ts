@@ -8,15 +8,30 @@ import type { Device, DeviceStatus, Topology, TopologyStatus, Zone } from "./typ
 /** the colours offered for a topology; any other #rrggbb is valid too */
 export const ZONE_COLORS = ["#3d7eff", "#22a06b", "#e2832b", "#d64545", "#9b6dff", "#0fa5b5", "#d4a017", "#7a8699"];
 
-export const TOPOLOGY_STATUSES: TopologyStatus[] = ["start", "stop", "hybrid"];
-export const DEVICE_STATUSES: DeviceStatus[] = ["start", "stop"];
+export const TOPOLOGY_STATUSES: TopologyStatus[] = ["up", "down", "hybrid"];
+export const DEVICE_STATUSES: DeviceStatus[] = ["up", "down"];
+
+// what the document may write for each: up/down, on/off, true/false (a YAML
+// boolean too), and start/stop as earlier versions wrote them
+const UP = ["up", "on", "true", "yes", "start"];
+const DOWN = ["down", "off", "false", "no", "stop"];
+
+/** A status as written in the document, as one of ours; undefined if it is none. */
+export function readStatus(value: unknown, hybrid: true): TopologyStatus | undefined;
+export function readStatus(value: unknown, hybrid: false): DeviceStatus | undefined;
+export function readStatus(value: unknown, hybrid: boolean): TopologyStatus | undefined {
+  const text = String(value).trim().toLowerCase();
+  if(UP.includes(text)) return "up";
+  if(DOWN.includes(text)) return "down";
+  return hybrid && text === "hybrid" ? "hybrid" : undefined;
+}
 
 const IMPLICIT = "topology-1";
 
 /** The topologies as they are drawn and written: the implicit one, if that. */
 export function zonesOf(topology: Topology): Zone[] {
   if(topology.zones?.length) return topology.zones;
-  return topology.devices.length ? [{ id: IMPLICIT, name: topology.name, status: "start" }] : [];
+  return topology.devices.length ? [{ id: IMPLICIT, name: topology.name, status: "up" }] : [];
 }
 
 /** The topology a device belongs to: its own, or the first one. */
@@ -36,8 +51,8 @@ export function materialize(topology: Topology): Topology {
 
 /** Whether the emulation brings the device up. */
 export function isStarted(topology: Topology, device: Device): boolean {
-  const status = zoneOf(topology, device)?.status ?? "start";
-  return status === "start" || (status === "hybrid" && device.status === "start");
+  const status = zoneOf(topology, device)?.status ?? "up";
+  return status === "up" || (status === "hybrid" && device.status === "up");
 }
 
 export const decorated = (topology: Topology): boolean => topology.options?.decorations !== false;
@@ -58,7 +73,7 @@ export function addZone(topology: Topology, name: string, position: { x: number;
   const base = materialize(topology);
   const used = new Set(base.zones!.map(zone => zone.color));
   const zone: Zone = {
-    id: freeZoneId(base), name, status: "start",
+    id: freeZoneId(base), name, status: "up",
     color: ZONE_COLORS.find(color => !used.has(color)) ?? ZONE_COLORS[base.zones!.length % ZONE_COLORS.length],
     position: { x: Math.round(position.x), y: Math.round(position.y) },
   };

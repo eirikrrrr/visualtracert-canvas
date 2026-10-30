@@ -22,6 +22,13 @@ import { DEVICE_BOX, zoneAt, zoneForNew, zoneRects, type ZoneRect } from "./zone
 type AppNode = DeviceNodeType | ZoneNodeType;
 const isZone = (id: string) => id.startsWith(ZONE_NODE);
 
+/** a capture on a device's port, in its window (the emulation is where it runs) */
+export function openCapture(device: string, iface: string) {
+  const state = useStore.getState();
+  if(state.mode !== "emulation") state.notify(t("La captura es de tráfico real: cambia a Emulación y despliega el laboratorio."));
+  state.openWindow(device, "capture", undefined, iface);
+}
+
 export const DEVICE_DRAG_TYPE = "application/x-visual-device";
 // a lab of one or two devices is not blown up to fill the canvas
 export const FIT = { padding: 0.2, maxZoom: 1.2 };
@@ -189,6 +196,8 @@ export function Canvas() {
       if(state.tool === "select") state.select({ kind: "zone", id: node.id.slice(ZONE_NODE.length) });
       return;
     }
+    // the capture tool on a device: all its ports
+    if(state.tool === "capture"){ openCapture(node.id, "any"); return; }
     if(state.tool !== "ping"){ state.select({ kind: "device", id: node.id }); return; }
     const device = state.topology.devices.find(item => item.id === node.id);
     if(!state.pingFrom){
@@ -217,6 +226,8 @@ export function Canvas() {
   }, []);
 
   const onEdgeClick = useCallback<EdgeMouseHandler<LinkEdgeType>>((_, edge) => {
+    // the capture tool on a cable: the port of one of its ends
+    if(useStore.getState().tool === "capture"){ openCapture(edge.source, edge.data!.aInterface); return; }
     useStore.getState().select({ kind: "link", id: edge.id });
   }, []);
 
