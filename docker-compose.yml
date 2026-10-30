@@ -1,8 +1,12 @@
+# One service per app of the repository (apps/*), built from its root so
+# each one sees the shared packages (packages/*).
 services:
   web:
-    build: .
-    image: visor-tracert:latest
-    container_name: visor-tracert
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: visual-tracert:latest
+    container_name: visual-tracert
     restart: unless-stopped
     # every address of the host: reachable from the other machines of the LAN
     ports:

@@ -83,3 +83,20 @@ El objetivo es crear una plataforma independiente que combine la accesibilidad e
 No se pretende realizar una copia de implementaciones propietarias existentes, sino desarrollar un producto original, con arquitectura propia, recursos gráficos propios y una experiencia de usuario superior.
 
 El resultado deseado es una plataforma de laboratorio de redes accesible desde cualquier navegador, que permita aprender, diseñar, experimentar, configurar y desplegar infraestructuras de red tanto simuladas como reales.
+## Estructura del repositorio
+
+Un monorepo con workspaces de npm:
+
+```
+apps/
+  web/            editor visual y simulación de paquetes en el navegador (Vite + React)
+packages/
+  model/          lo que comparten las apps: tipos de la topología, documento YAML/JSON,
+                  catálogo de dispositivos, plantillas de laboratorio y traducciones
+```
+
+- `npm install` en la raíz instala y enlaza todo.
+- `npm run dev` arranca el editor; `npm test` y `npm run typecheck` recorren todos los workspaces.
+- `docker compose up -d --build` construye cada app desde la raíz (para que vea `packages/`) y publica el editor en el puerto 9150.
+
+La emulación (equipos reales en contenedores) será `apps/emulator`, que usará el mismo `packages/model`.
