@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { parse, serialize } from "./document";
 import { exampleTopology } from "./example";
+import { networkFingerprint, updateDevice } from "./topology";
+import { isStarted, updateZone } from "./zones";
 
 describe("document", () => {
   it.each(["yaml", "json"] as const)("round-trips the example as %s", format => {
@@ -8,6 +10,37 @@ describe("document", () => {
     const parsed = parse(serialize(topology, format), format);
     expect(parsed.problems).toEqual([]);
     expect(parsed.topology).toEqual(topology);
+  });
+
+  it("writes the devices inside their topologies, and reads the first version", () => {
+    const text = serialize(exampleTopology(), "yaml");
+    expect(text).toMatch(/^topology:\n  - id: internet\n    name: Internet\n    status: start\n    color: "#0fa5b5"/m);
+    expect(text).not.toMatch(/^devices:/m);
+    expect(text).toContain("options:\n  decorations: true");
+    const old = parse("version: 1\nname: Viejo\ndevices:\n  - id: pc\n    type: pc\n    interfaces:\n      - name: eth0\n", "yaml");
+    expect(old.topology?.devices.map(device => device.id)).toEqual(["pc"]);
+    expect(serialize(old.topology!, "yaml")).toMatch(/topology:\n  - id: topology-1\n    name: Viejo/);
+  });
+
+  it("checks the topologies, their status and the options", () => {
+    const text = [
+      "options: { decorations: maybe }",
+      "topology:",
+      "  - id: a",
+      "    status: running",
+      "    color: blue",
+      "    devices:",
+      "      - id: pc",
+      "        type: pc",
+      "        status: later",
+      "  - id: a",
+    ].join("\n");
+    const messages = parse(text, "yaml").problems.map(problem => problem.message).join("\n");
+    expect(messages).toMatch(/decorations/);
+    expect(messages).toMatch(/start, stop o hybrid/);
+    expect(messages).toMatch(/color "blue"/);
+    expect(messages).toMatch(/status es start o stop/);
+    expect(messages).toMatch(/"a" está repetida/);
   });
 
   it("writes addresses as ip/prefix and links as device:interface", () => {
@@ -76,5 +109,30 @@ describe("document", () => {
   it("fills a missing MAC with a valid one", () => {
     const result = parse("devices:\n  - id: x\n    type: pc\n    interfaces:\n      - name: eth0\n", "yaml");
     expect(result.topology?.devices[0].interfaces[0].mac).toMatch(/^02:/);
+  });
+});
+
+describe("networkFingerprint", () => {
+  it("ignores the drawing but not the network", () => {
+    const topology = exampleTopology();
+    const moved = { ...topology, name: "Otro", devices: topology.devices.map(device => ({ ...device, position: { x: 0, y: 0 }, name: `${device.name}!` })) };
+    expect(networkFingerprint(moved)).toBe(networkFingerprint(topology));
+    const rerouted = updateDevice(topology, "router-1", device => ({ ...device, routes: [] }));
+    expect(networkFingerprint(rerouted)).not.toBe(networkFingerprint(topology));
+  });
+});
+
+describe("topologies", () => {
+  it("starts all of one, none, or (hybrid) the devices with status start", () => {
+    const base = exampleTopology();
+    const started = (topology: typeof base) => topology.devices.filter(device => isStarted(topology, device)).map(device => device.id);
+    expect(started(base)).toHaveLength(base.devices.length);
+    const stopped = updateZone(base, "internet", zone => ({ ...zone, status: "stop" }));
+    expect(started(stopped)).not.toContain("isp");
+    const hybrid = updateDevice(updateZone(base, "internet", zone => ({ ...zone, status: "hybrid" })), "dns", device => ({ ...device, status: "start" }));
+    expect(started(hybrid)).toContain("dns");
+    expect(started(hybrid)).not.toContain("isp");
+    // what starts is part of the network the emulator builds
+    expect(networkFingerprint(hybrid)).not.toBe(networkFingerprint(base));
   });
 });

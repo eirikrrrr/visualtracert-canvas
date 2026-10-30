@@ -8,6 +8,8 @@ import { LogPanel } from "../panels/LogPanel";
 import { TemplateGallery } from "../panels/TemplateGallery";
 import { Palette } from "../panels/Palette";
 import { PropertiesPanel } from "../panels/PropertiesPanel";
+import { DeviceWindows } from "../panels/DeviceWindow";
+import { EmulationPanel } from "../emulation/EmulationPanel";
 import { SimulationPanel } from "../panels/SimulationPanel";
 import { Toolbar } from "../panels/Toolbar";
 import { TopBar } from "../panels/TopBar";
@@ -116,6 +118,7 @@ function SidePanel() {
   const t = useT();
   const tab = useStore(state => state.tab);
   const events = useStore(state => state.run?.events.length ?? 0);
+  const emulating = useStore(state => state.mode === "emulation");
   const full = useStore(state => state.sideFull);
   const floating = useStore(state => state.sideFloating) && !full;
   const float = useStore(state => state.sideFloat);
@@ -162,7 +165,8 @@ function SidePanel() {
         {TABS.map(item => (
           <button key={item.id} type="button" role="tab" id={`tab-${item.id}`} aria-selected={tab === item.id} aria-controls={`panel-${item.id}`}
             className={tab === item.id ? "active" : ""} onClick={() => useStore.getState().setTab(item.id)}>
-            {t(item.label)}{item.id === "simulation" && events > 0 && <span className="badge">{events}</span>}
+            {item.id === "simulation" && emulating ? t("Emulación") : t(item.label)}
+            {item.id === "simulation" && !emulating && events > 0 && <span className="badge">{events}</span>}
           </button>
         ))}
         <button type="button" className="icon-button side-expand" aria-pressed={floating}
@@ -179,7 +183,7 @@ function SidePanel() {
       <div className="side-body" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
         {tab === "properties" && <PropertiesPanel />}
         {tab === "document" && <DocumentPanel />}
-        {tab === "simulation" && <SimulationPanel />}
+        {tab === "simulation" && (emulating ? <EmulationPanel /> : <SimulationPanel />)}
       </div>
     </aside>
   );
@@ -212,6 +216,7 @@ export function App() {
                 <button type="button" className="link" onClick={() => useStore.getState().setTool("select")}>{t("Cancelar")}</button>
               </div>
             )}
+            <DeviceWindows />
             <Toasts />
             </div>
             <LogPanel />

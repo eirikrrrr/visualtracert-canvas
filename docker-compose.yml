@@ -11,3 +11,22 @@ services:
     # every address of the host: reachable from the other machines of the LAN
     ports:
       - "0.0.0.0:9150:80"
+
+  # Emulation: creates the devices' containers and the veth cables between
+  # them. It needs Docker's socket and to enter other containers' network
+  # namespaces (privileged, host PIDs): that is root on this machine, so it is
+  # only reachable through the web's nginx (/api) and, for development, from
+  # this host on 127.0.0.1:9151.
+  emulator:
+    build:
+      context: .
+      dockerfile: apps/emulator/Dockerfile
+    image: visual-tracert-emulator:latest
+    container_name: visual-tracert-emulator
+    restart: unless-stopped
+    privileged: true
+    pid: host
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "127.0.0.1:9151:8080"

@@ -13,18 +13,20 @@ export type DeviceNodeData = {
   /** "current": the device the event being played arrives at; "source": where the ping starts */
   mark: "current" | "source" | "picked" | null;
   dropped: boolean;
+  /** emulating, its topology does not start it */
+  idle: boolean;
 };
 
 export type DeviceNodeType = Node<DeviceNodeData, "device">;
 
 function DeviceNodeView({ data, selected }: NodeProps<DeviceNodeType>) {
-  const { device, mark, dropped } = data;
+  const { device, mark, dropped, idle } = data;
   const t = useT();
   const main = device.interfaces.find(iface => iface.ip);
-  const classes = ["device", `device-${device.type}`, selected && "selected", mark && `mark-${mark}`, dropped && "dropped"]
+  const classes = ["device", `device-${device.type}`, selected && "selected", mark && `mark-${mark}`, dropped && "dropped", idle && "idle"]
     .filter(Boolean).join(" ");
   return (
-    <div className={classes} title={`${device.name} · ${t(CATALOG[device.type].label)}`}>
+    <div className={classes} title={`${device.name} · ${t(CATALOG[device.type].label)}${idle ? ` · ${t("no se inicia")}` : ""}`}>
       <div className="device-tile" style={{ width: TILE, height: TILE }}>
         <Icon name={device.type} size={26} />
         {(["Top", "Right", "Bottom", "Left"] as const).map(side => (

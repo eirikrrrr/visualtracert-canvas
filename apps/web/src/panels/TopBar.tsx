@@ -8,9 +8,9 @@ import { THEMES, useStore, type Mode } from "../app/store";
 import { Icon } from "../editor/icons";
 import { LANGS, tx, useLang, useT, type T } from "../i18n";
 
-const MODES: { id: Mode; label: string; title: string; soon?: boolean }[] = [
+const MODES: { id: Mode; label: string; title: string }[] = [
   { id: "simulation", label: tx("Simulación"), title: tx("La red se simula aquí: cada acción se ve trama a trama sobre el lienzo") },
-  { id: "emulation", label: tx("Emulación"), title: tx("Emulación: los equipos serán contenedores y máquinas reales. Próximamente."), soon: true },
+  { id: "emulation", label: tx("Emulación"), title: tx("Cada equipo es un contenedor real y cada cable, un enlace virtual: los comandos se ejecutan de verdad") },
 ];
 
 function ago(time: number, t: T, locale: string): string {
@@ -216,9 +216,8 @@ export function TopBar() {
       <div className="modes" role="radiogroup" aria-label={t("Modo")}>
         {MODES.map(item => (
           <button key={item.id} type="button" role="radio" aria-checked={mode === item.id} title={t(item.title)}
-            className={mode === item.id ? "active" : ""} disabled={item.soon} onClick={() => useStore.getState().setMode(item.id)}>
+            className={mode === item.id ? "active" : ""} onClick={() => useStore.getState().setMode(item.id)}>
             <Icon name={item.id} size={17} />{t(item.label)}
-            {item.soon && <span className="soon">{t("Próximamente")}</span>}
           </button>
         ))}
       </div>

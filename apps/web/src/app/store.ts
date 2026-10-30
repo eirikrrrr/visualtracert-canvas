@@ -4,7 +4,7 @@
 // views of it, and every change goes through commit().
 import { create } from "zustand";
 import { t, tx, type T } from "../i18n";
-import { emptyTopology, exampleTopology, removeDevices, removeLinks, templateById, type Topology } from "@visual-tracert/model";
+import { emptyTopology, exampleTopology, removeDevices, removeLinks, removeZone, templateById, zoneOf, type Topology } from "@visual-tracert/model";
 import { applyLease, PROTOCOLS, simulate, type Protocol, type SimEvent, type SimKind, type SimOutcome, type SimRequest, type SimRun } from "../sim/engine";
 import { deleteLab, listLabs, loadLab, newLabId, saveLab, setCurrentLabId, startingLab, type LabMeta } from "./labs";
 
@@ -17,9 +17,9 @@ const SIDE_FLOAT_DEFAULT: SideFloat = { x: -1, y: 16, width: 420, height: 640 };
 export const SIDE_DEFAULT = 380;
 export const SIDE_MIN = 320;
 
-export type Selection = { kind: "device" | "link"; id: string } | null;
+export type Selection = { kind: "device" | "link" | "zone"; id: string } | null;
 export type Tool = "select" | "ping";
-/** simulation: the network is modelled here; emulation (to come): real devices */
+/** simulation: the network is modelled here; emulation: real containers */
 export type Mode = "simulation" | "emulation";
 /** how a run is played back: at once ("realtime") or frame by frame at a speed */
 export type Speed = "realtime" | 0.5 | 1 | 2 | 4;
@@ -96,6 +96,14 @@ function loadLogLayout(): LogLayout {
   return LOG_DEFAULT;
 }
 
+/** a device open in its own window over the canvas (a double click on it) */
+export interface DeviceWindow {
+  device: string;
+  x: number;
+  y: number;
+  tab: "properties" | "cli";
+}
+
 export interface Toast {
   id: number;
   text: string;
@@ -133,6 +141,8 @@ interface State {
   adding: boolean;
   /** the gallery of ready-made labs is open */
   gallery: boolean;
+  /** device windows, the last one on top */
+  windows: DeviceWindow[];
   /** width of the side panel, and whether it covers the canvas */
   sideWidth: number;
   sideFull: boolean;
@@ -155,6 +165,10 @@ interface State {
   /** a new lab with a copy of a template */
   openTemplate: (id: string) => void;
   setGallery: (open: boolean) => void;
+  openWindow: (device: string, tab?: DeviceWindow["tab"]) => void;
+  closeWindow: (device: string) => void;
+  /** brings it to the top; with changes, also moves it or changes its tab */
+  raiseWindow: (device: string, change?: Partial<Omit<DeviceWindow, "device">>) => void;
   removeLab: (id: string) => void;
   /** saves a topology as a new lab and opens it */
   startLab: (topology: Topology) => void;
@@ -196,7 +210,7 @@ function openingLab(): { id: string; topology: Topology; labs: LabMeta[] } {
 const opening = openingLab();
 
 // what a fresh lab starts with: no history, nothing selected, no simulation
-const freshLab = { past: [], future: [], selection: null, run: null, request: null, step: -1, playing: false, pingFrom: null };
+const freshLab = { past: [], future: [], selection: null, run: null, request: null, step: -1, playing: false, pingFrom: null, windows: [] };
 
 function loadTheme(): Theme {
   try{
@@ -253,6 +267,7 @@ export const useStore = create<State>((set, get) => ({
   toast: null,
   adding: false,
   gallery: false,
+  windows: [],
   sideWidth: loadSideWidth(),
   sideFull: false,
   sideFloating: sideFloatSaved.floating,
@@ -285,7 +300,8 @@ export const useStore = create<State>((set, get) => ({
     return { topology: next, past: [...state.past, state.topology], future: state.future.slice(1), run: null, step: -1, playing: false, selection: null };
   }),
   // a new or loaded lab: no history of the previous one
-  replace: next => set({ topology: next, ...freshLab }),
+  // the same lab, rewritten: its device windows stay (those of devices it still has)
+  replace: next => set({ topology: next, ...freshLab, windows: get().windows }),
   switchLab: id => {
     if(id === get().labId) return;
     flushSave();
@@ -308,6 +324,19 @@ export const useStore = create<State>((set, get) => ({
     get().notify(t("Abierto «{name}» como laboratorio nuevo.", { name: t(template.name) }), "ok");
   },
   setGallery: gallery => set({ gallery }),
+  openWindow: (device, tab) => {
+    const open = get().windows.find(item => item.device === device);
+    if(open){ get().raiseWindow(device, tab ? { tab } : undefined); return; }
+    // each one a little apart from the last opened
+    const n = get().windows.length % 6;
+    set({ windows: [...get().windows, { device, x: 72 + n * 28, y: 56 + n * 28, tab: tab ?? "properties" }] });
+  },
+  closeWindow: device => set({ windows: get().windows.filter(item => item.device !== device) }),
+  raiseWindow: (device, change) => {
+    const open = get().windows.find(item => item.device === device);
+    if(!open) return;
+    set({ windows: [...get().windows.filter(item => item !== open), { ...open, ...change }] });
+  },
   startLab: topology => {
     flushSave();
     const id = newLabId();
@@ -334,7 +363,8 @@ export const useStore = create<State>((set, get) => ({
   select: selection => set({ selection }),
   setTool: tool => set({ tool, pingFrom: null }),
   setPingFrom: pingFrom => set({ pingFrom }),
-  setMode: mode => set({ mode, playing: false }),
+  // the third tab is the one of the mode; a simulated run stays off the canvas while emulating
+  setMode: mode => set(state => ({ mode, playing: false, tab: state.mode === mode ? state.tab : "simulation", ...(mode === "emulation" ? { run: null, request: null, step: -1 } : {}) })),
   setSpeed: speed => {
     try{ localStorage.setItem(SPEED_KEY, String(speed)); }catch(_){ /* ignore */ }
     set({ speed });
@@ -436,8 +466,19 @@ export function deleteSelection(){
   const selection = state.selection;
   if(!selection) return;
   const ids = new Set([selection.id]);
-  state.commit(selection.kind === "device" ? removeDevices(state.topology, ids) : removeLinks(state.topology, ids));
+  // a topology goes with its devices
+  state.commit(selection.kind === "device" ? removeDevices(state.topology, ids)
+    : selection.kind === "zone" ? removeZone(state.topology, selection.id)
+    : removeLinks(state.topology, ids));
   state.select(null);
+}
+
+/** The topology being worked on: the one selected, or that of the selected device. */
+export function selectedZone(state: Pick<State, "selection" | "topology">): string | undefined {
+  const selection = state.selection;
+  if(selection?.kind === "zone") return selection.id;
+  const device = selection?.kind === "device" ? state.topology.devices.find(item => item.id === selection.id) : undefined;
+  return device ? zoneOf(state.topology, device)?.id : undefined;
 }
 
 

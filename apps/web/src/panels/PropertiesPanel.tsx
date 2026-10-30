@@ -1,12 +1,26 @@
-// Properties of what is selected: a device (name, type, addresses, gateway,
-// DNS, VLANs, routes, DHCP relays and the services it offers), a cable (its
-// ports), or the lab when nothing is.
-import { useStore } from "../app/store";
+// Properties of what is selected: a device (first the image it runs as, then
+// its name, type, topology, addresses, gateway, DNS, VLANs, routes, DHCP
+// relays and the services it offers), a topology (name, status, colour,
+// note), a cable (its ports), or the lab when nothing is. A device's
+// properties are also those of its window (a double click on it).
+import { useId } from "react";
+import { deleteSelection, useStore } from "../app/store";
 import { Icon } from "../editor/icons";
-import { t as translate, useT } from "../i18n";
-import { CATALOG, inCidr, ipToInt, isIp, linkOf, PALETTE, parseCidr, roleOf, updateDevice, type Device, type DeviceType, type DhcpPool, type DnsRecord, type Interface, type Link, type Services, type Topology } from "@visual-tracert/model";
+import { t as translate, tx, useT } from "../i18n";
+import { addZone, CATALOG, decorated, DEVICE_STATUSES, devicesOf, GROUPS, isStarted, materialize, moveToZone, setOptions, TOPOLOGY_STATUSES, updateZone, ZONE_COLORS, zoneOf, zonesOf, inCidr, ipToInt, isIp, linkOf, PALETTE, parseCidr, roleOf, updateDevice, type Device, type DeviceType, type DhcpPool, type DnsRecord, type Interface, type Link, type Services, type Topology } from "@visual-tracert/model";
 import { addressOf } from "../sim/engine";
 import { Field } from "./Field";
+import { ImageCard } from "./ImageCard";
+import { STATUS_LABEL } from "../editor/ZoneNode";
+import type { DeviceStatus, TopologyStatus, Zone } from "@visual-tracert/model";
+
+const NEW_ZONE = "+new";
+const DEVICE_STATUS_LABEL: Record<DeviceStatus, string> = { start: tx("start: se inicia"), stop: tx("stop: no se inicia") };
+const STATUS_HELP: Record<TopologyStatus, string> = {
+  start: tx("Se inician todos sus dispositivos."),
+  stop: tx("No se inicia ninguno de sus dispositivos."),
+  hybrid: tx("Solo se inician los dispositivos con status: start."),
+};
 
 const checkIp = (value: string) => (!value || isIp(value) ? null : translate("Escribe una dirección IPv4, por ejemplo 192.168.1.1."));
 
@@ -18,8 +32,13 @@ function checkAddress(value: string) {
   return null;
 }
 
-function DeviceProperties({ device, topology }: { device: Device; topology: Topology }) {
+export function DeviceProperties({ device, topology, windowed = false }: { device: Device; topology: Topology; windowed?: boolean }) {
   const t = useT();
+  const typeId = useId();
+  const zoneId = useId();
+  const statusId = useId();
+  const zones = zonesOf(topology);
+  const zone = zoneOf(topology, device);
   const role = roleOf(device.type);
   const change = (update: (device: Device) => Device) => {
     const state = useStore.getState();
@@ -37,18 +56,57 @@ function DeviceProperties({ device, topology }: { device: Device; topology: Topo
 
   return (
     <div className="props">
-      <div className="props-title">
-        <span className="props-icon"><Icon name={device.type} size={22} /></span>
-        <div><h2>{device.name}</h2><span className="mono muted">{device.id}</span></div>
-      </div>
+      {!windowed && (
+        <div className="props-title">
+          <span className="props-icon"><Icon name={device.type} size={22} /></span>
+          <div><h2>{device.name}</h2><span className="mono muted">{device.id}</span></div>
+          <button type="button" className="icon-button props-window" title={t("Abrir en una ventana, con su CLI (doble clic en el dispositivo)")}
+            aria-label={t("Abrir en una ventana")} onClick={() => useStore.getState().openWindow(device.id)}>
+            <Icon name="undock" size={17} />
+          </button>
+        </div>
+      )}
+
+      <ImageCard device={device} />
 
       <Field label={t("Nombre")} value={device.name} onApply={name => change(item => ({ ...item, name: name || item.name }))} />
       <div className="field">
-        <label htmlFor="device-type">{t("Tipo")}</label>
-        <select id="device-type" value={device.type}
+        <label htmlFor={typeId}>{t("Tipo")}</label>
+        <select id={typeId} value={device.type}
           onChange={event => change(item => ({ ...item, type: event.target.value as DeviceType }))}>
-          {PALETTE.map(type => <option key={type} value={type}>{t(CATALOG[type].label)}</option>)}
+          {GROUPS.map(group => (
+            <optgroup key={group.id} label={t(group.label)}>
+              {PALETTE.filter(type => CATALOG[type].group === group.id).map(type => <option key={type} value={type}>{t(CATALOG[type].label)}</option>)}
+            </optgroup>
+          ))}
         </select>
+      </div>
+      <div className="pair">
+        <div className="field">
+          <label htmlFor={zoneId}>{t("Topología")}</label>
+          <select id={zoneId} value={zone?.id ?? ""} onChange={event => {
+            const state = useStore.getState();
+            if(event.target.value !== NEW_ZONE){ state.commit(moveToZone(state.topology, device.id, event.target.value)); return; }
+            const created = addZone(state.topology, t("Topología {n}", { n: zones.length + 1 }), { x: device.position.x + 260, y: device.position.y });
+            state.commit(moveToZone(created.topology, device.id, created.zone.id));
+          }}>
+            {zones.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+            <option value={NEW_ZONE}>{t("+ Nueva topología")}</option>
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor={statusId}>{t("Estado (status)")}</label>
+          <select id={statusId} className="mono" value={device.status ?? ""}
+            onChange={event => change(item => ({ ...item, status: (event.target.value || undefined) as DeviceStatus | undefined }))}>
+            <option value="">{t("(sin status)")}</option>
+            {DEVICE_STATUSES.map(item => <option key={item} value={item}>{t(DEVICE_STATUS_LABEL[item])}</option>)}
+          </select>
+          <small className="field-hint">
+            {zone?.status === "hybrid"
+              ? (isStarted(topology, device) ? t("Su topología es híbrida: se inicia.") : t("Su topología es híbrida: sin status: start no se inicia."))
+              : t("Solo cuenta si su topología es híbrida (ahora: {status}).", { status: t(STATUS_LABEL[zone?.status ?? "start"]).toLowerCase() })}
+          </small>
+        </div>
       </div>
       <Field label={t("Descripción")} value={device.description ?? ""} placeholder={t("Opcional")}
         onApply={description => change(item => ({ ...item, description: description || undefined }))} />
@@ -106,6 +164,7 @@ function DeviceProperties({ device, topology }: { device: Device; topology: Topo
 
       {role === "router" && <Routes device={device} change={change} />}
       {role !== "switch" && <ServicesEditor device={device} change={change} />}
+
 
       <div className="props-actions">
         {role === "host" && device.interfaces.some(iface => iface.dhcp) && (
@@ -277,6 +336,75 @@ function LinkProperties({ link, topology }: { link: Link; topology: Topology }) 
   );
 }
 
+function ZoneProperties({ zone, topology }: { zone: Zone; topology: Topology }) {
+  const t = useT();
+  const statusId = useId();
+  const textId = useId();
+  const devices = devicesOf(topology, zone.id);
+  const started = devices.filter(device => isStarted(topology, device)).length;
+  const change = (update: (zone: Zone) => Zone) => {
+    const state = useStore.getState();
+    state.commit(updateZone(state.topology, zone.id, update));
+  };
+  const color = zone.color ?? ZONE_COLORS[0];
+  return (
+    <div className="props">
+      <div className="props-title">
+        <span className="props-icon zone-swatch" style={{ background: color }} />
+        <div><h2>{zone.name}</h2><span className="mono muted">{zone.id}</span></div>
+      </div>
+
+      <Field label={t("Nombre")} value={zone.name} onApply={name => change(item => ({ ...item, name: name || item.name }))} />
+      <div className="field">
+        <label htmlFor={statusId}>{t("Estado (status)")}</label>
+        <select id={statusId} value={zone.status} onChange={event => change(item => ({ ...item, status: event.target.value as TopologyStatus }))}>
+          {TOPOLOGY_STATUSES.map(item => <option key={item} value={item}>{item} · {t(STATUS_LABEL[item])}</option>)}
+        </select>
+        <small className="field-hint">{t(STATUS_HELP[zone.status])} {t("En Emulación: {n} de {total} dispositivos se inician.", { n: started, total: devices.length })}</small>
+      </div>
+
+      <div className="field">
+        <span className="label">{t("Color")}</span>
+        <div className="swatches" role="radiogroup" aria-label={t("Color")}>
+          {ZONE_COLORS.map(item => (
+            <button key={item} type="button" role="radio" aria-checked={color === item} className={`swatch${color === item ? " active" : ""}`}
+              style={{ background: item }} title={item} aria-label={item} onClick={() => change(other => ({ ...other, color: item }))} />
+          ))}
+          <label className="swatch swatch-custom" title={t("Otro color")}>
+            <input type="color" value={color} aria-label={t("Otro color")} onChange={event => change(other => ({ ...other, color: event.target.value }))} />
+          </label>
+        </div>
+      </div>
+
+      <div className="field">
+        <label htmlFor={textId}>{t("Texto")}</label>
+        <textarea id={textId} rows={2} defaultValue={zone.text ?? ""} key={zone.id + (zone.text ?? "")} placeholder={t("Una nota que se ve dentro del rectángulo")}
+          onBlur={event => { const text = event.target.value.trim(); if(text !== (zone.text ?? "")) change(item => ({ ...item, text: text || undefined })); }} />
+      </div>
+
+      <h3>{t("Dispositivos ({n})", { n: devices.length })}</h3>
+      {!devices.length && <p className="muted small">{t("Ninguno: arrastra dispositivos dentro de su rectángulo o elige esta topología en sus propiedades.")}</p>}
+      <ul className="zone-devices">
+        {devices.map(device => (
+          <li key={device.id}>
+            <button type="button" className="link" onClick={() => useStore.getState().select({ kind: "device", id: device.id })}>
+              <Icon name={device.type} size={16} />{device.name}
+            </button>
+            <span className={`emu-state ${isStarted(topology, device) ? "on" : "off"}`}>{isStarted(topology, device) ? t("se inicia") : t("no se inicia")}</span>
+          </li>
+        ))}
+      </ul>
+      {!decorated(topology) && <p className="emu-note">{t("Las decoraciones están desactivadas (options.decorations): el rectángulo no se dibuja.")}</p>}
+
+      <div className="props-actions">
+        <button type="button" className="danger" onClick={() => { useStore.getState().select({ kind: "zone", id: zone.id }); deleteSelection(); }}>
+          <Icon name="trash" size={16} />{devices.length ? t("Eliminar la topología y sus dispositivos") : t("Eliminar la topología")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** A translated line with its keys ([Ctrl]) and bold words (*Añadir*) marked. */
 function Rich({ text }: { text: string }) {
   return <>{text.split(/(\[[^\]]+\]|\*[^*]+\*)/).map((part, i) =>
@@ -317,6 +445,28 @@ function LabSummary({ topology }: { topology: Topology }) {
         <div><strong>{count("router")}</strong><span>{t("routers")}</span></div>
         <div><strong>{topology.links.length}</strong><span>{t("cables")}</span></div>
       </div>
+      <h3>{t("Topologías")}</h3>
+      <ul className="zone-list">
+        {zonesOf(topology).map(zone => (
+          <li key={zone.id}>
+            <button type="button" className="link" onClick={() => {
+              const state = useStore.getState();
+              // the implicit one becomes real when it is chosen
+              if(!state.topology.zones?.length) state.commit(materialize(state.topology));
+              state.select({ kind: "zone", id: zone.id });
+            }}>
+              <span className="zone-swatch small" style={{ background: zone.color ?? ZONE_COLORS[0] }} />{zone.name}
+            </button>
+            <span className="muted small">{t(STATUS_LABEL[zone.status])} · {devicesOf(topology, zone.id).length}</span>
+          </li>
+        ))}
+      </ul>
+      <label className="check-row">
+        <input type="checkbox" checked={decorated(topology)}
+          onChange={event => { const state = useStore.getState(); state.commit(setOptions(state.topology, { decorations: event.target.checked })); }} />
+        {t("Dibujar los rectángulos de las topologías (options.decorations)")}
+      </label>
+
       <button type="button" className="ghost gallery-open" onClick={() => useStore.getState().setGallery(true)}>
         <Icon name="logo" size={16} />{t("Abrir una plantilla de laboratorio")}
       </button>
@@ -326,6 +476,8 @@ function LabSummary({ topology }: { topology: Topology }) {
           t("Pulsa *Añadir dispositivo* ([A]) en la barra de abajo, busca el que quieras y haz clic, pulsa [Enter] o arrástralo al lienzo."),
           t("Para cablear, arrastra desde el borde de un dispositivo hasta otro: se usan sus primeros puertos libres."),
           t("Selecciona un dispositivo para poner sus direcciones, su puerta de enlace o sus rutas."),
+          t("*Nueva topología* crea un grupo de dispositivos con su rectángulo; arrástralo por su título y suelta dispositivos dentro para moverlos a él."),
+          t("Doble clic en un dispositivo abre su ventana: sus propiedades, su imagen y su CLI (en Emulación)."),
           t("Con la herramienta de ping ([P]), haz clic en el origen y luego en el destino."),
           t("En la pestaña Simulación hay más acciones: traza (tracert), DHCP, consultas DNS y páginas web por TCP."),
           t("[Supr] elimina, [Ctrl]+[Z] deshace, [F] encuadra."),
@@ -343,6 +495,10 @@ export function PropertiesPanel() {
   if(selection?.kind === "device"){
     const device = topology.devices.find(item => item.id === selection.id);
     if(device) return <DeviceProperties device={device} topology={topology} />;
+  }
+  if(selection?.kind === "zone"){
+    const zone = zonesOf(topology).find(item => item.id === selection.id);
+    if(zone) return <ZoneProperties zone={zone} topology={topology} />;
   }
   if(selection?.kind === "link"){
     const link = topology.links.find(item => item.id === selection.id);

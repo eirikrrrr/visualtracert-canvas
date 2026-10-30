@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parse, serialize, TEMPLATES, templateById, type Topology } from "@visual-tracert/model";
+import { materialize, parse, serialize, TEMPLATES, templateById, type Topology } from "@visual-tracert/model";
 import { applyLease, simulate, simulatePing, type SimRequest } from "./engine";
 
 const open = (id: string) => templateById(id)!.build();
@@ -21,7 +21,8 @@ describe("templates", () => {
     const topology = item.build();
     const parsed = parse(serialize(topology, "yaml"), "yaml");
     expect(parsed.problems).toEqual([]);
-    expect(parsed.topology).toEqual(topology);
+    // its single topology, implicit, is written and read back as a real one
+    expect(parsed.topology).toEqual(materialize(topology));
     const macs = topology.devices.flatMap(device => device.interfaces.map(iface => iface.mac));
     expect(new Set(macs).size).toBe(macs.length);
     expect(topology.description).toMatch(/Qué probar/);

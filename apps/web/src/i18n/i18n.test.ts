@@ -3,11 +3,12 @@ import { exampleTopology, keysIn, placeholders, templateById } from "@visual-tra
 import { DICTIONARIES, translator } from ".";
 import { simulate } from "../sim/engine";
 
-// every source of the web and of the shared model, but the tests and the
-// translation modules themselves
+// every source of the web, the emulator and the shared model, but the tests
+// and the translation modules themselves
 const files = import.meta.glob([
   "../**/*.{ts,tsx}", "!../**/*.test.{ts,tsx}", "!./**",
   "../../../../packages/model/src/**/*.ts", "!../../../../packages/model/src/**/*.test.ts", "!../../../../packages/model/src/i18n/**",
+  "../../../emulator/src/**/*.ts", "!../../../emulator/src/**/*.test.ts",
 ], { query: "?raw", import: "default", eager: true }) as Record<string, string>;
 const used = new Set(Object.values(files).flatMap(keysIn));
 

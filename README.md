@@ -90,6 +90,7 @@ Un monorepo con workspaces de npm:
 ```
 apps/
   web/            editor visual y simulación de paquetes en el navegador (Vite + React)
+  emulator/       emulación: cada equipo, un contenedor; cada cable, un par veth (API en /api)
 packages/
   model/          lo que comparten las apps: tipos de la topología, documento YAML/JSON,
                   catálogo de dispositivos, plantillas de laboratorio y traducciones
@@ -99,7 +100,16 @@ packages/
 - `npm run dev` arranca el editor; `npm test` y `npm run typecheck` recorren todos los workspaces.
 - `docker compose up -d --build` construye cada app desde la raíz (para que vea `packages/`) y publica el editor en el puerto 9150.
 
-La emulación (equipos reales en contenedores) será `apps/emulator`, que usará el mismo `packages/model`.
+El emulador necesita el socket de Docker y entrar en el espacio de red de otros contenedores (va con
+privilegios y con los PID del host): en la práctica es root sobre la máquina. Por eso solo se alcanza a
+través del nginx del editor (`/api`) y, para desarrollo, en `127.0.0.1:9151`. Los contenedores de cada
+laboratorio llevan la etiqueta `visual-tracert.lab` y se pueden borrar con
+`docker rm -f $(docker ps -aq --filter label=visual-tracert.lab)`.
+
+La CLI de cada dispositivo es una shell de root dentro de su contenedor (sin red propia, 96 MB de
+memoria, con `NET_ADMIN` solo en su espacio de red), por WebSocket en
+`/api/labs/:lab/devices/:device/shell`. No hay usuarios: quien alcance el puerto 9150 alcanza esas
+shells, así que el editor no debe publicarse fuera de una red de confianza.
 
 ## Versiones
 

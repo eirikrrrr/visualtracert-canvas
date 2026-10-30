@@ -6,6 +6,41 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 
 ## [Sin publicar]
 
+### Añadido
+- Emulación (primera etapa): el modo «Emulación» despliega el laboratorio como contenedores reales
+  (Alpine) unidos por cables veth. Los routers enrutan con sus rutas estáticas y los switches separan
+  VLAN de verdad. Desde el panel se ejecutan comandos reales en cada equipo: ping, traza, direcciones,
+  rutas y vecinos ARP; la herramienta de ping del lienzo también hace un ping real.
+- Servicio `apps/emulator` (API en `/api`) y aviso de lo que aún no se emula: DHCP, DNS, web y relay.
+- Dispositivos agrupados por etiquetas en «Añadir dispositivo» y en el tipo: «Imágenes oficiales»
+  (de momento, Alpine Linux, con su logo oficial) y «Genéricos» (los iconos de siempre, que en
+  Emulación corren sobre Alpine).
+- Ventana flotante de cada dispositivo (doble clic): sus propiedades y su CLI nativa, una terminal
+  real (xterm.js) en la shell de su contenedor, por WebSocket. Se mueve, cambia de tamaño y se abren
+  varias a la vez.
+- Información de la imagen en las propiedades: versión, base, shell, herramientas, arquitecturas,
+  licencia, enlaces oficiales (Docker Hub, Dockerfile, web, notas de versión, paquetes) y lo que Docker
+  tiene de ella en el servidor (ID, digest, arquitectura, tamaño).
+
+- Topologías: un laboratorio agrupa sus dispositivos en topologías, cada una dibujada como un
+  rectángulo de color alrededor de ellos, con nombre, color, texto y estado. Se crean con «Nueva
+  topología», se arrastran por su título con sus dispositivos y un dispositivo soltado dentro de otra
+  pasa a ella. `options.decorations: false` deja de dibujarlas.
+- Estado de cada topología para la emulación: `start` (todos sus dispositivos), `stop` (ninguno) o
+  `hybrid` (solo los que tengan `status: start`). Lo que no se inicia se ve atenuado en Emulación.
+
+- Editor del documento: plegar y desplegar secciones del YAML/JSON desde el margen, buscar
+  (Ctrl+F), ver el mensaje de un error al pasar por encima y resaltado de corchetes.
+
+### Cambiado
+- Documento versión 2: los dispositivos van dentro de `topology:` (cada elemento, una topología con
+  sus `devices`) y hay `options`. Los documentos de la versión 1 (`devices:` en la raíz) se siguen
+  leyendo, como una sola topología.
+- En las propiedades de un dispositivo, la imagen va primero; en «Añadir dispositivo», cada grupo
+  está cerrado hasta que se abre (al buscar se abren los que tienen resultados).
+- Los contenedores de los laboratorios tienen `NET_ADMIN` (solo en su propio espacio de red), para
+  poder cambiar direcciones y rutas desde su CLI.
+
 ## [0.2.0] - 2026-10-30
 
 ### Añadido

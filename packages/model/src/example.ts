@@ -7,11 +7,15 @@ import type { Topology } from "./types";
 const mac = (n: number) => `02:00:00:00:00:${n.toString(16).padStart(2, "0")}`;
 
 export const exampleTopology = (t: T = spanish): Topology => ({
-  version: 1,
+  version: 2,
   name: t("Oficina con salida a Internet"),
+  zones: [
+    { id: "internet", name: "Internet", status: "start", color: "#0fa5b5", text: t("El proveedor y un servidor DNS y web público.") },
+    { id: "oficina", name: t("Oficina"), status: "start", color: "#3d7eff", text: t("La LAN de la oficina, su router y su Wi-Fi.") },
+  ],
   devices: [
     {
-      id: "isp", type: "cloud", name: "ISP", description: t("Proveedor de Internet"),
+      id: "isp", zone: "internet", type: "cloud", name: "ISP", description: t("Proveedor de Internet"),
       position: { x: 520, y: 40 },
       interfaces: [
         { name: "eth0", mac: mac(1), ip: "203.0.113.1", prefix: 30 },
@@ -20,7 +24,7 @@ export const exampleTopology = (t: T = spanish): Topology => ({
       routes: [{ prefix: "192.168.0.0/16", via: "203.0.113.2" }],
     },
     {
-      id: "dns", type: "server", name: t("Servidor DNS"), description: t("DNS y web de ejemplo.com"),
+      id: "dns", zone: "internet", type: "server", name: t("Servidor DNS"), description: t("DNS y web de ejemplo.com"),
       position: { x: 880, y: 40 },
       interfaces: [{ name: "eth0", mac: mac(3), ip: "8.8.8.8", prefix: 24 }, { name: "eth1", mac: mac(4) }],
       gateway: "8.8.8.1",
@@ -30,7 +34,7 @@ export const exampleTopology = (t: T = spanish): Topology => ({
       },
     },
     {
-      id: "router-1", type: "router", name: "Router 1", description: t("Router de la oficina"),
+      id: "router-1", zone: "oficina", type: "router", name: "Router 1", description: t("Router de la oficina"),
       position: { x: 520, y: 260 },
       interfaces: [
         { name: "Gi0/0", mac: mac(16), ip: "203.0.113.2", prefix: 30 },
@@ -41,20 +45,20 @@ export const exampleTopology = (t: T = spanish): Topology => ({
       routes: [{ prefix: "0.0.0.0/0", via: "203.0.113.1" }],
     },
     {
-      id: "switch-1", type: "switch", name: "Switch 1",
+      id: "switch-1", zone: "oficina", type: "switch", name: "Switch 1",
       position: { x: 300, y: 460 },
       interfaces: Array.from({ length: 8 }, (_, i) => ({ name: `Fa0/${i + 1}`, mac: mac(32 + i) })),
     },
     {
-      id: "pc-1", type: "pc", name: "PC 1", position: { x: 60, y: 300 },
+      id: "pc-1", zone: "oficina", type: "pc", name: "PC 1", position: { x: 60, y: 300 },
       interfaces: [{ name: "eth0", mac: mac(64), ip: "192.168.21.10", prefix: 24 }], gateway: "192.168.21.1", dns: "8.8.8.8",
     },
     {
-      id: "pc-2", type: "pc", name: "PC 2", position: { x: 60, y: 620 },
+      id: "pc-2", zone: "oficina", type: "pc", name: "PC 2", position: { x: 60, y: 620 },
       interfaces: [{ name: "eth0", mac: mac(65), ip: "192.168.21.11", prefix: 24 }], gateway: "192.168.21.1", dns: "8.8.8.8",
     },
     {
-      id: "server-1", type: "server", name: t("Servidor local"), description: t("DHCP de la oficina"),
+      id: "server-1", zone: "oficina", type: "server", name: t("Servidor local"), description: t("DHCP de la oficina"),
       position: { x: 60, y: 460 },
       interfaces: [{ name: "eth0", mac: mac(66), ip: "192.168.21.2", prefix: 24 }, { name: "eth1", mac: mac(67) }],
       gateway: "192.168.21.1", dns: "8.8.8.8",
@@ -66,16 +70,16 @@ export const exampleTopology = (t: T = spanish): Topology => ({
       },
     },
     {
-      id: "ap-1", type: "ap", name: "AP 1", position: { x: 300, y: 680 },
+      id: "ap-1", zone: "oficina", type: "ap", name: "AP 1", position: { x: 300, y: 680 },
       interfaces: [{ name: "eth0", mac: mac(80) }, ...Array.from({ length: 4 }, (_, i) => ({ name: `wlan${i}`, mac: mac(81 + i) }))],
     },
     {
-      id: "smartphone-1", type: "phone", name: "Smartphone 1", position: { x: 560, y: 680 },
+      id: "smartphone-1", zone: "oficina", type: "phone", name: "Smartphone 1", position: { x: 560, y: 680 },
       description: t("Toma su dirección por DHCP"),
       interfaces: [{ name: "wlan0", mac: mac(96), dhcp: true }],
     },
     {
-      id: "laptop-1", type: "laptop", name: "Laptop 1", position: { x: 820, y: 460 },
+      id: "laptop-1", zone: "oficina", type: "laptop", name: "Laptop 1", position: { x: 820, y: 460 },
       interfaces: [{ name: "eth0", mac: mac(112), ip: "192.168.31.8", prefix: 24 }], gateway: "192.168.31.1", dns: "8.8.8.8",
     },
   ],

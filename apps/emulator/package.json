@@ -1,0 +1,21 @@
+{
+  "name": "@visual-tracert/emulator",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Emulación: convierte una topología en contenedores reales unidos por cables veth, y ejecuta comandos en ellos.",
+  "type": "module",
+  "scripts": {
+    "build": "rolldown -c",
+    "test": "vitest run",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@visual-tracert/model": "*",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/ws": "^8.18.2",
+    "rolldown": "^1.2.16"
+  }
+}

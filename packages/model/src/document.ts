@@ -1,11 +1,16 @@
 // The topology as a document (YAML or JSON) and back. Parsing validates the
 // whole structure and reports problems with a line when it can, so an
 // invalid document never replaces the topology on the canvas.
+//
+// Version 2 groups the devices in topologies (`topology: [{ id, name,
+// status, color, text, devices: [...] }]`) and has lab `options`; version 1
+// (`devices: [...]` at the root) is still read, as a single topology.
 import { isMap, isSeq, LineCounter, parseDocument, stringify } from "yaml";
 import { spanish, type T } from "./i18n";
 import { CATALOG } from "./catalog";
 import { inCidr, ipToInt, isIp, isMac, parseCidr, randomMac } from "./net";
-import type { Device, DeviceType, DhcpPool, DnsRecord, Interface, Link, Route, Services, Topology } from "./types";
+import type { Device, DeviceStatus, DeviceType, DhcpPool, DnsRecord, Interface, Link, Route, Services, Topology, TopologyStatus, Zone } from "./types";
+import { decorated, DEVICE_STATUSES, devicesOf, TOPOLOGY_STATUSES, zonesOf } from "./zones";
 
 export type DocFormat = "yaml" | "json";
 
@@ -15,30 +20,47 @@ export interface DocProblem {
 }
 
 /** The document form: no empty optional fields, a stable key order. */
+function devicePlain(device: Device) {
+  return {
+    id: device.id,
+    type: device.type,
+    name: device.name,
+    ...(device.status ? { status: device.status } : {}),
+    ...(device.description ? { description: device.description } : {}),
+    position: device.position,
+    ...(device.gateway ? { gateway: device.gateway } : {}),
+    ...(device.dns ? { dns: device.dns } : {}),
+    interfaces: device.interfaces.map(iface => ({
+      name: iface.name,
+      mac: iface.mac,
+      ...(iface.dhcp ? { dhcp: true } : {}),
+      ...(iface.ip ? { ip: `${iface.ip}/${iface.prefix ?? 24}` } : {}),
+      ...(iface.vlan && iface.vlan !== 1 ? { vlan: iface.vlan } : {}),
+      ...(iface.relay ? { relay: iface.relay } : {}),
+    })),
+    ...(device.routes && device.routes.length ? { routes: device.routes } : {}),
+    ...(hasServices(device.services) ? { services: device.services } : {}),
+  };
+}
+
 function toPlain(topology: Topology) {
   return {
-    version: topology.version,
+    version: 2,
     name: topology.name,
     ...(topology.description ? { description: topology.description } : {}),
-    devices: topology.devices.map(device => ({
-      id: device.id,
-      type: device.type,
-      name: device.name,
-      ...(device.description ? { description: device.description } : {}),
-      position: device.position,
-      ...(device.gateway ? { gateway: device.gateway } : {}),
-      ...(device.dns ? { dns: device.dns } : {}),
-      interfaces: device.interfaces.map(iface => ({
-        name: iface.name,
-        mac: iface.mac,
-        ...(iface.dhcp ? { dhcp: true } : {}),
-        ...(iface.ip ? { ip: `${iface.ip}/${iface.prefix ?? 24}` } : {}),
-        ...(iface.vlan && iface.vlan !== 1 ? { vlan: iface.vlan } : {}),
-        ...(iface.relay ? { relay: iface.relay } : {}),
-      })),
-      ...(device.routes && device.routes.length ? { routes: device.routes } : {}),
-      ...(hasServices(device.services) ? { services: device.services } : {}),
-    })),
+    options: { decorations: decorated(topology) },
+    topology: zonesOf(topology).map(zone => {
+      const devices = devicesOf(topology, zone.id);
+      return {
+        id: zone.id,
+        name: zone.name,
+        status: zone.status,
+        ...(zone.color ? { color: zone.color } : {}),
+        ...(zone.text ? { text: zone.text } : {}),
+        ...(!devices.length && zone.position ? { position: zone.position } : {}),
+        devices: devices.map(devicePlain),
+      };
+    }),
     links: topology.links.map(link => ({
       id: link.id,
       a: `${link.a.device}:${link.a.interface}`,
@@ -138,17 +160,15 @@ export function parse(text: string, format: DocFormat, t: T = spanish): ParseRes
   const problem = (message: string, path: (string | number)[]) => problems.push({ message, line: lineOf(path) });
 
   const root = (data ?? {}) as Record<string, unknown>;
-  if(typeof root !== "object" || Array.isArray(root)) return { topology: null, problems: [{ message: t("El documento debe ser un objeto con devices y links.") }] };
-  const rawDevices = Array.isArray(root.devices) ? root.devices : [];
+  if(typeof root !== "object" || Array.isArray(root)) return { topology: null, problems: [{ message: t("El documento debe ser un objeto con topology y links.") }] };
   const rawLinks = Array.isArray(root.links) ? root.links : [];
-  if(root.devices !== undefined && !Array.isArray(root.devices)) problem(t("devices debe ser una lista."), ["devices"]);
   if(root.links !== undefined && !Array.isArray(root.links)) problem(t("links debe ser una lista."), ["links"]);
 
   const devices: Device[] = [];
   const ids = new Set<string>();
-  rawDevices.forEach((raw, index) => {
+  type Path = (...rest: (string | number)[]) => (string | number)[];
+  const parseDevice = (raw: unknown, at: Path, index: number, zone: string | undefined) => {
     const item = (raw ?? {}) as Record<string, unknown>;
-    const at = (...rest: (string | number)[]) => ["devices", index, ...rest];
     const id = String(item.id ?? "").trim();
     if(!id){ problem(t("El dispositivo {n} no tiene id.", { n: index + 1 }), at()); return; }
     if(ids.has(id)) problem(t("El id \"{id}\" está repetido.", { id }), at("id"));
@@ -200,10 +220,14 @@ export function parse(text: string, format: DocFormat, t: T = spanish): ParseRes
     const dns = item.dns === undefined || item.dns === "" ? undefined : String(item.dns);
     if(dns && !isIp(dns)) problem(t("\"{id}\": el servidor DNS \"{dns}\" no es válido.", { id, dns }), at("dns"));
     const services = parseServices(item.services, id, (message, ...rest) => problem(message, at("services", ...rest)), t);
+    const status = item.status === undefined || item.status === "" ? undefined : String(item.status) as DeviceStatus;
+    if(status && !DEVICE_STATUSES.includes(status)) problem(t("\"{id}\": status es start o stop.", { id }), at("status"));
     devices.push({
       id,
       type: CATALOG[type] ? type : "pc",
       name: String(item.name ?? id),
+      ...(zone ? { zone } : {}),
+      ...(status && DEVICE_STATUSES.includes(status) ? { status } : {}),
       position: { x: Number(position.x) || 0, y: Number(position.y) || 0 },
       interfaces,
       ...(gateway && isIp(gateway) ? { gateway } : {}),
@@ -212,7 +236,47 @@ export function parse(text: string, format: DocFormat, t: T = spanish): ParseRes
       ...(services ? { services } : {}),
       ...(item.description ? { description: String(item.description) } : {}),
     });
+  };
+
+  // the topologies, each with its devices
+  const zones: Zone[] = [];
+  const zoneIds = new Set<string>();
+  if(root.topology !== undefined && !Array.isArray(root.topology)) problem(t("topology debe ser una lista de topologías."), ["topology"]);
+  (Array.isArray(root.topology) ? root.topology : []).forEach((raw, i) => {
+    const at: Path = (...rest) => ["topology", i, ...rest];
+    if(!raw || typeof raw !== "object" || Array.isArray(raw)){ problem(t("La topología {n} debe ser un objeto (id, name, status, devices).", { n: i + 1 }), at()); return; }
+    const item = raw as Record<string, unknown>;
+    const id = String(item.id ?? `topology-${i + 1}`).trim();
+    if(zoneIds.has(id)) problem(t("La topología \"{id}\" está repetida.", { id }), at("id"));
+    zoneIds.add(id);
+    const status = String(item.status ?? "start") as TopologyStatus;
+    if(!TOPOLOGY_STATUSES.includes(status)) problem(t("Topología \"{id}\": status es start, stop o hybrid.", { id }), at("status"));
+    let color: string | undefined;
+    if(item.color !== undefined && item.color !== ""){
+      const raw = String(item.color).trim();
+      const short = raw.match(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i);
+      color = short ? `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`.toLowerCase() : /^#[0-9a-f]{6}$/i.test(raw) ? raw.toLowerCase() : undefined;
+      if(!color) problem(t("Topología \"{id}\": el color \"{color}\" no es válido (ej. #3d7eff).", { id, color: raw }), at("color"));
+    }
+    const position = item.position as Record<string, unknown> | undefined;
+    if(item.devices !== undefined && !Array.isArray(item.devices)) problem(t("Topología \"{id}\": devices debe ser una lista.", { id }), at("devices"));
+    (Array.isArray(item.devices) ? item.devices : []).forEach((device, j) => parseDevice(device, (...rest) => at("devices", j, ...rest), j, id));
+    zones.push({
+      id, name: String(item.name ?? id).trim() || id,
+      status: TOPOLOGY_STATUSES.includes(status) ? status : "start",
+      ...(color ? { color } : {}),
+      ...(item.text ? { text: String(item.text) } : {}),
+      ...(position && typeof position === "object" ? { position: { x: Number(position.x) || 0, y: Number(position.y) || 0 } } : {}),
+    });
   });
+  // the first version: the devices at the root, in a single topology
+  if(root.devices !== undefined && !Array.isArray(root.devices)) problem(t("devices debe ser una lista."), ["devices"]);
+  (Array.isArray(root.devices) ? root.devices : []).forEach((raw, index) => parseDevice(raw, (...rest) => ["devices", index, ...rest], index, undefined));
+
+  const options = root.options as Record<string, unknown> | undefined;
+  if(options !== undefined && (typeof options !== "object" || options === null || Array.isArray(options))) problem(t("options debe ser un objeto (decorations)."), ["options"]);
+  const decorations = options && typeof options === "object" ? options.decorations : undefined;
+  if(decorations !== undefined && typeof decorations !== "boolean") problem(t("options.decorations es true o false."), ["options", "decorations"]);
 
   const links: Link[] = [];
   const linkIds = new Set<string>();
@@ -239,8 +303,10 @@ export function parse(text: string, format: DocFormat, t: T = spanish): ParseRes
   if(problems.length) return { topology: null, problems };
   return {
     topology: {
-      version: 1, name: String(root.name ?? t("Laboratorio sin título")),
+      version: 2, name: String(root.name ?? t("Laboratorio sin título")),
       ...(root.description ? { description: String(root.description) } : {}),
+      ...(decorations === false ? { options: { decorations: false } } : {}),
+      ...(zones.length ? { zones } : {}),
       devices, links,
     },
     problems: [],

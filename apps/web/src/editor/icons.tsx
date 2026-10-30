@@ -1,5 +1,29 @@
-// Line icons drawn for visual-tracert (24×24, stroke = currentColor).
+// Line icons drawn for visual-tracert (24×24, stroke = currentColor), and the
+// official logos of the images devices can be (in their own colours).
 import type { DeviceType } from "@visual-tracert/model";
+import type { JSX } from "react";
+
+// The Alpine Linux mark, from its official logo
+// (https://alpinelinux.org/alpinelinux-logo.svg): the hexagon and its
+// mountains, drawn over a white hexagon so they read on any theme.
+const ALPINE_HEXAGON = "M 57.588,80.32 94.807,15.838 57.588,-48.644 l -74.463,0 -37.219,64.482 37.219,64.482 74.463,0 z";
+const ALPINE_MARK = "M 0,0 0,15.687 -11.296,4.379 C -10.079,3.532 -8.932,2.836 -7.853,2.27 -6.774,1.703 -5.764,1.265 -4.823,0.932 -3.882,0.598 -3.009,0.37 -2.206,0.222 -1.402,0.075 -0.667,0.009 0,0 m 57.751,1.304 c 0.02,-0.017 0.13,-0.11 0.333,-0.239 0.204,-0.13 0.502,-0.297 0.898,-0.462 0.395,-0.164 0.889,-0.327 1.485,-0.448 0.596,-0.122 1.294,-0.202 2.098,-0.202 0.671,0 1.411,0.059 2.222,0.2 0.812,0.142 1.693,0.367 2.645,0.699 0.953,0.333 1.976,0.773 3.07,1.344 1.094,0.572 2.259,1.276 3.495,2.136 L 65.425,12.729 37.015,41.245 24.549,28.776 7.733,46.117 -34.471,4.39 c 1.235,-0.86 2.398,-1.564 3.491,-2.136 1.093,-0.571 2.115,-1.011 3.067,-1.344 0.951,-0.332 1.832,-0.557 2.643,-0.698 0.81,-0.142 1.55,-0.201 2.22,-0.201 0.804,0 1.502,0.08 2.097,0.202 0.596,0.121 1.089,0.284 1.485,0.449 0.396,0.164 0.693,0.331 0.897,0.461 0.204,0.13 0.314,0.223 0.334,0.24 L 0.815,20.415 7.628,26.948 26.494,8.082 33.085,1.304 c 0.02,-0.017 0.13,-0.11 0.334,-0.239 0.204,-0.13 0.501,-0.297 0.897,-0.462 0.396,-0.164 0.89,-0.327 1.485,-0.448 0.596,-0.122 1.295,-0.202 2.099,-0.202 0.67,0 1.411,0.059 2.222,0.2 0.811,0.142 1.693,0.367 2.645,0.699 0.952,0.333 1.975,0.773 3.069,1.344 1.094,0.572 2.259,1.276 3.495,2.136 L 34.192,19.157 37.01,21.975 50.111,8.874 57.751,1.304 M 57.588,80.32 94.807,15.838 57.588,-48.644 l -74.463,0 -37.219,64.482 37.219,64.482 74.463,0 z";
+const ALPINE_DOT = "M 0,0 -9.913,9.895 -9.208,10.604 0.775,0.73 0,0 z";
+
+function AlpineLogo({ size }: { size: number }) {
+  return (
+    <svg className="icon brand" width={size} height={size} viewBox="-56 -50 152.8 132" aria-hidden="true">
+      <g transform="matrix(1 0 0 -1 0 31.676)">
+        <path d={ALPINE_HEXAGON} fill="#fff" />
+        <path d={ALPINE_MARK} fill="#0d597f" />
+        <path d={ALPINE_DOT} fill="#0d597f" transform="translate(34.3647 18.9792)" />
+      </g>
+    </svg>
+  );
+}
+
+/** device types drawn with an official logo instead of a line icon */
+const BRANDS: Partial<Record<string, (props: { size: number }) => JSX.Element>> = { alpine: AlpineLogo };
 
 const paths: Record<string, string[]> = {
   // devices
@@ -45,6 +69,7 @@ const paths: Record<string, string[]> = {
   maximize: ["M14 4h6v6", "M20 4l-6.5 6.5", "M10 20H4v-6", "M4 20l6.5-6.5"],
   restore: ["M19 10h-5V5", "M14 10l6-6", "M5 14h5v5", "M10 14l-6 6"],
   close: ["M6 6l12 12M18 6 6 18"],
+  topology: ["M3.5 4.5h17v15h-17z", "M3.5 8.5h17", "M8 12.5h3v3H8zM14 12.5h3v3h-3z", "M11 14h3"],
   globe: ["M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z", "M3.5 12h17", "M12 3.5c2.3 2.4 3.4 5.2 3.4 8.5s-1.1 6.1-3.4 8.5c-2.3-2.4-3.4-5.2-3.4-8.5s1.1-6.1 3.4-8.5z"],
   copy: ["M8 8h11v12H8z", "M5 16V4h11"],
   upload: ["M12 15V4", "M7.5 8.5 12 4l4.5 4.5", "M4 15v5h16v-5"],
@@ -55,6 +80,8 @@ const paths: Record<string, string[]> = {
 export type IconName = keyof typeof paths;
 
 export function Icon({ name, size = 20, title }: { name: IconName | DeviceType; size?: number; title?: string }) {
+  const Brand = BRANDS[name];
+  if(Brand) return <Brand size={size} />;
   return (
     <svg className="icon" width={size} height={size} viewBox="0 0 24 24" aria-hidden={title ? undefined : true} role={title ? "img" : undefined}>
       {title && <title>{title}</title>}

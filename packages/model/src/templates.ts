@@ -89,7 +89,7 @@ function lab(seed: number, name: string) {
       links.push({ id: `l${links.length + 1}`, a: end(a), b: end(b) });
     },
     done(description: string): Topology {
-      return { version: 1, name, description, devices, links };
+      return { version: 2, name, description, devices, links };
     },
   };
 }

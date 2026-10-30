@@ -6,7 +6,12 @@ import { version } from "../../package.json";
 export default defineConfig({
   plugins: [react()],
   define: { __APP_VERSION__: JSON.stringify(version) },
-  server: { port: 5180 },
+  server: {
+    port: 5180,
+    // the emulator, as docker compose publishes it for development (the
+    // devices' CLI is a WebSocket)
+    proxy: { "/api": { target: "http://127.0.0.1:9151", ws: true } },
+  },
   build: {
     // Monaco is large and loaded only with the Documento tab
     chunkSizeWarningLimit: 4000,

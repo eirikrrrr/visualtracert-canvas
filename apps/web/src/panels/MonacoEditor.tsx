@@ -1,7 +1,12 @@
 // Monaco (the editor of VS Code), bundled with only what the document needs:
-// YAML highlighting and the JSON language. Loaded lazily with the Documento
-// tab. No CDN: it works without Internet access.
+// YAML highlighting and the JSON language, and the features of the editor
+// used on it (folding, find, hovers over problems, bracket matching). Loaded
+// lazily with the Documento tab. No CDN: it works without Internet access.
 import * as monaco from "monaco-editor/editor/editor.api.js";
+import "monaco-editor/features/folding/register.js";
+import "monaco-editor/features/find/register.js";
+import "monaco-editor/features/hover/register.js";
+import "monaco-editor/features/bracketMatching/register.js";
 import "monaco-editor/languages/definitions/yaml/register.js";
 import "monaco-editor/language/json/monaco.contribution.js";
 import EditorWorker from "monaco-editor/editor/editor.worker.js?worker";
@@ -64,6 +69,11 @@ export default function MonacoEditor({ value, language, theme, problems, onChang
       scrollBeyondLastLine: false,
       renderLineHighlight: "line",
       wordWrap: "off",
+      // fold the topologies, devices and lists from the gutter (Ctrl+Shift+[ / ])
+      folding: true,
+      foldingStrategy: "auto",
+      showFoldingControls: "always",
+      foldingHighlight: true,
     });
     instance.onDidChangeModelContent(() => changeRef.current(instance.getValue()));
     editor.current = instance;
