@@ -1,7 +1,7 @@
 {
   "name": "visual-tracert",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Laboratorio de redes en el navegador: editor visual de topologías y simulación de paquetes.",
   "type": "module",
   "workspaces": [

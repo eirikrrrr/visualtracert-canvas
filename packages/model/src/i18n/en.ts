@@ -512,6 +512,7 @@ export const en: Record<string, string> = {
   "Ventas 2": "Sales 2",
   "Volver al lienzo": "Back to the canvas",
   "Volver al lienzo (Esc)": "Back to the canvas (Esc)",
+  "Versión {version}": "Version {version}",
   "Web": "Web",
   "Web a api.tienda.com/estado: el servidor responde 404.": "Web to api.tienda.com/estado: the server answers 404.",
   "Web a dns.tienda.com: el servidor DNS no tiene web y rechaza la conexión (RST).": "Web to dns.tienda.com: the DNS server has no web and refuses the connection (RST).",

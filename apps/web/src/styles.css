@@ -163,6 +163,7 @@ body.resizing { cursor: ew-resize; user-select: none; }
 /* ---------- top bar ---------- */
 .topbar { display: flex; align-items: center; gap: 18px; padding: 0 16px 0 20px; }
 .brand { display: flex; align-items: center; gap: 10px; font: 600 15px var(--heading); letter-spacing: -.01em; }
+.brand-version { padding: 1px 7px; border: 1px solid var(--line-strong); border-radius: 999px; font: 500 11px var(--mono); color: var(--ink-3); }
 .brand-mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--accent); color: var(--accent-ink); }
 .modes { display: flex; gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 13px; }
 .modes button { display: flex; align-items: center; gap: 7px; padding: 6px 14px; border: 1px solid transparent; border-radius: 9px; background: none; color: var(--ink-2); font-weight: 500; }

@@ -100,3 +100,14 @@ packages/
 - `docker compose up -d --build` construye cada app desde la raíz (para que vea `packages/`) y publica el editor en el puerto 9150.
 
 La emulación (equipos reales en contenedores) será `apps/emulator`, que usará el mismo `packages/model`.
+
+## Versiones
+
+Todo el repositorio comparte una versión ([SemVer](https://semver.org/lang/es/)) y cada una queda en
+[CHANGELOG.md](CHANGELOG.md) y en una etiqueta `vX.Y.Z`. Para publicar una:
+
+1. Pasa lo de «Sin publicar» del CHANGELOG a la nueva versión, con su fecha.
+2. `npm version X.Y.Z --workspaces --include-workspace-root --no-git-tag-version`
+3. Commit `chore: release X.Y.Z`, etiqueta `git tag -a vX.Y.Z -m "visual-tracert X.Y.Z"` y push con `--follow-tags`.
+
+La app muestra su versión junto al nombre, en la barra superior.

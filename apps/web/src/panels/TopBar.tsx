@@ -210,6 +210,7 @@ export function TopBar() {
       <div className="brand">
         <span className="brand-mark"><Icon name="logo" size={20} /></span>
         <span className="brand-name">visual-tracert</span>
+        <span className="brand-version" title={t("Versión {version}", { version: __APP_VERSION__ })}>v{__APP_VERSION__}</span>
       </div>
 
       <div className="modes" role="radiogroup" aria-label={t("Modo")}>
