@@ -1,0 +1,86 @@
+// Labs saved in this browser: an index (id, name, last change) and one entry
+// per lab with its topology. The lab of the first version (a single saved
+// topology) becomes the first lab.
+import { parse, serialize } from "../model/document";
+import type { Topology } from "../model/types";
+
+const INDEX_KEY = "visor-tracert.labs";
+const CURRENT_KEY = "visor-tracert.current";
+const LAB_PREFIX = "visor-tracert.lab.";
+const LEGACY_KEY = "visor-tracert.lab";
+
+export interface LabMeta {
+  id: string;
+  name: string;
+  updatedAt: number;
+}
+
+const read = (key: string) => {
+  try{ return localStorage.getItem(key); }catch(_){ return null; }
+};
+const write = (key: string, value: string) => {
+  try{ localStorage.setItem(key, value); }catch(_){ /* full or blocked: the lab lives in memory */ }
+};
+const remove = (key: string) => {
+  try{ localStorage.removeItem(key); }catch(_){ /* ignore */ }
+};
+
+export const newLabId = () => `lab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+
+export function listLabs(): LabMeta[] {
+  try{
+    const index = JSON.parse(read(INDEX_KEY) ?? "[]");
+    return Array.isArray(index) ? index.filter(item => item && item.id) : [];
+  }catch(_){
+    return [];
+  }
+}
+
+function saveIndex(labs: LabMeta[]) {
+  write(INDEX_KEY, JSON.stringify(labs));
+}
+
+export function loadLab(id: string): Topology | null {
+  const saved = read(LAB_PREFIX + id);
+  if(!saved) return null;
+  return parse(saved, "json").topology;
+}
+
+/** Saves a lab and moves it to the top of the index. */
+export function saveLab(id: string, topology: Topology): LabMeta[] {
+  write(LAB_PREFIX + id, serialize(topology, "json"));
+  const labs = [{ id, name: topology.name, updatedAt: Date.now() }, ...listLabs().filter(item => item.id !== id)];
+  saveIndex(labs);
+  return labs;
+}
+
+export function deleteLab(id: string): LabMeta[] {
+  remove(LAB_PREFIX + id);
+  const labs = listLabs().filter(item => item.id !== id);
+  saveIndex(labs);
+  return labs;
+}
+
+export const currentLabId = () => read(CURRENT_KEY);
+export const setCurrentLabId = (id: string) => write(CURRENT_KEY, id);
+
+/** The lab to open at start: the last one used, else the first version's, else none. */
+export function startingLab(): { id: string; topology: Topology } | null {
+  const current = currentLabId();
+  const topology = current ? loadLab(current) : null;
+  if(current && topology) return { id: current, topology };
+  const legacy = read(LEGACY_KEY);
+  if(legacy){
+    const parsed = parse(legacy, "json").topology;
+    remove(LEGACY_KEY);
+    if(parsed){
+      const id = newLabId();
+      saveLab(id, parsed);
+      setCurrentLabId(id);
+      return { id, topology: parsed };
+    }
+  }
+  const first = listLabs()[0];
+  const fallback = first ? loadLab(first.id) : null;
+  return first && fallback ? { id: first.id, topology: fallback } : null;
+}

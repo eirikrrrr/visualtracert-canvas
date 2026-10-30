@@ -1,0 +1,214 @@
+// Top bar: the mode, the lab being edited (its name and the menu of labs:
+// switch, new, from the example, duplicate, delete), the theme and the
+// local profile.
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { LabMeta } from "../app/labs";
+import { initials, squarePhoto, useProfile } from "../app/profile";
+import { THEMES, useStore, type Mode } from "../app/store";
+import { Icon } from "../editor/icons";
+
+const MODES: { id: Mode; label: string; title: string }[] = [
+  { id: "realtime", label: "Tiempo real", title: "El ping se resuelve al instante y se muestra su resultado" },
+  { id: "simulation", label: "Simulación", title: "El ping se reproduce trama a trama sobre el lienzo" },
+];
+
+function ago(time: number): string {
+  const minutes = Math.round((Date.now() - time) / 60000);
+  if(minutes < 1) return "ahora";
+  if(minutes < 60) return `hace ${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  if(hours < 24) return `hace ${hours} h`;
+  return new Date(time).toLocaleDateString("es", { day: "numeric", month: "short" });
+}
+
+/** A button that opens a menu below it; closes with Escape or a click outside. */
+function Dropdown({ className, label, title, button, children, align = "end" }: {
+  className?: string; label: string; title: string; button: ReactNode; align?: "start" | "end";
+  children: (close: () => void) => ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if(!open) return;
+    const outside = (event: PointerEvent) => { if(!root.current?.contains(event.target as Node)) setOpen(false); };
+    const escape = (event: KeyboardEvent) => { if(event.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    root.current?.querySelector<HTMLElement>(".menu [aria-checked=\"true\"], .menu button, .menu input")?.focus();
+    return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
+  }, [open]);
+  return (
+    <div className={`dropdown ${className ?? ""}`} ref={root}>
+      <button type="button" className="dropdown-button" aria-haspopup="true" aria-expanded={open} aria-label={label} title={title}
+        onClick={() => setOpen(!open)}>{button}</button>
+      {open && <div className={`menu menu-${align}`} role="menu" aria-label={label}>{children(() => setOpen(false))}</div>}
+    </div>
+  );
+}
+
+function LabMenu() {
+  const labs = useStore(state => state.labs);
+  const labId = useStore(state => state.labId);
+  const [confirming, setConfirming] = useState(false);
+  const store = useStore.getState;
+  return (
+    <Dropdown className="lab-menu" label="Laboratorios" title="Laboratorios: cambiar, crear, duplicar o eliminar"
+      button={<Icon name="chevron" size={18} />} align="start">
+      {close => (
+        <>
+          <div className="menu-label">Tus laboratorios</div>
+          <div className="menu-list">
+            {labs.map((lab: LabMeta) => (
+              <button key={lab.id} type="button" role="menuitemradio" aria-checked={lab.id === labId}
+                onClick={() => { store().switchLab(lab.id); close(); }}>
+                <Icon name="file" size={16} />
+                <span className="menu-text"><span>{lab.name}</span><small>{ago(lab.updatedAt)}</small></span>
+                {lab.id === labId && <span className="check" aria-hidden="true">✓</span>}
+              </button>
+            ))}
+          </div>
+          <div className="menu-sep" role="separator" />
+          <button type="button" role="menuitem" onClick={() => { store().createLab("empty"); close(); }}>
+            <Icon name="plus" size={16} />Nuevo laboratorio vacío
+          </button>
+          <button type="button" role="menuitem" onClick={() => { store().createLab("example"); close(); }}>
+            <Icon name="logo" size={16} />Nuevo desde el ejemplo
+          </button>
+          <button type="button" role="menuitem" onClick={() => { store().createLab("duplicate"); close(); }}>
+            <Icon name="copy" size={16} />Duplicar este laboratorio
+          </button>
+          {confirming ? (
+            <div className="menu-confirm">
+              <span>¿Eliminar «{store().topology.name}»? No se puede deshacer.</span>
+              <div>
+                <button type="button" className="ghost small" onClick={() => setConfirming(false)}>Cancelar</button>
+                <button type="button" className="danger small" onClick={() => { store().removeLab(labId); setConfirming(false); close(); }}>Eliminar</button>
+              </div>
+            </div>
+          ) : (
+            <button type="button" role="menuitem" className="menu-danger" onClick={() => setConfirming(true)}>
+              <Icon name="trash" size={16} />Eliminar este laboratorio
+            </button>
+          )}
+        </>
+      )}
+    </Dropdown>
+  );
+}
+
+function Swatch({ colors }: { colors: [string, string, string] }) {
+  return <span className="swatch" aria-hidden="true">{colors.map(color => <i key={color} style={{ background: color }} />)}</span>;
+}
+
+function ThemeMenu() {
+  const theme = useStore(state => state.theme);
+  const current = THEMES.find(item => item.id === theme) ?? THEMES[0];
+  return (
+    <Dropdown label="Tema de color" title="Tema de color" button={<><Swatch colors={current.swatch} />{current.label}</>} className="theme-menu">
+      {close => THEMES.map(item => (
+        <button key={item.id} type="button" role="menuitemradio" aria-checked={item.id === theme}
+          onClick={() => { useStore.getState().setTheme(item.id); close(); }}>
+          <Swatch colors={item.swatch} /><span>{item.label}</span>
+          {item.id === theme && <span className="check" aria-hidden="true">✓</span>}
+        </button>
+      ))}
+    </Dropdown>
+  );
+}
+
+export function Avatar({ size = 34 }: { size?: number }) {
+  const name = useProfile(state => state.name);
+  const photo = useProfile(state => state.photo);
+  return (
+    <span className="avatar" style={{ width: size, height: size, fontSize: size * .38 }} aria-hidden="true">
+      {photo ? <img src={photo} alt="" /> : initials(name)}
+    </span>
+  );
+}
+
+function ProfileMenu() {
+  const name = useProfile(state => state.name);
+  const photo = useProfile(state => state.photo);
+  const [draft, setDraft] = useState(name);
+  const fileInput = useRef<HTMLInputElement>(null);
+  useEffect(() => setDraft(name), [name]);
+  const saveName = () => {
+    const next = draft.trim();
+    if(next && next !== name) useProfile.getState().update({ name: next });
+    else setDraft(name);
+  };
+  return (
+    <Dropdown className="profile-menu" label="Perfil" title={name} button={<><Avatar /><Icon name="chevron" size={16} /></>}>
+      {() => (
+        <div className="profile-card">
+          <Avatar size={56} />
+          <label className="field">
+            <span>Nombre</span>
+            <input value={draft} onChange={event => setDraft(event.target.value)} onBlur={saveName}
+              onKeyDown={event => { if(event.key === "Enter") (event.target as HTMLInputElement).blur(); }} />
+          </label>
+          <div className="profile-actions">
+            <button type="button" className="ghost small" onClick={() => fileInput.current?.click()}>
+              <Icon name="upload" size={15} />{photo ? "Cambiar foto" : "Poner una foto"}
+            </button>
+            {photo && <button type="button" className="ghost small" onClick={() => useProfile.getState().update({ photo: undefined })}>Quitar</button>}
+          </div>
+          <input ref={fileInput} type="file" accept="image/*" hidden onChange={async event => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if(!file) return;
+            try{ useProfile.getState().update({ photo: await squarePhoto(file) }); }
+            catch(error){ useStore.getState().notify((error as Error).message, "error"); }
+          }} />
+          <p className="muted small">Perfil de este navegador: todavía no hay cuentas.</p>
+        </div>
+      )}
+    </Dropdown>
+  );
+}
+
+export function TopBar() {
+  const name = useStore(state => state.topology.name);
+  const mode = useStore(state => state.mode);
+  const [draft, setDraft] = useState(name);
+  useEffect(() => setDraft(name), [name]);
+
+  const rename = () => {
+    const next = draft.trim();
+    const state = useStore.getState();
+    if(next && next !== state.topology.name) state.commit({ ...state.topology, name: next });
+    else setDraft(state.topology.name);
+  };
+
+  return (
+    <header className="topbar">
+      <div className="brand">
+        <span className="brand-mark"><Icon name="logo" size={20} /></span>
+        <span className="brand-name">visor-tracert</span>
+      </div>
+
+      <div className="modes" role="radiogroup" aria-label="Modo">
+        {MODES.map(item => (
+          <button key={item.id} type="button" role="radio" aria-checked={mode === item.id} title={item.title}
+            className={mode === item.id ? "active" : ""} onClick={() => useStore.getState().setMode(item.id)}>
+            <Icon name={item.id} size={17} />{item.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="lab-title">
+        <span className="crumb">Laboratorios</span>
+        <span className="crumb-sep" aria-hidden="true">/</span>
+        <input className="lab-name" aria-label="Nombre del laboratorio" value={draft} size={Math.max(8, draft.length)}
+          onChange={event => setDraft(event.target.value)} onBlur={rename}
+          onKeyDown={event => { if(event.key === "Enter") (event.target as HTMLInputElement).blur(); }} />
+        <LabMenu />
+      </div>
+
+      <div className="topbar-actions">
+        <ThemeMenu />
+        <ProfileMenu />
+      </div>
+    </header>
+  );
+}
