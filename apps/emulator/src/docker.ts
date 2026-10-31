@@ -121,8 +121,9 @@ export const docker = {
     return { ok: reply.status < 300 && !lines.some(line => line.error), log: log || reply.text };
   },
 
-  async list(labels: Record<string, string>): Promise<ContainerSummary[]> {
-    const filters = JSON.stringify({ label: Object.entries(labels).map(([key, value]) => `${key}=${value}`) });
+  /** the containers with these labels; a label given as null: any value of it */
+  async list(labels: Record<string, string | null>): Promise<ContainerSummary[]> {
+    const filters = JSON.stringify({ label: Object.entries(labels).map(([key, value]) => value === null ? key : `${key}=${value}`) });
     return json("GET", `/containers/json?all=true&filters=${encodeURIComponent(filters)}`);
   },
 

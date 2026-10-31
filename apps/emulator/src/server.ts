@@ -1,8 +1,11 @@
 // The emulator's HTTP API, behind the web's nginx at /api:
 //   GET    /api/health              is it up, can it reach Docker, has it KVM, are privileged containers allowed
+//   GET    /api/labs                the labs with containers on this server
 //   GET    /api/labs/:lab           what of the lab is running
-//   PUT    /api/labs/:lab           deploy it: the topology document (JSON)
+//   PUT    /api/labs/:lab?expires=  deploy it: the topology document (JSON); expires
+//                                   (ms since the epoch): stopped by itself then
 //   DELETE /api/labs/:lab           remove it
+//   GET    /api/labs/:lab/addresses the addresses its running devices have now, by device
 //   POST   /api/labs/:lab/run       { device, command, target? } on a device
 //   POST   /api/labs/:lab/start     { devices, document }: those devices, if stopped; the rest left running
 //   POST   /api/labs/:lab/restart   { devices, document }: those devices again
@@ -36,7 +39,7 @@ import { version } from "../../../package.json";
 import { CAPTURE_LIMIT, CaptureError, startCapture } from "./capture";
 import { docker, DockerError } from "./docker";
 import { buildProfile, loadProfiles, profileStatus, removeProfile, saveProfile } from "./profiles";
-import { ALLOW_PRIVILEGED, COMMANDS, deploy, destroy, execute, imageStatus, openShell, relaunch, status, stopDevices, type Command, type Size } from "./lab";
+import { ALLOW_PRIVILEGED, COMMANDS, deploy, destroy, execute, imageStatus, liveAddresses, openShell, relaunch, runningLabs, status, stopDevices, type Command, type Size } from "./lab";
 import { ensureImage } from "./vrnetlab";
 
 const MAX_BODY = 2 * 1024 * 1024;
@@ -146,11 +149,20 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     throw new HttpError(405, method);
   }
 
-  const match = url.pathname.match(/^\/api\/labs\/([^/]+)(\/run|\/start|\/restart|\/stop)?$/);
+  if(url.pathname === "/api/labs" && method === "GET"){
+    send(res, 200, await runningLabs());
+    return;
+  }
+  const match = url.pathname.match(/^\/api\/labs\/([^/]+)(\/run|\/start|\/restart|\/stop|\/addresses)?$/);
   if(!match) throw new HttpError(404, t("No existe esa ruta del emulador."));
   const lab = decodeURIComponent(match[1]);
   if(!LAB_ID.test(lab)) throw new HttpError(400, t("El identificador del laboratorio no es válido."));
 
+  if(match[2] === "/addresses"){
+    if(method !== "GET") throw new HttpError(405, "GET");
+    send(res, 200, await liveAddresses(lab));
+    return;
+  }
   if(match[2] === "/start" || match[2] === "/restart" || match[2] === "/stop"){
     if(method !== "POST") throw new HttpError(405, "POST");
     const body = (await bodyOf(req)) as { devices?: unknown; document?: unknown };
@@ -175,7 +187,9 @@ async function route(req: IncomingMessage, res: ServerResponse) {
   if(method === "PUT"){
     const parsed = parse(JSON.stringify(await bodyOf(req)), "json", t);
     if(!parsed.topology) throw new HttpError(400, parsed.problems.map(problem => problem.message).join(" "));
-    send(res, 200, await deploy(lab, parsed.topology, t));
+    // an exercise's lab: stopped by itself when its time is up
+    const expires = Number(url.searchParams.get("expires")) || undefined;
+    send(res, 200, await deploy(lab, parsed.topology, t, expires));
     return;
   }
   throw new HttpError(405, method);

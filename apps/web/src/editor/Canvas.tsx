@@ -9,10 +9,12 @@ import {
   type Connection, type NodeChange, type NodeMouseHandler, type EdgeMouseHandler,
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { isLightTheme, selectedZone, useStore } from "../app/store";
+import { CHALLENGE_SPACE, isLightTheme, selectedZone, useStore } from "../app/store";
 import { addDevice, CATALOG, connect, decorated, devicesOf, isStarted, moveDevices, moveToZone, updateZone, zoneOf, type DeviceType } from "@visual-tracert/model";
+import { useLiveAddresses } from "../emulation/live";
 import { useEmulation } from "../emulation/store";
 import { t } from "../i18n";
+import { useProgress } from "../practice/progress";
 import { addressOf } from "../sim/engine";
 import { DeviceNode, TILE, type DeviceNodeType } from "./DeviceNode";
 import { LinkEdge, type LinkEdgeType } from "./LinkEdge";
@@ -49,13 +51,19 @@ export function Canvas() {
   const emulating = useStore(state => state.mode === "emulation");
   const { screenToFlowPosition, fitView } = useReactFlow<AppNode, LinkEdgeType>();
 
-  // another lab: frame it once its devices are drawn
+  // another lab: frame it once its devices are drawn (an exercise's, clear of
+  // its challenge card on the left)
+  const challenge = useProgress(state => Boolean(state.labs[labId]));
   useEffect(() => {
-    const timer = setTimeout(() => fitView(FIT), 60);
+    const timer = setTimeout(() => fitView(challenge ? { ...FIT, padding: { top: "60px", right: "60px", bottom: "110px", left: `${CHALLENGE_SPACE + 90}px` } } : FIT), 60);
     return () => clearTimeout(timer);
-  }, [labId, fitView]);
+  }, [labId, challenge, fitView]);
 
   const current = run && step >= 0 ? run.events[step] : null;
+
+  // emulating a deployed lab: the addresses its devices have now
+  const deployed = useEmulation(state => Boolean(state.lab?.deployed && state.lab.lab === labId));
+  const live = useLiveAddresses(labId, emulating && deployed);
 
   const [nodes, setNodes] = useState<DeviceNodeType[]>([]);
   useEffect(() => {
@@ -77,11 +85,12 @@ export function Canvas() {
             device, mark, dropped: Boolean(current && current.to === device.id && current.result === "dropped"),
             // emulating, what its topology does not start is shown off
             idle: emulating && !isStarted(topology, device),
+            ...(live[device.id] ? { live: live[device.id] } : {}),
           },
         } as DeviceNodeType;
       });
     });
-  }, [topology, selection, current, pingFrom, request, run, emulating]);
+  }, [topology, selection, current, pingFrom, request, run, emulating, live]);
 
   // the topologies: around the devices as they are now (also mid-drag), or
   // where an empty one is being dragged

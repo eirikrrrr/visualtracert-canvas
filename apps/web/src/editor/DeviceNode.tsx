@@ -20,12 +20,14 @@ export type DeviceNodeData = {
   dropped: boolean;
   /** emulating, its topology does not start it */
   idle: boolean;
+  /** emulating, the addresses it has now (absent: not known) */
+  live?: string[];
 };
 
 export type DeviceNodeType = Node<DeviceNodeData, "device">;
 
 function DeviceNodeView({ data, selected }: NodeProps<DeviceNodeType>) {
-  const { device, mark, dropped, idle } = data;
+  const { device, mark, dropped, idle, live } = data;
   const t = useT();
   const main = device.interfaces.find(iface => iface.ip);
   const profile = useImages(state => device.profile ? state.profiles.find(item => item.profile.id === device.profile) : undefined);
@@ -43,7 +45,19 @@ function DeviceNodeView({ data, selected }: NodeProps<DeviceNodeType>) {
       </div>
       <div className="device-text">
         <strong>{device.name}</strong>
-        <span>{main ? `${main.ip}/${main.prefix}` : t(CATALOG[device.type].label)}</span>
+        {(() => {
+          const documented = main ? `${main.ip}/${main.prefix}` : null;
+          // emulating: what the device has now; marked when the document says otherwise
+          if(live && live[0] !== (documented ?? undefined)){
+            const now = live[0] ?? t("sin dirección");
+            return (
+              <span className="live-address" title={t("En el equipo: {live} · en el documento: {doc}", { live: live.join(", ") || t("sin dirección"), doc: documented ?? t("sin dirección") })}>
+                {now}<small>{t("en el equipo")}</small>
+              </span>
+            );
+          }
+          return <span>{documented ?? t(CATALOG[device.type].label)}</span>;
+        })()}
         <span className="tag tag-image" title={t("Imagen: {image}", { image: image.ref })}>{shortRef(image.ref)}</span>
         {device.profile && (
           <span className={`tag tag-profile${profile?.state === "built" ? "" : " pending"}`}

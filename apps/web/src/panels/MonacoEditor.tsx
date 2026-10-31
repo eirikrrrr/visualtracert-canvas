@@ -51,9 +51,11 @@ export interface MonacoEditorProps {
   onChange: (value: string) => void;
   /** a line to bring into view (changes each time it is asked) */
   reveal: { line: number; at: number } | null;
+  /** it can be read, not changed */
+  readOnly?: boolean;
 }
 
-export default function MonacoEditor({ value, language, theme, problems, onChange, reveal }: MonacoEditorProps) {
+export default function MonacoEditor({ value, language, theme, problems, onChange, reveal, readOnly = false }: MonacoEditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const editor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const changeRef = useRef(onChange);
@@ -96,6 +98,8 @@ export default function MonacoEditor({ value, language, theme, problems, onChang
     const model = editor.current?.getModel();
     if(model) monaco.editor.setModelLanguage(model, language);
   }, [language]);
+
+  useEffect(() => { editor.current?.updateOptions({ readOnly }); }, [readOnly]);
 
   useEffect(() => {
     // after the page applied the new theme's tokens

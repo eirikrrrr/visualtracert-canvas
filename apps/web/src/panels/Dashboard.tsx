@@ -13,6 +13,7 @@ import { Icon } from "../editor/icons";
 import { useImages } from "../emulation/images";
 import { useEmulation } from "../emulation/store";
 import { tx, useLang, useT } from "../i18n";
+import { useProgress } from "../practice/progress";
 import { HelpList } from "./Inspector";
 import { Avatar } from "./TopBar";
 
@@ -57,6 +58,7 @@ function ProfileSection() {
   const labs = useStore(state => state.labs);
   const profiles = useImages(state => state.profiles);
   const totals = useTotals(labs);
+  const solved = Object.keys(useProgress(state => state.done)).length;
   const fileInput = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState({ name, bio: bio ?? "" });
   useEffect(() => setDraft({ name, bio: bio ?? "" }), [name, bio]);
@@ -99,6 +101,7 @@ function ProfileSection() {
         <div><strong>{totals.devices}</strong><span>{t("dispositivos")}</span></div>
         <div><strong>{totals.links}</strong><span>{t("cables")}</span></div>
         <div><strong>{profiles.length}</strong><span>{t("perfiles de imagen")}</span></div>
+        <div><strong>{solved}</strong><span>{t("retos superados")}</span></div>
       </div>
       <p className="muted small">{t("Este perfil vive en este navegador: todavía no hay cuentas de usuario.")}</p>
     </>

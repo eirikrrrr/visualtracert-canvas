@@ -11,4 +11,5 @@ export * from "./topology";
 export * from "./zones";
 export * from "./example";
 export * from "./templates";
+export * from "./exercises";
 export * from "./i18n";

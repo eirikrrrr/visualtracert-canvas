@@ -22,6 +22,14 @@ servidor permite contenedores privilegiados (`ALLOW_PRIVILEGED=1`).
 
 ## Laboratorios
 
+### `GET /api/labs`
+
+Los laboratorios que tienen contenedores en el servidor:
+
+```json
+[{ "lab": "lab-mvwo7czd-jhk2", "containers": 3, "running": 3 }]
+```
+
 ### `GET /api/labs/:lab`
 
 Lo que corre del laboratorio, leído de las etiquetas de sus contenedores:
@@ -40,9 +48,21 @@ Lo que corre del laboratorio, leído de las etiquetas de sus contenedores:
 `outdated`: corre una versión anterior de su imagen (una máquina virtual tras actualizar el
 emulador); reiniciarlo la actualiza.
 
+### `GET /api/labs/:lab/addresses`
+
+Las direcciones IPv4 que los equipos en marcha tienen ahora (lo que su CLI haya cambiado), por
+equipo y puerto. No incluye los equipos con sistema propio (RouterOS, SR Linux):
+
+```json
+{ "pc-1": [{ "ifname": "eth0", "address": "192.168.1.20/24" }], "switch": [] }
+```
+
 ### `PUT /api/labs/:lab`
 
-Despliega el laboratorio desde su documento, después de borrar lo que corría. Responde el estado
+Despliega el laboratorio desde su documento, después de borrar lo que corría. Con
+`?expires=<ms desde 1970>` (el plazo de un reto), sus contenedores llevan esa caducidad y el
+emulador los detiene por sí mismo al pasarla: revisa cada 30 s, aunque no haya ninguna página
+abierta. Reiniciar o iniciar equipos conserva la caducidad. Responde el estado
 y los avisos de lo que no se emula:
 
 ```json

@@ -137,6 +137,8 @@ El resultado deseado es una plataforma de laboratorio de redes accesible desde c
 - **Imágenes:** Alpine, Ubuntu, Debian, BusyBox, NGINX, netshoot, FRRouting, Nokia SR Linux y
   MikroTik RouterOS (máquina virtual, al estilo de vrnetlab), más perfiles de imagen propios.
 - **Simulación:** el recorrido de cada paquete (ARP, ICMP, DHCP, DNS, TCP/HTTP), paso a paso.
+- **Practicar:** retos por temas (IP, VLAN, enrutamiento, DHCP, DNS y web, diagnóstico)
+  ordenados como un camino, que se validan con la simulación.
 - **Panel de usuario:** perfil local, preferencias (idioma, tema, animaciones), laboratorios,
   estado del servidor y atajos.
 - **Interfaz:** cuatro temas, español, inglés y portugués, y tipografía incluida con la app.

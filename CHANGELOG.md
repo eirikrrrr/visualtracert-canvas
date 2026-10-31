@@ -6,6 +6,60 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 
 ## [Sin publicar]
 
+### Añadido
+- Practicar (el primer botón de modo): 12 retos en seis cajas por tema (Fundamentos IP, Switching
+  y VLAN, Enrutamiento, DHCP, DNS y web, Diagnóstico) ordenadas como un camino numerado, más
+  OSPF, BGP y NAT como próximas. Dentro de cada caja, los niveles se desbloquean en orden. Cada reto
+  abre un laboratorio con algo por hacer o arreglar, y una tarjeta con sus objetivos, pistas y
+  «Comprobar», que valida con la simulación (vale cualquier solución correcta). El progreso se
+  guarda en el navegador y aparece en el panel de usuario.
+- Dos dificultades en Practicar. **Fácil:** se resuelve desde la interfaz y se comprueba en la
+  simulación. **Medio:** el reto se despliega en Emulación, la interfaz queda bloqueada
+  (propiedades, ventanas, documento, añadir o quitar equipos y cables; solo se pueden mover) y se
+  resuelve desde la CLI de cada equipo; «Comprobar» hace pings reales con las direcciones que los
+  equipos tienen en ese momento. Cada dificultad lleva su progreso. Medio está en los retos que la
+  emulación puede comprobar con los comandos de sus equipos (direccionamiento y enrutamiento); los
+  demás dicen por qué no.
+- Los laboratorios de los retos son desechables: al empezar un reto (Siguiente, Empezar o
+  Repetir) se detienen los contenedores de los retos que sigan encendidos, y «Volver a Practicar»
+  tras superar uno detiene el suyo. Así no quedan contenedores olvidados gastando memoria.
+- Practicar al estilo de un laboratorio de hacking: cada reto es una «máquina» con un nombre
+  divertido («Hola, Vecino», «El Infiltrado», «Triple Avería»…), una historia y un avatar (el
+  color de su tema, el anillo del de su nivel). Una tabla de máquinas con búsqueda y filtros
+  (estado, dificultad, tema), y la página de cada máquina: Jugar (modo, «Iniciar máquina» y sus
+  tareas), Información (la historia, qué harás, los equipos del laboratorio) y Solución
+  (bloqueada hasta superarla). Puntos de experiencia por reto (el doble en Medio) y rangos (Novato,
+  Aprendiz, Técnico, Ingeniero, Arquitecto) con nivel y barra. El camino de cajas sigue como
+  segunda pestaña.
+- El menú de laboratorios: cada uno con su papelera, confirmada en la misma fila, sin tener que
+  abrirlo; el reto en curso en su propia sección, y un buscador cuando hay muchos. Los
+  laboratorios de los retos ya no se acumulan: al empezar uno se quitan los de los anteriores (y
+  al abrir la app, los que se habían acumulado).
+- Temporizador en los retos (Fácil: 5, 8 o 12 minutos según el nivel; Medio: 10, 15 o 20). Al
+  superarlo se guarda el tiempo (el mejor aparece en el camino) y se cierran sus contenedores; si
+  se acaba el tiempo, se cierran y «Reintentar» lo levanta de cero. El emulador cierra por sí mismo
+  los laboratorios caducados (`PUT /api/labs/:lab?expires=`), aunque no haya ninguna página
+  abierta.
+- Al superar un reto se despliegan todas sus pistas como solución de referencia, con una nota:
+  si se resolvió de otra forma y «Comprobar» pasó, también es correcta.
+- La tarjeta del reto queda fija a la izquierda del todo del lienzo. Las barras de herramientas
+  e inferior empiezan a su lado y se siguen moviendo libremente; las ventanas de los equipos se
+  abren a su derecha, sin taparla.
+- En modo Medio, el doble clic en un equipo abre su ventana directamente en la CLI, y sus
+  propiedades bloqueadas ofrecen «Abrir su CLI».
+
+### Cambiado
+- Editorial es el tema por defecto.
+
+### Arreglado
+- En Emulación, el lienzo mostraba la dirección del documento aunque el equipo tuviera otra
+  (cambiada desde su CLI). Ahora muestra la que el equipo tiene de verdad; si no coincide con el
+  documento, la marca «en el equipo» y lo explica al pasar el ratón.
+- «Comprobar» en modo Medio daba por bueno un ping cuando dos equipos tenían la misma dirección
+  (el origen se respondía a sí mismo). Ahora lo detecta y avisa del conflicto de IP.
+- El detalle del evento de la simulación (sus cabeceras) flotaba sobre el panel lateral sin poder
+  cerrarse: compartía nombre de clase con el inspector nuevo. Vuelve a su sitio, dentro del panel.
+
 ## [0.4.0] - 2026-10-31
 
 ### Añadido

@@ -14,6 +14,7 @@ export function DocumentPanel() {
   const topology = useStore(state => state.topology);
   const theme = useStore(state => state.theme);
   const t = useT();
+  const locked = useStore(state => state.locked);
   const [format, setFormat] = useState<DocFormat>("yaml");
   const [text, setText] = useState(() => serialize(topology, "yaml"));
   const [problems, setProblems] = useState<DocProblem[]>([]);
@@ -95,7 +96,7 @@ export function DocumentPanel() {
 
       <div className="doc-editor">
         <Suspense fallback={<div className="doc-loading muted">{t("Cargando el editor…")}</div>}>
-          <MonacoEditor value={text} language={format} theme={theme} problems={problems} onChange={edit} reveal={reveal} />
+          <MonacoEditor value={text} language={format} theme={theme} problems={problems} onChange={edit} reveal={reveal} readOnly={locked} />
         </Suspense>
       </div>
 

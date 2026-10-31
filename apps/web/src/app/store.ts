@@ -4,7 +4,7 @@
 // views of it, and every change goes through commit().
 import { create } from "zustand";
 import { t, tx, type T } from "../i18n";
-import { emptyTopology, exampleTopology, removeDevices, removeLinks, removeZone, templateById, zoneOf, type Topology } from "@visual-tracert/model";
+import { emptyTopology, exampleTopology, networkFingerprint, removeDevices, removeLinks, removeZone, templateById, zoneOf, type Topology } from "@visual-tracert/model";
 import { applyLease, PROTOCOLS, simulate, type Protocol, type SimEvent, type SimKind, type SimOutcome, type SimRequest, type SimRun } from "../sim/engine";
 import { deleteLab, listLabs, loadLab, newLabId, saveLab, setCurrentLabId, startingLab, type LabMeta } from "./labs";
 
@@ -20,7 +20,9 @@ export const SIDE_MIN = 320;
 export type Selection = { kind: "device" | "link" | "zone"; id: string } | null;
 export type Tool = "select" | "ping" | "capture";
 /** simulation: the network is modelled here; emulation: real containers */
-export type Mode = "simulation" | "emulation";
+/** practice: the exercises; simulation: the network is modelled here;
+ * emulation: real containers */
+export type Mode = "practice" | "simulation" | "emulation";
 /** how a run is played back: at once ("realtime") or frame by frame at a speed */
 export type Speed = "realtime" | 0.5 | 1 | 2 | 4;
 export const SPEEDS: Speed[] = ["realtime", 0.5, 1, 2, 4];
@@ -34,6 +36,11 @@ function loadSpeed(): Speed {
   }catch(_){ /* no storage */ }
   return 1;
 }
+/** the challenge card's width, and the room it takes on the canvas's left
+ * (with its margins): the bars start beside it, and move freely */
+export const CHALLENGE_WIDTH = 340;
+export const CHALLENGE_SPACE = CHALLENGE_WIDTH + 28;
+
 /** the side panel: the mode's (simulation or emulation) and the document */
 export type Tab = "simulation" | "document";
 
@@ -153,6 +160,11 @@ interface State {
   inspectLab: boolean;
   /** the user's dashboard, open on one of its sections */
   dashboard: DashboardSection | null;
+  /** the lab's network cannot be changed from the interface (an exercise in
+   * medium difficulty: its devices are configured from their CLI) */
+  locked: boolean;
+  /** the open lab is an exercise: its challenge card is on the canvas's left */
+  challenge: boolean;
   /** the Marketplace is open, on its images or on the profiles */
   marketplace: "images" | "profiles" | null;
   /** device windows, the last one on top */
@@ -180,6 +192,8 @@ interface State {
   openTemplate: (id: string) => void;
   setGallery: (open: boolean) => void;
   setInspectLab: (open: boolean) => void;
+  setLocked: (locked: boolean) => void;
+  setChallenge: (challenge: boolean) => void;
   setDashboard: (section: DashboardSection | null) => void;
   setMarketplace: (open: State["marketplace"]) => void;
   openWindow: (device: string, tab?: DeviceWindow["tab"], detached?: boolean, capture?: string) => void;
@@ -227,6 +241,14 @@ function openingLab(): { id: string; topology: Topology; labs: LabMeta[] } {
 const opening = openingLab();
 
 // what a fresh lab starts with: no history, nothing selected, no simulation
+/** a change the lock refuses: it changes the network (said to the user) */
+function refused(next: Topology): boolean {
+  const state = useStore.getState();
+  if(!state.locked || networkFingerprint(next) === networkFingerprint(state.topology)) return false;
+  state.notify(t("Modo Medio: configura los equipos desde su CLI (doble clic en un equipo → CLI)."), "error");
+  return true;
+}
+
 const freshLab = { past: [], future: [], selection: null, run: null, request: null, step: -1, playing: false, pingFrom: null, windows: [] };
 
 function loadTheme(): Theme {
@@ -236,7 +258,8 @@ function loadTheme(): Theme {
     // the two themes of the first version
     if(saved === "light") return "editorial";
   }catch(_){ /* no storage */ }
-  return "azul";
+  // Editorial, light: the default
+  return "editorial";
 }
 
 function loadSideFloat(): { floating: boolean; float: SideFloat } {
@@ -287,6 +310,8 @@ export const useStore = create<State>((set, get) => ({
   gallery: false,
   inspectLab: false,
   dashboard: null,
+  locked: false,
+  challenge: false,
   marketplace: null,
   windows: [],
   sideWidth: loadSideWidth(),
@@ -296,13 +321,17 @@ export const useStore = create<State>((set, get) => ({
   log: [],
   logLayout: loadLogLayout(),
 
-  // a change of the topology invalidates a simulation computed on the old one
-  commit: next => set(state => next === state.topology ? {} : {
-    topology: next,
-    past: [...state.past, state.topology].slice(-HISTORY_LIMIT),
-    future: [],
-    run: null, step: -1, playing: false,
-  }),
+  // a change of the topology invalidates a simulation computed on the old one;
+  // locked, only what does not change the network (positions, notes) goes in
+  commit: next => {
+    if(next === get().topology || refused(next)) return;
+    set(state => ({
+      topology: next,
+      past: [...state.past, state.topology].slice(-HISTORY_LIMIT),
+      future: [],
+      run: null, step: -1, playing: false,
+    }));
+  },
   beginGesture: () => set(state => ({ gestureStart: state.topology })),
   setLive: next => set({ topology: next }),
   endGesture: () => set(state => {
@@ -322,7 +351,7 @@ export const useStore = create<State>((set, get) => ({
   }),
   // a new or loaded lab: no history of the previous one
   // the same lab, rewritten: its device windows stay (those of devices it still has)
-  replace: next => set({ topology: next, ...freshLab, windows: get().windows }),
+  replace: next => { if(!refused(next)) set({ topology: next, ...freshLab, windows: get().windows }); },
   switchLab: id => {
     if(id === get().labId) return;
     flushSave();
@@ -347,14 +376,18 @@ export const useStore = create<State>((set, get) => ({
   },
   setGallery: gallery => set({ gallery }),
   setInspectLab: inspectLab => set({ inspectLab }),
+  setLocked: locked => set({ locked }),
+  setChallenge: challenge => set({ challenge }),
   setDashboard: dashboard => set({ dashboard }),
   setMarketplace: marketplace => set({ marketplace }),
   openWindow: (device, tab, detached, capture) => {
     const open = get().windows.find(item => item.device === device);
     if(open){ get().raiseWindow(device, { ...(tab ? { tab } : {}), ...(detached !== undefined ? { detached } : {}), ...(capture !== undefined ? { capture } : {}) }); return; }
-    // each one a little apart from the last opened
+    // each one a little apart from the last opened; beside the challenge card,
+    // if there is one; locked, on the CLI (where the device is configured)
     const n = get().windows.length % 6;
-    set({ windows: [...get().windows, { device, x: 72 + n * 28, y: 56 + n * 28, tab: tab ?? "properties", ...(detached ? { detached } : {}), ...(capture !== undefined ? { capture } : {}) }] });
+    const x = (get().challenge ? CHALLENGE_SPACE + 84 : 72) + n * 28;
+    set({ windows: [...get().windows, { device, x, y: 56 + n * 28, tab: tab ?? (get().locked ? "cli" : "properties"), ...(detached ? { detached } : {}), ...(capture !== undefined ? { capture } : {}) }] });
   },
   closeWindow: device => set({ windows: get().windows.filter(item => item.device !== device) }),
   raiseWindow: (device, change) => {

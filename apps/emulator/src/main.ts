@@ -1,5 +1,8 @@
-// The emulator service: its API on PORT (8080 by default).
+// The emulator service: its API on PORT (8080 by default), and the sweep that
+// stops the labs whose time is up.
+import { sweepExpired } from "./lab";
 import { startServer } from "./server";
 
 const server = startServer(Number(process.env.PORT) || 8080);
+sweepExpired();
 for(const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => server.close(() => process.exit(0)));

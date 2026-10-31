@@ -218,7 +218,7 @@ export function SimulationPanel() {
           </div>
 
           {current && (
-            <section className="inspector" aria-label={t("Evento actual")}>
+            <section className="event-detail" aria-label={t("Evento actual")}>
               <h3>{current.summary}</h3>
               <p className="muted small">
                 {current.from ? `${name(current.from)} → ${name(current.to)}${current.inInterface ? ` (${current.inInterface})` : ""}` : t("En {device}", { device: name(current.to) })}

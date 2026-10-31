@@ -5,11 +5,13 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { LabMeta } from "../app/labs";
 import { initials, useProfile } from "../app/profile";
+import { useProgress } from "../practice/progress";
 import { THEMES, useStore, type Mode } from "../app/store";
 import { Icon } from "../editor/icons";
 import { LANGS, tx, useLang, useT, type T } from "../i18n";
 
 const MODES: { id: Mode; label: string; title: string }[] = [
+  { id: "practice", label: tx("Practicar"), title: tx("Retos por temas para poner a prueba lo que sabes, con su comprobación") },
   { id: "emulation", label: tx("Emulación"), title: tx("Cada equipo es un contenedor real y cada cable, un enlace virtual: los comandos se ejecutan de verdad") },
   { id: "simulation", label: tx("Simulación"), title: tx("La red se simula aquí: cada acción se ve trama a trama sobre el lienzo") },
 ];
@@ -48,28 +50,67 @@ function Dropdown({ className, label, title, button, children, align = "end" }: 
   );
 }
 
+/** a lab of the menu: open it, or (its bin) delete it, confirmed in place */
+function LabRow({ lab, current, exercise, close }: { lab: LabMeta; current: boolean; exercise?: string; close: () => void }) {
+  const t = useT();
+  const [confirming, setConfirming] = useState(false);
+  const locale = LANGS.find(item => item.id === useLang.getState().lang)!.html;
+  if(confirming){
+    return (
+      <div className="lab-row confirming" role="group" aria-label={t("¿Eliminar «{name}»?", { name: lab.name })}>
+        <span className="menu-text"><span>{t("¿Eliminar «{name}»?", { name: lab.name })}</span><small>{t("No se puede deshacer.")}</small></span>
+        <button type="button" className="ghost small" onClick={() => setConfirming(false)}>{t("No")}</button>
+        <button type="button" className="danger small" onClick={() => { useStore.getState().removeLab(lab.id); setConfirming(false); }}>{t("Eliminar")}</button>
+      </div>
+    );
+  }
+  return (
+    <div className={`lab-row${current ? " current" : ""}`}>
+      <button type="button" role="menuitemradio" aria-checked={current} onClick={() => { useStore.getState().switchLab(lab.id); close(); }}>
+        <Icon name={exercise ? "practice" : "file"} size={16} />
+        <span className="menu-text"><span>{lab.name}</span><small>{exercise ? t("Reto · {when}", { when: ago(lab.updatedAt, t, locale) }) : ago(lab.updatedAt, t, locale)}</small></span>
+        {current && <span className="check" aria-hidden="true">✓</span>}
+      </button>
+      <button type="button" className="icon-button lab-row-delete" aria-label={t("Eliminar «{name}»", { name: lab.name })} title={t("Eliminar")}
+        onClick={() => setConfirming(true)}>
+        <Icon name="trash" size={15} />
+      </button>
+    </div>
+  );
+}
+
 function LabMenu() {
   const labs = useStore(state => state.labs);
   const labId = useStore(state => state.labId);
-  const [confirming, setConfirming] = useState(false);
+  const attempts = useProgress(state => state.labs);
+  const [query, setQuery] = useState("");
   const store = useStore.getState;
   const t = useT();
-  const locale = LANGS.find(item => item.id === useLang.getState().lang)!.html;
+  const words = query.trim().toLowerCase();
+  const shown = [...labs].sort((p, q) => q.updatedAt - p.updatedAt).filter(lab => !words || lab.name.toLowerCase().includes(words));
+  const exercises = shown.filter(lab => attempts[lab.id]);
+  const own = shown.filter(lab => !attempts[lab.id]);
   return (
     <Dropdown className="lab-menu" label={t("Laboratorios")} title={t("Laboratorios: cambiar, crear, duplicar o eliminar")}
       button={<Icon name="chevron" size={18} />} align="start">
       {close => (
         <>
-          <div className="menu-label">{t("Tus laboratorios")}</div>
+          {labs.length > 6 && (
+            <input className="menu-search" type="search" value={query} placeholder={t("Buscar un laboratorio…")} aria-label={t("Buscar un laboratorio")}
+              onChange={event => setQuery(event.target.value)} />
+          )}
+          {exercises.length > 0 && (
+            <>
+              <div className="menu-label">{t("Reto en curso")}</div>
+              <div className="menu-list">
+                {exercises.map(lab => <LabRow key={lab.id} lab={lab} current={lab.id === labId} exercise={attempts[lab.id].exercise} close={close} />)}
+              </div>
+            </>
+          )}
+          <div className="menu-label">{t("Tus laboratorios ({n})", { n: labs.length - Object.keys(attempts).filter(id => labs.some(lab => lab.id === id)).length })}</div>
           <div className="menu-list">
-            {labs.map((lab: LabMeta) => (
-              <button key={lab.id} type="button" role="menuitemradio" aria-checked={lab.id === labId}
-                onClick={() => { store().switchLab(lab.id); close(); }}>
-                <Icon name="file" size={16} />
-                <span className="menu-text"><span>{lab.name}</span><small>{ago(lab.updatedAt, t, locale)}</small></span>
-                {lab.id === labId && <span className="check" aria-hidden="true">✓</span>}
-              </button>
-            ))}
+            {own.map(lab => <LabRow key={lab.id} lab={lab} current={lab.id === labId} close={close} />)}
+            {!own.length && <p className="menu-empty small muted">{t("Ningún laboratorio con ese nombre.")}</p>}
           </div>
           <div className="menu-sep" role="separator" />
           <button type="button" role="menuitem" onClick={() => { store().createLab("empty"); close(); }}>
@@ -81,19 +122,6 @@ function LabMenu() {
           <button type="button" role="menuitem" onClick={() => { store().createLab("duplicate"); close(); }}>
             <Icon name="copy" size={16} />{t("Duplicar este laboratorio")}
           </button>
-          {confirming ? (
-            <div className="menu-confirm">
-              <span>{t("¿Eliminar «{name}»? No se puede deshacer.", { name: store().topology.name })}</span>
-              <div>
-                <button type="button" className="ghost small" onClick={() => setConfirming(false)}>{t("Cancelar")}</button>
-                <button type="button" className="danger small" onClick={() => { store().removeLab(labId); setConfirming(false); close(); }}>{t("Eliminar")}</button>
-              </div>
-            </div>
-          ) : (
-            <button type="button" role="menuitem" className="menu-danger" onClick={() => setConfirming(true)}>
-              <Icon name="trash" size={16} />{t("Eliminar este laboratorio")}
-            </button>
-          )}
         </>
       )}
     </Dropdown>

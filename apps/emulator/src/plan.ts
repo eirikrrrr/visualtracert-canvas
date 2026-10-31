@@ -20,6 +20,8 @@ export const LABELS = {
   device: "visual-tracert.device",
   fingerprint: "visual-tracert.fingerprint",
   image: "visual-tracert.image",
+  /** when the lab is stopped by itself (an exercise's time limit), in ms since the epoch */
+  expires: "visual-tracert.expires",
 } as const;
 
 export interface NodePlan {

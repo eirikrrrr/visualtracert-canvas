@@ -33,7 +33,9 @@ interface HostSpec {
   description?: string;
 }
 
-function lab(seed: number, name: string) {
+/** A lab drawn by code (the templates', the exercises'): fixed MACs per seed,
+ * so the same lab always comes out the same. */
+export function drawLab(seed: number, name: string) {
   let count = 0;
   const hex = (n: number) => n.toString(16).padStart(2, "0");
   // a fixed MAC per lab and port: the documents do not change between openings
@@ -94,18 +96,18 @@ function lab(seed: number, name: string) {
   };
 }
 
-type Builder = ReturnType<typeof lab>;
+export type LabBuilder = ReturnType<typeof drawLab>;
 
 /** the lab's description: its summary and what to try, as a list */
 const describe = (meta: Omit<Template, "build">, t: T) =>
   `${t(meta.summary)}\n\n${t("Qué probar")}:\n${meta.tryThis.map(item => `- ${t(item)}`).join("\n")}`;
 
 /** a template drawn with the builder (or, for the example, a ready topology) */
-function template(seed: number, meta: Omit<Template, "build">, draw: (net: Builder, t: T) => Topology | void): Template {
+function template(seed: number, meta: Omit<Template, "build">, draw: (net: LabBuilder, t: T) => Topology | void): Template {
   return {
     ...meta,
     build: (t = spanish) => {
-      const net = lab(seed, t(meta.name));
+      const net = drawLab(seed, t(meta.name));
       const drawn = draw(net, t);
       return drawn ? { ...drawn, name: t(meta.name), description: describe(meta, t) } : net.done(describe(meta, t));
     },

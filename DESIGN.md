@@ -43,8 +43,10 @@ con un comentario de cabecera para cada uno.
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
+- **Menú de laboratorios:** el reto en curso en su sección, y cada laboratorio con su papelera
+  (aparece al pasar el ratón; la confirmación ocupa la misma fila). Con más de seis, un buscador.
 - **Barra superior** (`TopBar.tsx`): marca y versión (`v{__APP_VERSION__}`), selector de modo
-  **Emulación / Simulación**, el laboratorio (su nombre, ⓘ para ver sus datos en el inspector y
+  **Practicar / Emulación / Simulación**, el laboratorio (su nombre, ⓘ para ver sus datos en el inspector y
   el menú de laboratorios), idioma, tema y el avatar, que abre el panel de usuario.
 - **Barra de herramientas** (`Toolbar.tsx`, izquierda): seleccionar (V), ping (P),
   captura (C), eliminar (Supr), zoom, encuadrar (F), deshacer y rehacer.
@@ -80,9 +82,9 @@ navegador. El tema se aplica con `body[data-theme]`.
 
 | Tema | Base | Acento | Claro |
 |---|---|---|---|
-| Azul (por defecto) | negro medianoche y grises fríos | `#4f8cff` | no |
+| Azul | negro medianoche y grises fríos | `#4f8cff` | no |
 | Marrón | negros cálidos | `#c8834b` | no |
-| Editorial | papel `#f5f3ee` y blanco | `#b3261e` | sí |
+| Editorial (por defecto) | papel `#f5f3ee` y blanco | `#b3261e` | sí |
 | Morado | negros violáceos | `#9b6dff` | no |
 
 Cada tema oscuro tiñe sus grises con su carácter: fríos en Azul, cálidos en Marrón, violáceos en
@@ -203,6 +205,10 @@ Una sola curva (`--ease`, que arranca rápido y frena suave) y tres duraciones p
   (`--heading`, 15 px), su IP principal, la etiqueta de su imagen y, si usa uno, la de su perfil. Las asas de
   conexión aparecen al pasar el ratón o al seleccionar.
   - **Seleccionado:** borde de acento y halo.
+  - **Dirección real** (Emulación, laboratorio desplegado): la que el equipo tiene ahora, pedida
+    al emulador cada 4 s. Si no es la del documento (se cambió desde su CLI), va en el color de
+    acento con la marca «en el equipo», y su `title` dice las dos. Los equipos con sistema propio
+    (RouterOS, SR Linux) no la muestran: su contenedor no la tiene.
   - **Paquete llegando** en la simulación: baldosa en acento con brillo, o en rojo si el paquete
     se descarta.
   - **Origen de un ping:** borde discontinuo.
@@ -266,6 +272,69 @@ Los atajos no actúan mientras se escribe en un campo, en el documento o en una 
     reiniciar equipos o topologías se desactivan (detener no), y «Reiniciar todo» la aplica.
   - **Huella:** el cambio se detecta con una huella de la red (`networkFingerprint`) que no tiene
     en cuenta posiciones ni textos.
+
+## Practicar
+
+Una página propia en lugar del lienzo (`practice/PracticeHub.tsx`), al estilo de un laboratorio
+de hacking: cada reto es una **máquina**.
+
+- **Cada máquina** tiene un nombre para recordarla («Hola, Vecino», «El Infiltrado»), una
+  historia corta y un **avatar** (`MachineAvatar.tsx`): un disco con el color de su tema
+  (`BOX_COLOR`), el icono de su equipo protagonista y un anillo del color de su nivel (Básico
+  `--ok`, Intermedio `--arp`, Avanzado `--danger`), discontinuo hasta superarla y lleno después.
+- **Arriba, tres tarjetas:** el jugador (su rango, nivel, XP y la barra hacia el siguiente rango),
+  la siguiente máquina del camino y el progreso en la dificultad elegida.
+- **Dos pestañas** y el selector de dificultad (Fácil / Medio):
+  - **Máquinas:** una tabla con avatar, nombre, nivel · tema, un medidor de dificultad de diez
+    barras (más y más rojas cuanto más difícil), los modos, el tiempo, los XP y tu estado (mejor
+    tiempo si está superada). Búsqueda y filtros por estado, dificultad y tema; una fila abre su
+    página.
+  - **Camino:** las cajas por tema en un raíl numerado, como antes.
+- **La página de una máquina:** una cabecera con un degradado del color de su tema, el avatar
+  grande, su nombre y sus datos (recompensa, tiempo, dificultad, tu mejor tiempo), y tres
+  pestañas: **Jugar** (el modo, «Iniciar máquina» o por qué no se puede, y sus tareas, con
+  candado hasta superarla), **Información** (la historia en una cita, qué harás, el tema y los
+  equipos del laboratorio) y **Solución** (bloqueada hasta superarla, en cualquier modo).
+- **XP y rangos:** 10, 20 o 40 XP según el nivel, el doble en Medio; Novato, Aprendiz, Técnico,
+  Ingeniero y Arquitecto. No se muestran datos de otros usuarios: aún no hay cuentas.
+- **Dentro de una caja**, cada nivel se desbloquea al superar el anterior. Las cajas próximas
+  (OSPF, BGP, NAT) van al final del camino, con el borde discontinuo y el motivo escrito.
+
+Al empezar un reto se abre como laboratorio con la **tarjeta del reto** (`ChallengeCard.tsx`),
+fija a la izquierda del todo del lienzo (340 px). Mientras está (`--reserved-left`,
+`CHALLENGE_SPACE` en `store.ts`):
+
+- en su sitio por defecto, la barra de herramientas empieza a su derecha y la barra inferior se
+  centra en el resto; las dos se siguen moviendo libremente, también por encima de la tarjeta;
+- el lienzo se encuadra dejándole sitio, y las ventanas de los equipos se abren a su derecha.
+
+En Medio, el doble clic en un equipo abre su ventana directamente en la CLI, y la nota de solo
+lectura de sus propiedades lleva «Abrir su CLI».
+
+Cada intento tiene su tiempo (Fácil: 5, 8 o 12 minutos según el nivel; Medio: 10, 15 o 20).
+Bajo el título, junto a la dificultad, una píldora monoespaciada con la cuenta atrás, que en su
+último minuto pasa a `--danger` y late. Superado, muestra el tiempo empleado en `--ok`; agotado,
+«Tiempo agotado» y un aviso en `--danger-soft` con «Reintentar» (el reto de cero, con un tiempo
+nuevo). El mejor tiempo de cada reto aparece en el camino.
+
+La tarjeta muestra:
+
+- qué hacer y los objetivos, cada uno con su marca (pendiente, ✓ en `--ok`, ✕ en `--danger`) y
+  lo que pasó;
+- su dificultad en una etiqueta junto al título y, en Medio, una nota que dice cómo se resuelve
+  (desde la CLI) y que reiniciar un equipo borra lo hecho en ella; si el laboratorio no está
+  desplegado, «Iniciar el laboratorio» en lugar de «Comprobar»;
+- «Comprobar» (que gira mientras comprueba en los equipos reales) y las pistas, de una en una:
+  en Medio, con los comandos de la CLI;
+- al superarlo, un aviso en `--ok-soft` con todas las pistas como solución de referencia (y una
+  nota: otra forma que pase la comprobación también es correcta), «Siguiente» y «Volver a
+  Practicar».
+
+Los laboratorios de los retos son desechables: empezar un reto detiene los contenedores de los
+retos que sigan encendidos, y «Volver a Practicar» tras superar uno detiene el suyo. «← Todos
+los retos» lo deja encendido, para volver con «Seguir» sin perder lo hecho en la CLI.
+
+Se pliega a su título.
 
 ## Marketplace
 

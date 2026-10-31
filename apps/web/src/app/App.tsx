@@ -10,6 +10,7 @@ import { LogPanel } from "../panels/LogPanel";
 
 import { Palette } from "../panels/Palette";
 import { Inspector } from "../panels/Inspector";
+import { ChallengeCard } from "../practice/ChallengeCard";
 import { DeviceWindows } from "../panels/DeviceWindow";
 import { EmulationPanel } from "../emulation/EmulationPanel";
 import { useImages } from "../emulation/images";
@@ -21,12 +22,13 @@ import { Grip } from "../panels/Grip";
 import { tx, useT } from "../i18n";
 import { followPointer } from "./movable";
 import { useProfile } from "./profile";
-import { deleteSelection, SIDE_DEFAULT, useStore, type Tab } from "./store";
+import { CHALLENGE_SPACE, deleteSelection, SIDE_DEFAULT, useStore, type Tab } from "./store";
 
 // the dialogs load when they first open: the workspace starts lighter
 const TemplateGallery = lazy(() => import("../panels/TemplateGallery").then(module => ({ default: module.TemplateGallery })));
 const Marketplace = lazy(() => import("../panels/Marketplace").then(module => ({ default: module.Marketplace })));
 const Dashboard = lazy(() => import("../panels/Dashboard").then(module => ({ default: module.Dashboard })));
+const PracticeHub = lazy(() => import("../practice/PracticeHub").then(module => ({ default: module.PracticeHub })));
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "simulation", label: tx("Simulación") },
@@ -43,7 +45,8 @@ function Shortcuts() {
       if(typing(event.target)) return;
       const state = useStore.getState();
       // the gallery and the Marketplace are modal dialogs: their own keys only
-      if(state.gallery || state.marketplace || state.dashboard) return;
+      // the dialogs, and practice (no canvas), have their own keys only
+      if(state.gallery || state.marketplace || state.dashboard || state.mode === "practice") return;
       const key = event.key.toLowerCase();
       if((event.ctrlKey || event.metaKey) && key === "z"){ event.preventDefault(); event.shiftKey ? state.redo() : state.undo(); return; }
       if((event.ctrlKey || event.metaKey) && key === "y"){ event.preventDefault(); state.redo(); return; }
@@ -208,6 +211,8 @@ export function App() {
   const gallery = useStore(state => state.gallery);
   const marketplace = useStore(state => state.marketplace);
   const dashboard = useStore(state => state.dashboard);
+  const practicing = useStore(state => state.mode === "practice");
+  const challenge = useStore(state => state.challenge);
   const motion = useProfile(state => state.motion ?? "full");
   useEffect(() => { document.body.dataset.theme = theme; }, [theme]);
   useEffect(() => { document.body.dataset.motion = motion; }, [motion]);
@@ -219,32 +224,35 @@ export function App() {
       <Shortcuts />
       <div className="app">
         <TopBar />
-        <main className={`workspace${sideFull ? " side-full" : sideFloating ? " side-undocked" : ""}`} style={{ "--side-width": `${sideWidth}px` } as CSSProperties}>
-          <div className="stage">
-            <div className="canvas-area">
-            <Canvas />
-            <Toolbar />
-            <Palette />
-            {tool === "capture" && (
-              <div className="banner" role="status">
-                {t("Haz clic en un cable para capturar en él, o en un dispositivo para todas sus interfaces.")}
-                <button type="button" className="link" onClick={() => useStore.getState().setTool("select")}>{t("Cancelar")}</button>
+        {practicing ? <Suspense fallback={null}><PracticeHub /></Suspense> : (
+          <main className={`workspace${sideFull ? " side-full" : sideFloating ? " side-undocked" : ""}`} style={{ "--side-width": `${sideWidth}px` } as CSSProperties}>
+            <div className="stage">
+              <div className={`canvas-area${challenge ? " with-challenge" : ""}`} style={{ "--reserved-left": `${challenge ? CHALLENGE_SPACE : 0}px` } as CSSProperties}>
+              <Canvas />
+              <Toolbar />
+              <Palette />
+              {tool === "capture" && (
+                <div className="banner" role="status">
+                  {t("Haz clic en un cable para capturar en él, o en un dispositivo para todas sus interfaces.")}
+                  <button type="button" className="link" onClick={() => useStore.getState().setTool("select")}>{t("Cancelar")}</button>
+                </div>
+              )}
+              {tool === "ping" && (
+                <div className="banner" role="status">
+                  {pingFrom ? t("Haz clic en el equipo de destino.") : t("Haz clic en el equipo que hace el ping.")}
+                  <button type="button" className="link" onClick={() => useStore.getState().setTool("select")}>{t("Cancelar")}</button>
+                </div>
+              )}
+              <ChallengeCard />
+              <Inspector />
+              <DeviceWindows />
+              <Toasts />
               </div>
-            )}
-            {tool === "ping" && (
-              <div className="banner" role="status">
-                {pingFrom ? t("Haz clic en el equipo de destino.") : t("Haz clic en el equipo que hace el ping.")}
-                <button type="button" className="link" onClick={() => useStore.getState().setTool("select")}>{t("Cancelar")}</button>
-              </div>
-            )}
-            <Inspector />
-            <DeviceWindows />
-            <Toasts />
+              <LogPanel />
             </div>
-            <LogPanel />
-          </div>
-          <SidePanel />
-        </main>
+            <SidePanel />
+          </main>
+        )}
       </div>
       <Suspense fallback={null}>
         {gallery && <TemplateGallery />}

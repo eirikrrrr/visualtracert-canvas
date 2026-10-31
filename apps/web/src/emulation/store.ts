@@ -30,7 +30,7 @@ interface EmulationState {
   error: string | null;
   console: ConsoleEntry[];
   refresh: (lab: string) => Promise<void>;
-  deploy: (lab: string, topology: Topology) => Promise<void>;
+  deploy: (lab: string, topology: Topology, expires?: number) => Promise<void>;
   destroy: (lab: string) => Promise<void>;
   devices: (action: "start" | "stop" | "restart", lab: string, topology: Topology, devices: string[]) => Promise<void>;
   checkHealth: () => Promise<void>;
@@ -71,8 +71,8 @@ export const useEmulation = create<EmulationState>((set, get) => {
         set({ reachable: false });
       }
     },
-    deploy: (lab, topology) => act("deploy", async () => {
-      const { warnings, ...state } = await emulator.deploy(lab, topology);
+    deploy: (lab, topology, expires) => act("deploy", async () => {
+      const { warnings, ...state } = await emulator.deploy(lab, topology, expires);
       return { lab: state, warnings };
     }),
     destroy: lab => act("destroy", async () => ({ lab: await emulator.stop(lab), warnings: [] })),

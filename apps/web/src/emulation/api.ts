@@ -84,8 +84,12 @@ const labPath = (lab: string) => `/labs/${encodeURIComponent(lab)}`;
 
 export const emulator = {
   status: (lab: string) => call<LabState>("GET", labPath(lab)),
-  /** the topology goes as the editor's JSON document */
-  deploy: (lab: string, topology: Topology) => call<LabState & { warnings: string[] }>("PUT", labPath(lab), serialize(topology, "json")),
+  /** the labs with containers on this server, with how many run */
+  labs: () => call<{ lab: string; containers: number; running: number }[]>("GET", "/labs"),
+  /** the topology goes as the editor's JSON document; with expires (ms since
+   * the epoch), the emulator stops it by itself then */
+  deploy: (lab: string, topology: Topology, expires?: number) =>
+    call<LabState & { warnings: string[] }>("PUT", `${labPath(lab)}${expires ? `?expires=${expires}` : ""}`, serialize(topology, "json")),
   stop: (lab: string) => call<LabState>("DELETE", labPath(lab)),
   /** some devices started (those stopped) or again (their containers and
    * cables), or stopped; the rest left running */
@@ -93,6 +97,8 @@ export const emulator = {
     call<LabState & { warnings: string[] }>("POST", `${labPath(lab)}/start`, JSON.stringify({ devices, document: JSON.parse(serialize(topology, "json")) })),
   restart: (lab: string, topology: Topology, devices: string[]) =>
     call<LabState & { warnings: string[] }>("POST", `${labPath(lab)}/restart`, JSON.stringify({ devices, document: JSON.parse(serialize(topology, "json")) })),
+  /** the addresses the running devices have now (their CLI may have changed them), by device */
+  addresses: (lab: string) => call<Record<string, { ifname: string; address: string }[]>>("GET", `${labPath(lab)}/addresses`),
   stopDevices: (lab: string, devices: string[]) => call<LabState>("POST", `${labPath(lab)}/stop`, JSON.stringify({ devices })),
   /** the emulator: its version, Docker, KVM, privileged containers */
   health: () => call<Health>("GET", "/health"),

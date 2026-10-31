@@ -110,6 +110,9 @@ flowchart LR
     shell["DeviceShell<br/>(xterm.js)"]
   end
   sim["sim/engine.ts<br/>simulación de paquetes"]
+  practice["practice/<br/>retos: camino, tarjeta,<br/>comprobación, progreso"]
+  practice --> sim
+  practice --> store
   cap["capture/<br/>lector pcap"]
 
   store <--> canvas
@@ -128,6 +131,15 @@ flowchart LR
   modo, las ventanas abiertas). `emulation/store.ts` es el estado de lo que corre en el servidor.
 - `sim/engine.ts` es la simulación completa en el navegador: ARP, ICMP, traceroute, DHCP (con
   relay), DNS y TCP/HTTP, evento a evento.
+- `practice/` es la sección Practicar. Los retos (`exercises.ts` del modelo) traen su
+  laboratorio inicial, sus objetivos, sus pistas y su solución. `check.ts` comprueba cada
+  objetivo contra el laboratorio con la propia simulación (un ping, una concesión DHCP, un nombre
+  resuelto, una página web) o leyendo lo que dice (la VLAN de un puerto), así que vale cualquier
+  solución correcta. Un test comprueba que cada reto empieza sin resolver y que su solución
+  cumple todos los objetivos. En dificultad Medio, `checkGoalsLive` comprueba en los equipos
+  reales: busca la dirección que el destino tiene ahora en su contenedor (`ip addr`) y hace el
+  ping desde el origen por la API del emulador. El bloqueo de la interfaz es un único guardia en
+  `commit` y `replace` del estado: rechaza lo que cambia la huella de la red.
 - `capture/pcap.ts` decodifica en la página el pcap que manda el emulador (Ethernet, VLAN, ARP,
   IPv4/IPv6, ICMP, UDP, TCP, DNS, DHCP, HTTP).
 

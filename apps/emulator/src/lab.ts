@@ -75,6 +75,40 @@ async function stateOf(lab: string, containers: ContainerSummary[]): Promise<Lab
   };
 }
 
+/** Stops the labs whose time is up (an exercise's), every so often: they go
+ * even when no page is open to stop them. */
+export function sweepExpired(every = 30_000): () => void {
+  const sweep = async () => {
+    try{
+      const due = new Set((await docker.list({ [LABELS.expires]: null }))
+        .filter(container => Number(container.Labels[LABELS.expires]) <= Date.now())
+        .map(container => container.Labels[LABELS.lab]));
+      for(const lab of due){
+        await destroy(lab);
+        console.log(`visual-tracert emulator: ${lab} stopped, its time is up`);
+      }
+    }catch(error){
+      console.error(`visual-tracert emulator: sweep: ${(error as Error).message}`);
+    }
+  };
+  const timer = setInterval(sweep, every);
+  void sweep();
+  return () => clearInterval(timer);
+}
+
+/** the labs that have containers on this server, with how many run */
+export async function runningLabs(): Promise<{ lab: string; containers: number; running: number }[]> {
+  const labs = new Map<string, { lab: string; containers: number; running: number }>();
+  for(const container of await docker.list({ [LABELS.lab]: null })){
+    const lab = container.Labels[LABELS.lab];
+    const entry = labs.get(lab) ?? { lab, containers: 0, running: 0 };
+    entry.containers += 1;
+    if(container.State === "running") entry.running += 1;
+    labs.set(lab, entry);
+  }
+  return [...labs.values()].sort((p, q) => p.lab.localeCompare(q.lab));
+}
+
 export async function status(lab: string): Promise<LabState> {
   return stateOf(lab, await containersOf(lab));
 }
@@ -103,7 +137,7 @@ async function planOf(lab: string, topology: Topology, t: T, include: string[] =
 }
 
 /** a device's container, created and started: its id, and its process as the host sees it */
-async function startNode(lab: string, plan: Plan, node: NodePlan): Promise<{ id: string; pid: number }> {
+async function startNode(lab: string, plan: Plan, node: NodePlan, expires?: number): Promise<{ id: string; pid: number }> {
   const id = await docker.create(node.container, {
     Image: node.image,
     // a shell kept alive; or what the image runs (a server, a router's
@@ -112,7 +146,10 @@ async function startNode(lab: string, plan: Plan, node: NodePlan): Promise<{ id:
     ...(node.user ? { User: node.user } : {}),
     ...(node.env ? { Env: node.env } : {}),
     Hostname: node.hostname,
-    Labels: { [LABELS.lab]: lab, [LABELS.device]: node.device, [LABELS.fingerprint]: plan.fingerprint, [LABELS.image]: node.imageId },
+    Labels: {
+      [LABELS.lab]: lab, [LABELS.device]: node.device, [LABELS.fingerprint]: plan.fingerprint, [LABELS.image]: node.imageId,
+      ...(expires ? { [LABELS.expires]: String(expires) } : {}),
+    },
     HostConfig: {
       NetworkMode: "none", AutoRemove: true, Init: node.run !== "image", Memory: node.memory * MB, CapAdd: ["NET_ADMIN", ...node.caps], Privileged: node.privileged,
       ...(node.run === "vm" ? { Devices: vmDevices() } : {}),
@@ -148,8 +185,9 @@ async function startup(node: NodePlan, id: string | undefined): Promise<void> {
   if(node.startup.length && id) await docker.execDetached(id, ["/bin/sh", "-c", node.startup.join("\n")]);
 }
 
-/** builds the lab from its topology, after removing what was running */
-export function deploy(lab: string, topology: Topology, t: T = spanish): Promise<LabState & { warnings: string[] }> {
+/** builds the lab from its topology, after removing what was running; with
+ * expires (ms since the epoch), it is stopped by itself then (sweep) */
+export function deploy(lab: string, topology: Topology, t: T = spanish, expires?: number): Promise<LabState & { warnings: string[] }> {
   return serial(lab, async () => {
     const plan = await planOf(lab, topology, t);
     await removeAll(lab);
@@ -158,7 +196,7 @@ export function deploy(lab: string, topology: Topology, t: T = spanish): Promise
     try{
       const ids = new Map<string, string>();
       await Promise.all(plan.nodes.map(async node => {
-        const { id, pid } = await startNode(lab, plan, node);
+        const { id, pid } = await startNode(lab, plan, node, expires);
         ids.set(node.device, id);
         pids.set(node.device, pid);
       }));
@@ -185,6 +223,8 @@ export function relaunch(lab: string, topology: Topology, devices: string[], res
   return serial(lab, async () => {
     const containers = await containersOf(lab);
     const running = containers.filter(item => item.State === "running").map(item => item.Labels[LABELS.device]);
+    // its time limit, if it has one, for the devices made anew too
+    const expires = Number(containers.find(item => item.Labels[LABELS.expires])?.Labels[LABELS.expires]) || undefined;
     // the plan of what runs and of these: their cables are between them
     const plan = await planOf(lab, topology, t, [...new Set([...running, ...devices])]);
     if(containers.length && containers[0].Labels[LABELS.fingerprint] !== plan.fingerprint) throw new Error(t("La topología cambió desde el despliegue: reinicia todo el laboratorio para aplicarla."));
@@ -207,7 +247,7 @@ export function relaunch(lab: string, topology: Topology, devices: string[], res
     try{
       const ids = new Map<string, string>();
       await Promise.all(chosen.map(async node => {
-        const { id, pid } = await startNode(lab, plan, node);
+        const { id, pid } = await startNode(lab, plan, node, expires);
         ids.set(node.device, id);
         pids.set(node.device, pid);
       }));
@@ -252,6 +292,35 @@ export function stopDevices(lab: string, devices: string[]): Promise<LabState> {
     await Promise.all(containers.map(container => removeOne(container.Id)));
     return status(lab);
   });
+}
+
+/** a device's IPv4 addresses as it has them now ("10.0.0.1/24"), by port */
+export interface LiveAddress {
+  /** its Linux name ("Gi0-0") */
+  ifname: string;
+  address: string;
+}
+
+/** The addresses the lab's running devices have now: what their CLI may have
+ * changed, which the document does not say. Not those configured inside
+ * their own system (RouterOS, SR Linux): their container has none of them. */
+export async function liveAddresses(lab: string): Promise<Record<string, LiveAddress[]>> {
+  const containers = (await containersOf(lab)).filter(container =>
+    container.State === "running" && !IMAGES[container.Labels[LABELS.image] as ImageId]?.config);
+  const entries = await Promise.all(containers.map(async container => {
+    try{
+      const pid = await docker.pid(container.Id);
+      const { stdout } = await run("nsenter", ["-t", String(pid), "-n", "ip", "-j", "addr", "show"], { timeout: 10_000 });
+      const links = JSON.parse(stdout) as { ifname: string; addr_info: { family: string; local: string; prefixlen: number }[] }[];
+      const addresses = links.filter(link => link.ifname !== "lo").flatMap(link => link.addr_info
+        .filter(info => info.family === "inet").map(info => ({ ifname: link.ifname, address: `${info.local}/${info.prefixlen}` })));
+      return [container.Labels[LABELS.device], addresses] as const;
+    }catch(_){
+      // gone meanwhile: it says nothing
+      return null;
+    }
+  }));
+  return Object.fromEntries(entries.filter((entry): entry is NonNullable<typeof entry> => entry !== null));
 }
 
 /** the commands a device can run: nothing else reaches its shell */
