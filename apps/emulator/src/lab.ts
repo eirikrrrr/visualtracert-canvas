@@ -102,8 +102,8 @@ async function planOf(lab: string, topology: Topology, t: T, include: string[] =
   return planLab(lab, topology, t, profiles, { allowPrivileged: ALLOW_PRIVILEGED, include });
 }
 
-/** a device's container, created and started: its process, as the host sees it */
-async function startNode(lab: string, plan: Plan, node: NodePlan): Promise<number> {
+/** a device's container, created and started: its id, and its process as the host sees it */
+async function startNode(lab: string, plan: Plan, node: NodePlan): Promise<{ id: string; pid: number }> {
   const id = await docker.create(node.container, {
     Image: node.image,
     // a shell kept alive; or what the image runs (a server, a router's
@@ -119,14 +119,23 @@ async function startNode(lab: string, plan: Plan, node: NodePlan): Promise<numbe
     },
   });
   await docker.start(id);
-  return docker.pid(id);
+  return { id, pid: await docker.pid(id) };
 }
 
-/** a cable: a veth pair here, each end moved into its device */
-async function cable(link: LinkPlan, pids: Map<string, number>): Promise<void> {
-  await host(["ip", "link", "add", link.a.temp, "type", "veth", "peer", "name", link.b.temp]);
-  await host(["ip", "link", "set", link.a.temp, "netns", String(pids.get(link.a.device))]);
-  await host(["ip", "link", "set", link.b.temp, "netns", String(pids.get(link.b.device))]);
+/** the cables: for each, a veth pair here and its ends moved into their
+ * devices, all in a single ip process (ip -batch) */
+function cables(links: LinkPlan[], pids: Map<string, number>): Promise<void> {
+  if(!links.length) return Promise.resolve();
+  const lines = links.flatMap(link => [
+    `link add ${link.a.temp} type veth peer name ${link.b.temp}`,
+    `link set ${link.a.temp} netns ${pids.get(link.a.device)}`,
+    `link set ${link.b.temp} netns ${pids.get(link.b.device)}`,
+  ]);
+  return new Promise((resolve, reject) => {
+    const child = execFile("ip", ["-batch", "-"], { timeout: 60_000 }, (error, _stdout, stderr) =>
+      error ? reject(new Error(`ip -batch: ${stderr.trim() || error.message}`)) : resolve());
+    child.stdin!.end(`${lines.join("\n")}\n`);
+  });
 }
 
 // a route through a device that is stopped has no way out yet: it does not stop the rest
@@ -135,10 +144,8 @@ const lenient = (lines: string[]) => lines.map(line => `${line} || true`);
 const inside = (pid: number | undefined, lines: string[]) => host(["nsenter", "-t", String(pid), "-n", "sh", "-ec", lines.join("\n")]);
 
 /** what a device starts once wired: left running, it does not hold the lab */
-async function startup(lab: string, node: NodePlan): Promise<void> {
-  if(!node.startup.length) return;
-  const container = (await docker.list({ [LABELS.lab]: lab, [LABELS.device]: node.device }))[0];
-  if(container) await docker.execDetached(container.Id, ["/bin/sh", "-c", node.startup.join("\n")]);
+async function startup(node: NodePlan, id: string | undefined): Promise<void> {
+  if(node.startup.length && id) await docker.execDetached(id, ["/bin/sh", "-c", node.startup.join("\n")]);
 }
 
 /** builds the lab from its topology, after removing what was running */
@@ -149,10 +156,15 @@ export function deploy(lab: string, topology: Topology, t: T = spanish): Promise
     for(const image of new Set(plan.nodes.map(node => node.image))) await ensureImage(image);
     const pids = new Map<string, number>();
     try{
-      await Promise.all(plan.nodes.map(async node => pids.set(node.device, await startNode(lab, plan, node))));
-      for(const link of plan.links) await cable(link, pids);
+      const ids = new Map<string, string>();
+      await Promise.all(plan.nodes.map(async node => {
+        const { id, pid } = await startNode(lab, plan, node);
+        ids.set(node.device, id);
+        pids.set(node.device, pid);
+      }));
+      await cables(plan.links, pids);
       await Promise.all(plan.nodes.map(node => inside(pids.get(node.device), node.script)));
-      await Promise.all(plan.nodes.map(node => startup(lab, node)));
+      await Promise.all(plan.nodes.map(node => startup(node, ids.get(node.device))));
     }catch(error){
       // whatever was half built goes: the ends still here, and the containers
       await Promise.all(plan.links.map(link => host(["ip", "link", "del", link.a.temp]).catch(() => undefined)));
@@ -193,9 +205,14 @@ export function relaunch(lab: string, topology: Topology, devices: string[], res
     // their cables; only to devices running
     const links = plan.links.filter(link => names.has(link.a.device) || names.has(link.b.device));
     try{
-      await Promise.all(chosen.map(async node => pids.set(node.device, await startNode(lab, plan, node))));
+      const ids = new Map<string, string>();
+      await Promise.all(chosen.map(async node => {
+        const { id, pid } = await startNode(lab, plan, node);
+        ids.set(node.device, id);
+        pids.set(node.device, pid);
+      }));
       const wired = links.filter(link => pids.has(link.a.device) && pids.has(link.b.device));
-      for(const link of wired) await cable(link, pids);
+      await cables(wired, pids);
       // their own script, on the ports they have (a cable to a stopped device is not there)
       await Promise.all(chosen.map(node => {
         const present = new Set(wired.flatMap(link => [link.a, link.b]).filter(end => end.device === node.device).map(end => end.ifname));
@@ -218,7 +235,7 @@ export function relaunch(lab: string, topology: Topology, devices: string[], res
           ...lenient(node.tail),
         ]);
       }));
-      await Promise.all(chosen.map(node => startup(lab, node)));
+      await Promise.all(chosen.map(node => startup(node, ids.get(node.device))));
     }catch(error){
       await Promise.all(links.map(link => host(["ip", "link", "del", link.a.temp]).catch(() => undefined)));
       throw new Error(t("No se pudo iniciar: {error}", { error: (error as Error).message }));

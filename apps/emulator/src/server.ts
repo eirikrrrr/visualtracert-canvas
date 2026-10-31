@@ -29,6 +29,8 @@ import { existsSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
+// it answers in the language of each request: every dictionary
+import "@visual-tracert/model/dictionaries";
 import { checkProfile, IMAGES, parse, PROFILE_ID, translator, type ImageId, type Lang, type T } from "@visual-tracert/model";
 import { version } from "../../../package.json";
 import { CAPTURE_LIMIT, CaptureError, startCapture } from "./capture";

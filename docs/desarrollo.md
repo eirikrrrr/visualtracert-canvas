@@ -43,8 +43,22 @@ Los textos se escriben en español dentro del código y se traducen donde se mue
 - `t("texto")` traduce al momento; `tx("texto")` marca un texto que se traduce después (para
   listas y constantes).
 - Los diccionarios están en `packages/model/src/i18n/en.ts` y `pt.ts` (portugués de Brasil).
+  No se importan con el modelo: el emulador añade los dos (`@visual-tracert/model/dictionaries`),
+  y la web carga solo el del idioma elegido, antes del primer render y al cambiar de idioma
+  (`loadLang` en `apps/web/src/i18n`). El español no necesita ninguno.
 - Un test falla si falta una traducción, si sobra una que ya no se usa, o si sus `{variables}`
   no coinciden.
+
+## Rendimiento
+
+- **Carga inicial de la web:** el lienzo y el panel lateral. Se cargan bajo demanda, al usarse
+  por primera vez: el editor del documento (Monaco), la terminal (xterm.js), la captura, el
+  Marketplace, el panel de usuario, la galería de plantillas y el diccionario del idioma.
+- **Ventanas aparte del navegador:** copian también las hojas de estilo que llegan después de
+  abrirse (las de una parte cargada bajo demanda), con un `MutationObserver`.
+- **Emulador:** todos los cables de un despliegue o un reinicio se crean con un solo proceso
+  (`ip -batch`), y los comandos de arranque usan los ids de los contenedores recién creados en
+  lugar de volver a listarlos.
 
 ## Estilo del código
 

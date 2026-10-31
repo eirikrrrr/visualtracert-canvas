@@ -23,12 +23,18 @@ export function Popup({ name, title, onClose, children }: { name: string; title:
     const charset = doc.createElement("meta");
     charset.setAttribute("charset", "utf-8");
     doc.head.append(charset);
-    // the page's styles, with their full addresses (the new window has none of its own)
-    for(const node of document.head.querySelectorAll<HTMLLinkElement | HTMLStyleElement>('link[rel="stylesheet"], style')){
+    // the page's styles, with their full addresses (the new window has none of
+    // its own); and those that come later (a part loaded when first shown, as
+    // the terminal's)
+    const copyStyle = (node: Node) => {
+      if(!(node instanceof HTMLElement) || !(node.tagName === "STYLE" || (node.tagName === "LINK" && (node as HTMLLinkElement).rel === "stylesheet"))) return;
       const copy = node.cloneNode(true) as HTMLLinkElement | HTMLStyleElement;
       if(node.tagName === "LINK") (copy as HTMLLinkElement).href = (node as HTMLLinkElement).href;
       doc.head.append(copy);
-    }
+    };
+    document.head.querySelectorAll('link[rel="stylesheet"], style').forEach(copyStyle);
+    const styles = new MutationObserver(changes => changes.forEach(change => change.addedNodes.forEach(copyStyle)));
+    styles.observe(document.head, { childList: true });
     doc.documentElement.lang = document.documentElement.lang;
     doc.body.replaceChildren();
     doc.body.className = "popup-body";
@@ -43,6 +49,7 @@ export function Popup({ name, title, onClose, children }: { name: string; title:
     popup.addEventListener("pagehide", closed);
     window.addEventListener("pagehide", leaving);
     return () => {
+      styles.disconnect();
       popup.removeEventListener("pagehide", closed);
       window.removeEventListener("pagehide", leaving);
       popup.close();

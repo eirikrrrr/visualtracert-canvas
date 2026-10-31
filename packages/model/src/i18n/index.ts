@@ -3,8 +3,9 @@
 // {name} marks a value put in at run time. A text with no translation shows
 // in Spanish, and a test checks that every one has its translations. This is
 // the shared, pure part; the web keeps the chosen language (apps/web/src/i18n).
-import { en } from "./en";
-import { pt } from "./pt";
+//
+// The dictionaries are added, not imported here: the emulator adds both
+// (./dictionaries), the web only the one of its language, when it is chosen.
 
 export type Lang = "es" | "en" | "pt";
 export type Vars = Record<string, string | number>;
@@ -16,14 +17,22 @@ export const LANGS: { id: Lang; label: string; short: string; html: string }[] =
   { id: "pt", label: "Português (Brasil)", short: "PT", html: "pt-BR" },
 ];
 
-export const DICTIONARIES: Record<Exclude<Lang, "es">, Record<string, string>> = { en, pt };
+export type Dictionary = Record<string, string>;
+
+const added: Partial<Record<Exclude<Lang, "es">, Dictionary>> = {};
+
+/** A language's texts, for every translator of it (also those made before). */
+export function addDictionary(lang: Exclude<Lang, "es">, dictionary: Dictionary): void {
+  added[lang] = dictionary;
+}
 
 const fill = (text: string, vars?: Vars) =>
   vars ? text.replace(/\{(\w+)\}/g, (match, key: string) => (key in vars ? String(vars[key]) : match)) : text;
 
+/** A language's translator; a text without translation (or before its
+ * dictionary is added) shows in Spanish. */
 export function translator(lang: Lang): T {
-  const dictionary = lang === "es" ? null : DICTIONARIES[lang];
-  return (text, vars) => fill(dictionary?.[text] ?? text, vars);
+  return (text, vars) => fill((lang === "es" ? undefined : added[lang]?.[text]) ?? text, vars);
 }
 
 /** Spanish as written: the default of the pure modules (and their tests) */

@@ -5,17 +5,20 @@
 // container, in the emulated lab. The CLI stays open while the other tab is
 // shown.
 import { CATALOG, GROUPS, imageOf, isStarted, networkFingerprint, zoneOf, type Device } from "@visual-tracert/model";
-import { useEffect, useId, useMemo, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { lazy, Suspense, useEffect, useId, useMemo, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { runningImage, useImages } from "../emulation/images";
 import { followPointer } from "../app/movable";
 import { useStore, type DeviceWindow as WindowState } from "../app/store";
 import { Icon } from "../editor/icons";
-import { DeviceShell } from "../emulation/DeviceShell";
+
 import { useEmulation } from "../emulation/store";
 import { useT } from "../i18n";
 import { DeviceProperties } from "./Inspector";
 import { Popup } from "./Popup";
-import { CaptureView } from "../capture/CaptureView";
+
+// the terminal (xterm.js) and the capture load when a window first shows them
+const DeviceShell = lazy(() => import("../emulation/DeviceShell").then(module => ({ default: module.DeviceShell })));
+const CaptureView = lazy(() => import("../capture/CaptureView").then(module => ({ default: module.CaptureView })));
 
 export function DeviceWindows() {
   const windows = useStore(state => state.windows);
@@ -172,7 +175,7 @@ function DeviceCli({ device, capture }: { device: Device; capture?: string }) {
     );
   }
   // the same conditions, and the capture instead of the shell
-  if(capture !== undefined) return <CaptureView lab={labId} device={device} topology={topology} iface={capture || undefined} />;
+  if(capture !== undefined) return <Suspense fallback={null}><CaptureView lab={labId} device={device} topology={topology} iface={capture || undefined} /></Suspense>;
   return (
     <>
       <p className="muted small dw-cli-help">
@@ -191,7 +194,7 @@ function DeviceCli({ device, capture }: { device: Device; capture?: string }) {
           </select>
         </div>
       )}
-      <DeviceShell lab={labId} device={device.id} shell={chosenShell} />
+      <Suspense fallback={null}><DeviceShell lab={labId} device={device.id} shell={chosenShell} /></Suspense>
     </>
   );
 }

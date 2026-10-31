@@ -1,11 +1,18 @@
 // The interface language: the one chosen in this browser, and the translator
 // for it. The dictionaries and the translator itself are shared
-// (@visual-tracert/model); this keeps the choice and draws React again on it.
-import { LANGS, translator, type Lang, type T } from "@visual-tracert/model";
+// (@visual-tracert/model); this keeps the choice, loads only the dictionary
+// of the language chosen (Spanish needs none), and draws React again on it.
+import { addDictionary, LANGS, translator, type Lang, type T } from "@visual-tracert/model";
 import { useMemo } from "react";
 import { create } from "zustand";
 
-export { DICTIONARIES, LANGS, spanish, translator, tx, type Lang, type T, type Vars } from "@visual-tracert/model";
+export { LANGS, spanish, translator, tx, type Lang, type T, type Vars } from "@visual-tracert/model";
+
+/** A language's dictionary, loaded (once) before it is shown. */
+export async function loadLang(lang: Lang): Promise<void> {
+  if(lang === "en") addDictionary("en", (await import("@visual-tracert/model/i18n/en")).en);
+  else if(lang === "pt") addDictionary("pt", (await import("@visual-tracert/model/i18n/pt")).pt);
+}
 
 const LANG_KEY = "visual-tracert.lang";
 
@@ -22,7 +29,8 @@ export const useLang = create<{ lang: Lang; setLang: (lang: Lang) => void }>(set
   lang: initialLang(),
   setLang: lang => {
     try{ localStorage.setItem(LANG_KEY, lang); }catch(_){ /* ignore */ }
-    set({ lang });
+    // shown once its texts are here
+    void loadLang(lang).then(() => set({ lang }));
   },
 }));
 

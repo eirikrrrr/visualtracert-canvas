@@ -5,7 +5,10 @@
   "description": "Lo que comparten el editor y el emulador: la topología, su documento, el catálogo, las plantillas y las traducciones.",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./dictionaries": "./src/i18n/dictionaries.ts",
+    "./i18n/en": "./src/i18n/en.ts",
+    "./i18n/pt": "./src/i18n/pt.ts"
   },
   "scripts": {
     "test": "vitest run",

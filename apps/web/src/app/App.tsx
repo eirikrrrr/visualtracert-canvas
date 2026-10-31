@@ -3,15 +3,13 @@
 // mode's: emulation or simulation; the document). The user's dashboard, the
 // gallery and the Marketplace open over it.
 import { ReactFlowProvider, useReactFlow } from "@xyflow/react";
-import { useEffect, useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { lazy, Suspense, useEffect, useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { Canvas, FIT } from "../editor/Canvas";
 import { DocumentPanel } from "../panels/DocumentPanel";
 import { LogPanel } from "../panels/LogPanel";
-import { TemplateGallery } from "../panels/TemplateGallery";
-import { Marketplace } from "../panels/Marketplace";
+
 import { Palette } from "../panels/Palette";
 import { Inspector } from "../panels/Inspector";
-import { Dashboard } from "../panels/Dashboard";
 import { DeviceWindows } from "../panels/DeviceWindow";
 import { EmulationPanel } from "../emulation/EmulationPanel";
 import { useImages } from "../emulation/images";
@@ -24,6 +22,11 @@ import { tx, useT } from "../i18n";
 import { followPointer } from "./movable";
 import { useProfile } from "./profile";
 import { deleteSelection, SIDE_DEFAULT, useStore, type Tab } from "./store";
+
+// the dialogs load when they first open: the workspace starts lighter
+const TemplateGallery = lazy(() => import("../panels/TemplateGallery").then(module => ({ default: module.TemplateGallery })));
+const Marketplace = lazy(() => import("../panels/Marketplace").then(module => ({ default: module.Marketplace })));
+const Dashboard = lazy(() => import("../panels/Dashboard").then(module => ({ default: module.Dashboard })));
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "simulation", label: tx("Simulación") },
@@ -202,6 +205,9 @@ export function App() {
   const sideWidth = useStore(state => state.sideWidth);
   const sideFull = useStore(state => state.sideFull);
   const sideFloating = useStore(state => state.sideFloating);
+  const gallery = useStore(state => state.gallery);
+  const marketplace = useStore(state => state.marketplace);
+  const dashboard = useStore(state => state.dashboard);
   const motion = useProfile(state => state.motion ?? "full");
   useEffect(() => { document.body.dataset.theme = theme; }, [theme]);
   useEffect(() => { document.body.dataset.motion = motion; }, [motion]);
@@ -240,9 +246,11 @@ export function App() {
           <SidePanel />
         </main>
       </div>
-      <TemplateGallery />
-      <Marketplace />
-      <Dashboard />
+      <Suspense fallback={null}>
+        {gallery && <TemplateGallery />}
+        {marketplace && <Marketplace />}
+        {dashboard && <Dashboard />}
+      </Suspense>
     </ReactFlowProvider>
   );
 }

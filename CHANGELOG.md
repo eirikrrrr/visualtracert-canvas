@@ -60,7 +60,19 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 - En la tarjeta de RouterOS, la base es RouterOS y el contenedor Alpine con QEMU aparece aparte,
   como lo que es: el envoltorio de la máquina virtual. La shell del contenedor se llama así.
 
+### Rendimiento
+- La web carga bajo demanda la terminal, la captura, el Marketplace, el panel de usuario, la
+  galería y el diccionario del idioma (el español no necesita ninguno): la carga inicial en
+  español baja de 1.193 KB a 706 KB de JavaScript.
+- El emulador crea todos los cables con un solo proceso (`ip -batch`) y lanza los comandos de
+  arranque sin volver a listar los contenedores.
+
+### Seguridad
+- `dompurify` (que trae Monaco) se fuerza a 3.4.17, que corrige varios XSS críticos; `npm audit`
+  queda sin vulnerabilidades.
+
 ### Arreglado
+- Las ventanas aparte del navegador reciben también los estilos que llegan después de abrirse.
 - La CLI de un dispositivo tenía una fila (y una o dos columnas) de más: el ajuste del terminal
   contaba como espacio el relleno de su recuadro. En RouterOS, que coloca su prompt en la última
   fila, la línea en la que se escribe quedaba oculta bajo el borde.

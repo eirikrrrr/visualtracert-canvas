@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { exampleTopology, keysIn, placeholders, templateById } from "@visual-tracert/model";
-import { DICTIONARIES, translator } from ".";
+import { DICTIONARIES } from "@visual-tracert/model/dictionaries";
+import { translator } from ".";
 import { simulate } from "../sim/engine";
 
 // every source of the web, the emulator and the shared model, but the tests
