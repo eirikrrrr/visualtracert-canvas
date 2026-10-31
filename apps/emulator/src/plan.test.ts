@@ -115,7 +115,7 @@ describe("planLab", () => {
   it("runs RouterOS as a virtual machine its launcher wires and configures", () => {
     const topology = updateDevice(open("cadena-routers"), "r2", device => ({ ...device, type: "routeros", name: 'R2 "core"' }));
     const r2 = node(planLab("lab", topology), "r2");
-    expect(r2).toMatchObject({ run: "vm", imageId: "routeros", image: IMAGES.routeros.ref, memory: 512, startup: [] });
+    expect(r2).toMatchObject({ run: "vm", imageId: "routeros", image: IMAGES.routeros.ref, memory: 768, startup: [] });
     // Linux leaves the ports to the machine: no address, no IPv6
     const script = r2.script.join("\n");
     expect(script).not.toContain("ip addr add");

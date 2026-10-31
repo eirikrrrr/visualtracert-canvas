@@ -16,6 +16,7 @@ export interface ImageLink {
 /** a CLI a device of the image can open: its shell, or a router's own */
 export interface ImageShell {
   id: string;
+  /** a command's name, or a Spanish key ("consola serie"), shown translated */
   label: string;
   cmd: string[];
 }
@@ -30,6 +31,8 @@ export interface ImageInfo {
   /** Spanish keys, translated where they are shown */
   description: string;
   base: string;
+  /** a virtual machine's: the container around it (a Spanish key) */
+  container?: string;
   shell: string;
   /** the network commands it has */
   tools: string[];
@@ -59,6 +62,8 @@ export interface ImageInfo {
   /** run inside it once it is wired */
   startup?: string[];
   shells: ImageShell[];
+  /** what to try on its CLI, a Spanish key (Linux's commands when absent) */
+  hint?: string;
   /** how a profile installs packages on it; null, it cannot */
   packages: "apk" | "apt" | null;
   /** what to know before using it, a Spanish key */
@@ -218,6 +223,7 @@ export const IMAGES: Record<ImageId, ImageInfo> = {
     builtin: false, run: "image", caps: ["SYS_ADMIN"], memory: 160,
     startup: ["touch /etc/frr/vtysh.conf"],
     shells: [{ id: "vtysh", label: "vtysh", cmd: ["vtysh"] }, bash, sh], packages: "apk",
+    hint: tx("Prueba en vtysh: show ip route, show interface brief, ping 10.0.0.1."),
     note: tx("Necesita SYS_ADMIN dentro de su contenedor. Solo arrancan zebra, staticd y mgmtd: activa OSPF o BGP con un perfil (en /etc/frr/daemons)."),
   },
   srlinux: {
@@ -241,6 +247,7 @@ export const IMAGES: Record<ImageId, ImageInfo> = {
     cmd: ["sudo", "bash", "-c", "touch /.dockerenv && /opt/srlinux/bin/sr_linux"], user: "0", env: ["SRLINUX=1"],
     config: "srlinux",
     shells: [{ id: "sr_cli", label: "sr_cli", cmd: ["sr_cli"] }, bash], packages: null,
+    hint: tx("Prueba en sr_cli: show interface brief, show network-instance default route-table."),
     note: tx("Necesita un contenedor privilegiado (el servidor debe permitirlo: ALLOW_PRIVILEGED=1 en el emulador), unos 1,5 GB de memoria y medio minuto para arrancar. Sus puertos son e1-1… (ethernet-1/1…); las direcciones y rutas se le aplican con sr_cli."),
   },
   routeros: {
@@ -250,8 +257,9 @@ export const IMAGES: Record<ImageId, ImageInfo> = {
     version: "7.23.8 (long-term)",
     publisher: tx("MikroTik publica la máquina virtual (CHR); este servidor construye su contenedor, al estilo de vrnetlab"),
     description: tx("RouterOS de verdad: el Cloud Hosted Router de MikroTik en una máquina virtual (QEMU, con KVM) dentro de su contenedor. Su CLI, firewall, OSPF, BGP, colas…"),
-    base: "Alpine Linux + QEMU + RouterOS CHR",
-    shell: "RouterOS CLI (SSH), consola serie, /bin/sh",
+    base: "RouterOS CHR · QEMU/KVM",
+    container: tx("Alpine Linux con QEMU: solo envuelve la máquina virtual; la que enruta es RouterOS."),
+    shell: "RouterOS CLI (SSH, serial)",
     tools: ["/ping", "/tool traceroute", "/tool sniffer", "/ip route", "/routing ospf", "/routing bgp"],
     architectures: ["arm64", "amd64"],
     license: tx("Propietaria de MikroTik. El CHR sin licencia es gratuito, con cada interfaz limitada a 1 Mbit/s."),
@@ -262,10 +270,15 @@ export const IMAGES: Record<ImageId, ImageInfo> = {
       { label: tx("vrnetlab (la idea de esta imagen)"), url: "https://github.com/vrnetlab/vrnetlab" },
       { label: "containerlab: vr-ros", url: "https://containerlab.dev/manual/kinds/vr-ros/" },
     ],
-    builtin: false, run: "vm", vrnetlab: "routeros", memory: 512,
+    builtin: false, run: "vm", vrnetlab: "routeros", memory: 768,
     config: "routeros",
-    shells: [{ id: "routeros", label: "RouterOS (SSH)", cmd: ["vr-cli"] }, { id: "console", label: "serial", cmd: ["vr-console"] }, sh], packages: null,
-    note: tx("Se construye en este servidor la primera vez (un par de minutos: QEMU y el CHR oficial). Arranca en unos 40 s y usa unos 200 MB de memoria; con KVM va a velocidad casi nativa. Sus puertos son ether1…; el usuario es admin y la contraseña, admin."),
+    shells: [
+      { id: "routeros", label: "RouterOS (SSH)", cmd: ["vr-cli"] },
+      { id: "console", label: tx("consola serie"), cmd: ["vr-console"] },
+      { id: "sh", label: tx("sh del contenedor (Alpine)"), cmd: sh.cmd },
+    ], packages: null,
+    hint: tx("Prueba: /ip address print, /ip route print, /ping 10.0.0.1, /tool traceroute 10.0.0.1."),
+    note: tx("Se construye en este servidor la primera vez (un par de minutos: QEMU y el CHR oficial). Arranca en menos de un minuto y usa unos 200 MB de memoria; con KVM va a velocidad casi nativa. Sus puertos son ether1…; el usuario es admin y la contraseña, admin."),
   },
 };
 

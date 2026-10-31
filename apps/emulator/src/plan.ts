@@ -259,7 +259,8 @@ function routerosEnv(device: Device, role: Role, ifnames: Map<string, string>, c
     `VR_PORTS=${device.interfaces.map(iface => `${ifnames.get(iface.name)}=${iface.mac}`).join(" ")}`,
     `VR_WAIT=${cabled.join(" ")}`,
     `VR_CONFIG=${Buffer.from(routerosConfig(device, role, warnings, t).join("\n")).toString("base64")}`,
-    "VR_MEMORY=256",
+    // with less, a RouterOS with eight ports spends its time reclaiming memory
+    "VR_MEMORY=512",
   ];
 }
 

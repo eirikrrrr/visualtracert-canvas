@@ -139,8 +139,9 @@ export const docker = {
     return (await json<{ State: { Pid: number } }>("GET", `/containers/${id}/json`)).State.Pid;
   },
 
+  /** removes a container, running or not, with its anonymous volumes */
   async remove(id: string): Promise<void> {
-    await json("DELETE", `/containers/${id}?force=true`);
+    await json("DELETE", `/containers/${id}?force=true&v=true`);
   },
 
   /** runs a command in a container and returns what it printed and its exit code */

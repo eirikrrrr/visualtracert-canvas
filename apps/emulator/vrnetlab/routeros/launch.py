@@ -7,7 +7,7 @@ machine (with KVM when the server has it): one virtual NIC per port, joined
 to its port with tc (every frame, both ways), and a last one for management
 (SSH, reachable from inside the container only). Once RouterOS boots, it
 logs in on the serial console, sets the password, the management and the
-lab's configuration, and leaves the console free.
+lab's configuration, makes sure its SSH answers, and leaves the console free.
 
 Its environment, set by the emulator:
   VR_PORTS   the device's ports in order, "name=mac" separated by spaces:
@@ -15,6 +15,8 @@ Its environment, set by the emulator:
   VR_WAIT    the cabled ones, which appear after the container starts
   VR_CONFIG  RouterOS commands, one per line, in base64
   VR_MEMORY  the machine's memory, in MB
+  VR_CPUS    its processors (2: with one, a busy RouterOS stops answering
+             on its console)
 """
 import base64
 import os
@@ -28,11 +30,11 @@ import time
 RUN = "/run/vr"
 CONSOLE = f"{RUN}/console.sock"
 READY = f"{RUN}/ready"
-KEY = f"{RUN}/id"
 PASSWORD = os.environ.get("VR_PASSWORD", "admin")
 MGMT = "vt-mgmt"
 VRF = "vt-vrf-mgmt"
 LOGIN = re.compile(rb"Login: ?$")
+CRASHED = re.compile(rb"Console (has crashed|does not respond)")
 PROMPT = re.compile(rb"\[admin@[^\]\r\n]+\] [^\r\n]*> ?$")
 ERROR = re.compile(rb"(failure:|bad command name|syntax error|expected |no such item|invalid value|ambiguous value|input does not match)", re.I)
 
@@ -85,7 +87,7 @@ def machine(nics):
     kvm = os.path.exists("/dev/kvm")
     if not kvm:
         log("sin /dev/kvm: la máquina se emula (mucho más lenta)")
-    memory = os.environ.get("VR_MEMORY", "256")
+    memory = os.environ.get("VR_MEMORY", "512")
     if os.uname().machine == "aarch64":
         command = ["qemu-system-aarch64", "-machine", "virt,gic-version=host" if kvm else "virt",
                    "-cpu", "host" if kvm else "max", "-bios", "/usr/share/AAVMF/QEMU_EFI.fd",
@@ -96,7 +98,7 @@ def machine(nics):
     if kvm:
         command.append("-enable-kvm")
     return command + [
-        "-m", memory, "-smp", "1", "-nodefaults", "-display", "none", "-monitor", "none",
+        "-m", memory, "-smp", os.environ.get("VR_CPUS", "2"), "-nodefaults", "-display", "none", "-monitor", "none",
         "-chardev", f"socket,id=console,path={CONSOLE},server=on,wait=off", "-serial", "chardev:console",
         *nics,
         # management: SSH from this container, on the last NIC
@@ -171,22 +173,37 @@ def login(console, fresh, shown=False):
 
 def command(console, line):
     """One command: what it printed, and whether it had to be sent again.
-    Busy, RouterOS may find its console not responding: it restarts it (asking
-    first, sometimes), which logs out; then in again, and the command again."""
+    Busy, RouterOS may find its console not responding: it reconnects it
+    (the command lost) or restarts it (asking first, sometimes), which logs
+    out; then in again if it must, and the command again."""
     for attempt in range(3):
         console.send(line + "\r")
         index, text = console.expect([PROMPT, LOGIN, rb"\[y/N\] ?$"], 120)
-        if index == 0:
+        if index == 0 and not CRASHED.search(text):
             return text, attempt > 0
         if index == 2:
             console.send("y")
         log(f"la consola se reinició durante «{line}»: otra vez")
-        login(console, fresh=False, shown=index == 1)
+        if index != 0:
+            login(console, fresh=False, shown=index == 1)
     raise RuntimeError(f"la consola no respondió a «{line}»")
 
 
+def ssh_answers():
+    """Whether vr-cli gets in: RouterOS's SSH, on the management NIC."""
+    try:
+        done = subprocess.run(
+            ["sshpass", "-p", PASSWORD, "ssh", "-T", "-p", "2022", "-o", "StrictHostKeyChecking=no",
+             "-o", "UserKnownHostsFile=/dev/null", "-o", "LogLevel=ERROR", "-o", "ConnectTimeout=10",
+             "admin+ct@127.0.0.1", ":put vt-ok"], capture_output=True, timeout=40)
+        return b"vt-ok" in done.stdout
+    except subprocess.TimeoutExpired:
+        return False
+
+
 def configure(console, count):
-    """Management, the key of vr-cli, then the lab's own configuration."""
+    """Management, then the lab's own configuration; then, until its SSH
+    answers, management again (a command may have been lost)."""
     # its login shows before it has found every NIC
     for _ in range(60):
         text, _ = command(console, ":put [/interface ethernet print count-only]")
@@ -194,25 +211,28 @@ def configure(console, count):
         if found and int(found.group(1)) > count:
             break
         time.sleep(1)
-    with open(f"{KEY}.pub") as key:
-        public = key.read().strip()
-    setup = [
+    management = [
         "/ip dhcp-client remove [find]",
         f"/interface ethernet set [find default-name=ether{count + 1}] name={MGMT}",
         f"/ip vrf add name={VRF} interfaces={MGMT}",
         f"/ip address add address=10.0.2.15/24 interface={MGMT}",
         f"/ip service set ssh vrf={VRF}",
-        f'/file add name=vt.pub contents="{public}"',
-        "/user ssh-keys import public-key-file=vt.pub user=admin",
     ]
     lab = base64.b64decode(os.environ.get("VR_CONFIG", "")).decode().splitlines()
     errors = []
-    for line in setup + [line for line in lab if line.strip()]:
+    for line in management + [line for line in lab if line.strip()]:
         text, again = command(console, line)
         # sent again, it may have been done the first time
         if ERROR.search(text) and not (again and b"already" in text):
             errors.append(text.decode(errors="replace").strip())
             log(f"error en «{line}»")
+    for _ in range(3):
+        if ssh_answers():
+            return errors
+        log("su SSH no responde: la gestión otra vez")
+        for line in management:
+            command(console, line)
+    errors.append("El SSH de gestión no responde: usa la consola serie.")
     return errors
 
 
@@ -221,16 +241,15 @@ def main():
     for path in (READY, CONSOLE):
         if os.path.exists(path):
             os.remove(path)
-    subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", KEY], check=True)
     # each start, a fresh disk over the image's: the machine starts as new
     sh("qemu-img", "create", "-q", "-f", "qcow2", "-b", "/vr/chr.img", "-F", "raw", "/vr/disk.qcow2")
 
     wait_cables()
     listed = ports()
     nics = [arg for index, (name, mac) in enumerate(listed) for arg in wire(index, name, mac)]
-    command = machine(nics)
-    log(" ".join(command))
-    qemu = subprocess.Popen(command)
+    argv = machine(nics)
+    log(" ".join(argv))
+    qemu = subprocess.Popen(argv)
     signal.signal(signal.SIGTERM, lambda *_: qemu.terminate())
 
     started = time.time()

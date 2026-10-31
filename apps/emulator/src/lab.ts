@@ -6,7 +6,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { IMAGES, isIp, spanish, type ImageId, type ImageInfo, type T, type Topology } from "@visual-tracert/model";
-import { docker, type ContainerSummary } from "./docker";
+import { docker, DockerError, type ContainerSummary } from "./docker";
 import { LABELS, planLab, type ProfileCatalog } from "./plan";
 import { loadProfiles, profileStatus } from "./profiles";
 import { ensureImage, vmDevices } from "./vrnetlab";
@@ -23,7 +23,9 @@ async function host(args: string[]): Promise<void> {
 }
 
 // a device's container: small, without a network, stopped at once; it may
-// change its own network (NET_ADMIN, in its namespace only) from its CLI
+// change its own network (NET_ADMIN, in its namespace only) from its CLI.
+// Temporary (--rm): stopped, it is gone with what it wrote, since the lab's
+// configuration lives in its document and is applied at every deployment
 const MB = 1024 * 1024;
 
 /** whether images that need a privileged container (SR Linux) may run: off
@@ -71,7 +73,10 @@ export async function status(lab: string): Promise<LabState> {
 }
 
 async function removeAll(lab: string): Promise<void> {
-  await Promise.all((await containersOf(lab)).map(container => docker.remove(container.Id)));
+  await Promise.all((await containersOf(lab)).map(container => docker.remove(container.Id).catch(error => {
+    // a temporary one may be going already, on its own
+    if(!(error instanceof DockerError && (error.status === 404 || error.status === 409))) throw error;
+  })));
 }
 
 export function destroy(lab: string): Promise<LabState> {
@@ -102,7 +107,7 @@ export function deploy(lab: string, topology: Topology, t: T = spanish): Promise
           Hostname: node.hostname,
           Labels: { [LABELS.lab]: lab, [LABELS.device]: node.device, [LABELS.fingerprint]: plan.fingerprint, [LABELS.image]: node.imageId },
           HostConfig: {
-            NetworkMode: "none", Init: node.run !== "image", Memory: node.memory * MB, CapAdd: ["NET_ADMIN", ...node.caps], Privileged: node.privileged,
+            NetworkMode: "none", AutoRemove: true, Init: node.run !== "image", Memory: node.memory * MB, CapAdd: ["NET_ADMIN", ...node.caps], Privileged: node.privileged,
             ...(node.run === "vm" ? { Devices: vmDevices() } : {}),
           },
         });

@@ -6,6 +6,26 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 
 ## [Sin publicar]
 
+### Añadido
+- En el lienzo, cada dispositivo muestra bajo su nombre la imagen con la que corre
+  (`alpine:3.20`, `frr:10.2.1`, `routeros:7.23.8`) y, debajo, su perfil (`perfil · nombre`) si usa
+  uno; las dos etiquetas, en los grises del tema.
+- La CLI de cada sistema sugiere sus propios comandos (RouterOS, FRR, SR Linux) en lugar de los de
+  Linux.
+
+### Cambiado
+- Los contenedores de los laboratorios son temporales (`--rm`): al detenerse desaparecen con lo que
+  tuvieran escrito, y al borrar un laboratorio se borran también sus volúmenes. La configuración
+  vive en el documento y se aplica en cada despliegue.
+- En la tarjeta de RouterOS, la base es RouterOS y el contenedor Alpine con QEMU aparece aparte,
+  como lo que es: el envoltorio de la máquina virtual. La shell del contenedor se llama así.
+
+### Arreglado
+- MikroTik con muchos puertos: su CLI no abría. Con 256 MB, RouterOS con ocho tarjetas se quedaba
+  sin memoria, su consola dejaba de responder a mitad de la configuración y el SSH de gestión
+  quedaba sin configurar. Ahora la máquina tiene 512 MB y dos procesadores, la CLI entra con
+  contraseña y el lanzador comprueba que el SSH responde antes de darla por lista.
+
 ## [0.3.0] - 2026-10-31
 
 ### Añadido

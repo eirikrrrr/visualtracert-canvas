@@ -33,6 +33,7 @@ export function ImageCard({ device }: { device: Device }) {
     [t("Versión"), image.version],
     [t("Publicada por"), t(image.publisher)],
     [t("Base"), image.base],
+    ...(image.container ? [[t("Contenedor"), t(image.container)] as [string, string]] : []),
     [t("Shell"), image.shell],
     [t("Herramientas de red"), image.tools.join(", ")],
     [t("Arquitecturas"), image.architectures.join(", ")],

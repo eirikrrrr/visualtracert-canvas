@@ -10,7 +10,7 @@ RUN set -e; \
       x86_64) qemu="qemu-system-x86_64"; chr="chr-$VERSION.img" ;; \
       *) echo "No hay RouterOS CHR para $(uname -m)" >&2; exit 1 ;; \
     esac; \
-    apk add --no-cache $qemu qemu-img python3 iproute2 socat openssh-client-default; \
+    apk add --no-cache $qemu qemu-img python3 iproute2 socat openssh-client-default sshpass; \
     mkdir -p /vr; \
     wget -q -O /tmp/chr.zip "https://download.mikrotik.com/routeros/$VERSION/$chr.zip"; \
     unzip -q /tmp/chr.zip -d /tmp; \

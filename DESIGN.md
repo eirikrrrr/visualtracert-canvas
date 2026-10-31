@@ -113,8 +113,11 @@ Reglas:
 - **Estado de topología:** Iniciada (`--ok`), Detenida (`--danger`), Híbrida (mostaza).
 - **Etiquetas de grupo:** «Imágenes oficiales» usa el azul del logo de Alpine (`#0d597f`)
   mezclado con la superficie; «Genéricos», gris neutro.
-- **Perfil de imagen:** la etiqueta bajo el nombre del dispositivo es violeta (`#9b6dff`
-  mezclado); con borde discontinuo si el perfil no está construido o no existe en el servidor.
+- **Imagen y perfil en el lienzo:** bajo el nombre de cada dispositivo, su imagen
+  (`frr:10.2.1`) y, si usa uno, su perfil (`perfil · nombre`), en los grises del tema y sin
+  color propio: hay muchos dispositivos y no deben competir con los colores que sí significan algo.
+  El perfil tiene fondo y un borde algo más fuerte; si no está construido o no existe en el
+  servidor, su borde es discontinuo.
 
 ## Tipografía
 
@@ -164,7 +167,7 @@ campo, a 12 px.
 ## El lienzo
 
 - **Dispositivo:** una baldosa de 56 × 56 px con su icono o logo, y a la derecha su nombre
-  (`--heading`, 15 px), su IP principal y, si usa uno, la etiqueta de su perfil. Las asas de
+  (`--heading`, 15 px), su IP principal, la etiqueta de su imagen y, si usa uno, la de su perfil. Las asas de
   conexión aparecen al pasar el ratón o al seleccionar.
   - **Seleccionado:** borde de acento y halo.
   - **Paquete llegando** en la simulación: baldosa en acento con brillo, o en rojo si el paquete

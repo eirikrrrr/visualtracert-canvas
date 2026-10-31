@@ -183,14 +183,14 @@ function DeviceCli({ device, capture }: { device: Device; capture?: string }) {
         {CATALOG[device.type].group === "generic"
           ? t("Equipo genérico: su CLI es la de {image} ({shell}).", { image: image.name, shell: image.shell })
           : t("Su CLI: {shell}.", { shell: image.shell })}
-        {" "}{t("Prueba: ip addr, ip route, ping, traceroute.")}
+        {" "}{image.hint ? t(image.hint) : t("Prueba: ip addr, ip route, ping, traceroute.")}
       </p>
       {lab?.fingerprint !== fingerprint && <p className="emu-note">{t("La topología cambió desde el despliegue: vuelve a desplegar para aplicar los cambios.")}</p>}
       {image.shells.length > 1 && (
         <div className="shell-pick">
           <label htmlFor={shellId} className="muted small">{t("CLI")}</label>
           <select id={shellId} className="mono" value={chosenShell} onChange={event => setShell(event.target.value)}>
-            {image.shells.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+            {image.shells.map(item => <option key={item.id} value={item.id}>{t(item.label)}</option>)}
           </select>
         </div>
       )}
