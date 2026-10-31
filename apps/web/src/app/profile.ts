@@ -1,5 +1,6 @@
-// The local profile of this browser (there are no accounts yet): a name and
-// an optional photo, shown as the round avatar of the top bar.
+// The local profile of this browser (there are no accounts yet): a name, an
+// optional photo (the round avatar of the top bar), a few words about the user
+// and how the interface moves. The user's dashboard edits it.
 import { t } from "../i18n";
 import { create } from "zustand";
 
@@ -10,6 +11,10 @@ export interface Profile {
   name: string;
   /** a small square JPEG as a data URL */
   photo?: string;
+  /** a few words about the user (a role, a course) */
+  bio?: string;
+  /** "reduced": no animations, whatever the system says */
+  motion?: "full" | "reduced";
 }
 
 function load(): Profile {
@@ -27,7 +32,12 @@ interface ProfileState extends Profile {
 export const useProfile = create<ProfileState>(set => ({
   ...load(),
   update: change => set(state => {
-    const next = { name: change.name ?? state.name, photo: "photo" in change ? change.photo : state.photo };
+    const next: Profile = {
+      name: change.name ?? state.name,
+      photo: "photo" in change ? change.photo : state.photo,
+      bio: change.bio ?? state.bio,
+      motion: change.motion ?? state.motion,
+    };
     try{ localStorage.setItem(PROFILE_KEY, JSON.stringify(next)); }catch(_){ /* full or blocked */ }
     return next;
   }),

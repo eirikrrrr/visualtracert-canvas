@@ -7,6 +7,13 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 ## [Sin publicar]
 
 ### Añadido
+- Panel de usuario (el avatar de la barra superior): perfil (foto, nombre, «sobre ti» y lo que has
+  construido), preferencias (idioma, tema con su vista previa, velocidad de simulación, reducir
+  animaciones), tus laboratorios (abrir, eliminar, crear), el servidor (emulador, KVM, imágenes y
+  perfiles) y los atajos de teclado con la ayuda. Todo se guarda en este navegador.
+- Inspector: las propiedades de lo seleccionado (dispositivo, cable o topología) en una tarjeta
+  sobre el lienzo, que se cierra con Esc. El botón ⓘ junto al nombre del laboratorio muestra sus
+  notas y topologías, que se abren solas con una plantilla.
 - Iniciar, detener y reiniciar cada equipo, cada topología o todo el laboratorio, sin tocar el
   resto, desde el panel de Emulación: los contenedores y cables se hacen de nuevo y los equipos
   vecinos recuperan la configuración de esos puertos (dirección, puente, rutas; el puerto de un
@@ -27,6 +34,16 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
   qué hacer si no puede entrar, en lugar de cerrarse sin decir nada.
 
 ### Cambiado
+- Sin pestaña Propiedades: el panel lateral queda con Emulación (o Simulación) y Documento.
+- Tipografía nueva, incluida con la app (funciona sin Internet): Inter para la interfaz, Space
+  Grotesk para los títulos y JetBrains Mono para direcciones, comandos y terminales; Source
+  Serif 4 en los títulos del tema Editorial.
+- Colores: el tema Azul pasa a un negro medianoche con grises fríos y un azul más luminoso; los
+  botones principales tienen un degradado suave y las superficies un borde de luz.
+- Animaciones: diálogos, menús, el inspector y las pestañas entran con suavidad, los botones
+  responden al pulsarlos y los equipos en marcha laten. Se desactivan si el sistema pide menos
+  movimiento o desde las preferencias.
+- El minimapa pasa abajo a la derecha, para no chocar con el inspector.
 - La app se abre siempre en modo Emulación, y el selector lo muestra antes que Simulación.
 - El panel de Emulación va por secciones con título (Entorno, Contenedores, Comandos, Consola).
   «Desplegar» y «Detener» dejan su sitio a la información del entorno: estado del laboratorio,

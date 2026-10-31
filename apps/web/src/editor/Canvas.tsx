@@ -281,7 +281,7 @@ export function Canvas() {
         proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} gap={22} size={1.4} />
-        <MiniMap pannable zoomable position="top-right" className="minimap" nodeBorderRadius={10} />
+        <MiniMap pannable zoomable position="bottom-right" className="minimap" nodeBorderRadius={10} />
       </ReactFlow>
     </div>
   );

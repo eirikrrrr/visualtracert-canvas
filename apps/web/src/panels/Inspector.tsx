@@ -1,8 +1,10 @@
-// Properties of what is selected: a device (first the image it runs as, then
-// its name, type, topology, addresses, gateway, DNS, VLANs, routes, DHCP
-// relays and the services it offers), a topology (name, status, colour,
-// note), a cable (its ports), or the lab when nothing is. A device's
-// properties are also those of its window (a double click on it).
+// The inspector: a card over the canvas with the properties of what is
+// selected (a device: first the image it runs as, then its name, type,
+// topology, addresses, gateway, DNS, VLANs, routes, DHCP relays and the
+// services it offers; a topology: name, status, colour, note; a cable: its
+// ports), or of the lab when asked (its notes, its topologies). Nothing
+// selected, it is not there. A device's properties are also those of its
+// window (a double click on it).
 import { useId } from "react";
 import { deleteSelection, useStore } from "../app/store";
 import { Icon } from "../editor/icons";
@@ -448,7 +450,7 @@ function LabSummary({ topology }: { topology: Topology }) {
   const count = (role: string) => topology.devices.filter(device => roleOf(device.type) === role).length;
   return (
     <div className="props">
-      <div className="props-title"><div><h2>{topology.name}</h2><span className="muted small">{t("Nada seleccionado")}</span></div></div>
+      <div className="props-title"><div><h2>{topology.name}</h2><span className="muted small">{t("El laboratorio y sus topologías")}</span></div></div>
       {topology.description && <LabNotes text={topology.description} />}
       <div className="stats">
         <div><strong>{count("host")}</strong><span>{t("equipos")}</span></div>
@@ -481,39 +483,63 @@ function LabSummary({ topology }: { topology: Topology }) {
       <button type="button" className="ghost gallery-open" onClick={() => useStore.getState().setGallery(true)}>
         <Icon name="logo" size={16} />{t("Abrir una plantilla de laboratorio")}
       </button>
-      <h3>{t("Cómo se usa")}</h3>
-      <ul className="help">
-        {[
-          t("Pulsa *Añadir dispositivo* ([A]) en la barra de abajo, busca el que quieras y haz clic, pulsa [Enter] o arrástralo al lienzo."),
-          t("Para cablear, arrastra desde el borde de un dispositivo hasta otro: se usan sus primeros puertos libres."),
-          t("Selecciona un dispositivo para poner sus direcciones, su puerta de enlace o sus rutas."),
-          t("*Nueva topología* crea un grupo de dispositivos con su rectángulo; arrástralo por su título y suelta dispositivos dentro para moverlos a él."),
-          t("Doble clic en un dispositivo abre su ventana: sus propiedades, su imagen y su CLI (en Emulación)."),
-          t("Con la herramienta de ping ([P]), haz clic en el origen y luego en el destino."),
-          t("En la pestaña Simulación hay más acciones: traza (tracert), DHCP, consultas DNS y páginas web por TCP."),
-          t("[Supr] elimina, [Ctrl]+[Z] deshace, [F] encuadra."),
-          t("Este panel: su borde izquierdo cambia el ancho; arriba a la derecha se desacopla como ventana flotante o se abre a pantalla completa ([Esc] vuelve)."),
-          t("Las barras del lienzo se mueven arrastrando sus puntos (⋮⋮); doble clic en ellos las devuelve a su sitio. [L] muestra el registro de paquetes."),
-        ].map(line => <li key={line}><Rich text={line} /></li>)}
-      </ul>
     </div>
   );
 }
 
-export function PropertiesPanel() {
+/** How the editor is used: the help of the dashboard. */
+export function HelpList() {
+  const t = useT();
+  return (
+    <ul className="help">
+      {[
+        t("Pulsa *Añadir dispositivo* ([A]) en la barra de abajo, busca el que quieras y haz clic, pulsa [Enter] o arrástralo al lienzo."),
+        t("Para cablear, arrastra desde el borde de un dispositivo hasta otro: se usan sus primeros puertos libres."),
+        t("Haz clic en un dispositivo, un cable o una topología: el inspector muestra sus propiedades. [Esc] lo cierra."),
+        t("*Nueva topología* crea un grupo de dispositivos con su rectángulo; arrástralo por su título y suelta dispositivos dentro para moverlos a él."),
+        t("Doble clic en un dispositivo abre su ventana: sus propiedades, su imagen y su CLI (en Emulación)."),
+        t("Con la herramienta de ping ([P]), haz clic en el origen y luego en el destino."),
+        t("En la pestaña Simulación hay más acciones: traza (tracert), DHCP, consultas DNS y páginas web por TCP."),
+        t("[Supr] elimina, [Ctrl]+[Z] deshace, [F] encuadra."),
+        t("El panel lateral: su borde izquierdo cambia el ancho; arriba a la derecha se desacopla como ventana flotante o se abre a pantalla completa ([Esc] vuelve)."),
+        t("Las barras del lienzo se mueven arrastrando sus puntos (⋮⋮); doble clic en ellos las devuelve a su sitio. [L] muestra el registro de paquetes."),
+      ].map(line => <li key={line}><Rich text={line} /></li>)}
+    </ul>
+  );
+}
+
+const KIND_LABEL = { device: tx("Dispositivo"), zone: tx("Topología"), link: tx("Cable"), lab: tx("Laboratorio") } as const;
+
+export function Inspector() {
+  const t = useT();
   const topology = useStore(state => state.topology);
   const selection = useStore(state => state.selection);
+  const inspectLab = useStore(state => state.inspectLab);
+  let kind: keyof typeof KIND_LABEL | null = null;
+  let content = null;
   if(selection?.kind === "device"){
     const device = topology.devices.find(item => item.id === selection.id);
-    if(device) return <DeviceProperties device={device} topology={topology} />;
-  }
-  if(selection?.kind === "zone"){
+    if(device){ kind = "device"; content = <DeviceProperties device={device} topology={topology} />; }
+  }else if(selection?.kind === "zone"){
     const zone = zonesOf(topology).find(item => item.id === selection.id);
-    if(zone) return <ZoneProperties zone={zone} topology={topology} />;
-  }
-  if(selection?.kind === "link"){
+    if(zone){ kind = "zone"; content = <ZoneProperties zone={zone} topology={topology} />; }
+  }else if(selection?.kind === "link"){
     const link = topology.links.find(item => item.id === selection.id);
-    if(link) return <LinkProperties link={link} topology={topology} />;
+    if(link){ kind = "link"; content = <LinkProperties link={link} topology={topology} />; }
   }
-  return <LabSummary topology={topology} />;
+  if(!content && inspectLab){ kind = "lab"; content = <LabSummary topology={topology} />; }
+  if(!content || !kind) return null;
+  const close = () => { const state = useStore.getState(); state.select(null); state.setInspectLab(false); };
+  return (
+    <aside className="inspector" aria-label={t("Inspector: {kind}", { kind: t(KIND_LABEL[kind]) })}>
+      <header className="inspector-head">
+        <span className="inspector-kind">{t(KIND_LABEL[kind])}</span>
+        <button type="button" className="icon-button" aria-label={t("Cerrar")} title={t("Cerrar (Esc)")} onClick={close}>
+          <Icon name="close" size={16} />
+        </button>
+      </header>
+      {/* a new key, a new card: it slides in again for each thing selected */}
+      <div className="inspector-body" key={`${kind}:${selection?.id ?? ""}`}>{content}</div>
+    </aside>
+  );
 }

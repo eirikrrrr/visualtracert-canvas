@@ -1,5 +1,7 @@
-// The workspace: top bar, the canvas with its toolbar and device palette, and
-// the side panel (properties, document, simulation).
+// The workspace: top bar, the canvas with its toolbar, device palette and
+// inspector (the properties of what is selected), and the side panel (the
+// mode's: emulation or simulation; the document). The user's dashboard, the
+// gallery and the Marketplace open over it.
 import { ReactFlowProvider, useReactFlow } from "@xyflow/react";
 import { useEffect, useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { Canvas, FIT } from "../editor/Canvas";
@@ -8,7 +10,8 @@ import { LogPanel } from "../panels/LogPanel";
 import { TemplateGallery } from "../panels/TemplateGallery";
 import { Marketplace } from "../panels/Marketplace";
 import { Palette } from "../panels/Palette";
-import { PropertiesPanel } from "../panels/PropertiesPanel";
+import { Inspector } from "../panels/Inspector";
+import { Dashboard } from "../panels/Dashboard";
 import { DeviceWindows } from "../panels/DeviceWindow";
 import { EmulationPanel } from "../emulation/EmulationPanel";
 import { useImages } from "../emulation/images";
@@ -19,12 +22,12 @@ import { Icon } from "../editor/icons";
 import { Grip } from "../panels/Grip";
 import { tx, useT } from "../i18n";
 import { followPointer } from "./movable";
+import { useProfile } from "./profile";
 import { deleteSelection, SIDE_DEFAULT, useStore, type Tab } from "./store";
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "properties", label: tx("Propiedades") },
-  { id: "document", label: tx("Documento") },
   { id: "simulation", label: tx("Simulación") },
+  { id: "document", label: tx("Documento") },
 ];
 
 const typing = (target: EventTarget | null) =>
@@ -37,7 +40,7 @@ function Shortcuts() {
       if(typing(event.target)) return;
       const state = useStore.getState();
       // the gallery and the Marketplace are modal dialogs: their own keys only
-      if(state.gallery || state.marketplace) return;
+      if(state.gallery || state.marketplace || state.dashboard) return;
       const key = event.key.toLowerCase();
       if((event.ctrlKey || event.metaKey) && key === "z"){ event.preventDefault(); event.shiftKey ? state.redo() : state.undo(); return; }
       if((event.ctrlKey || event.metaKey) && key === "y"){ event.preventDefault(); state.redo(); return; }
@@ -45,7 +48,7 @@ function Shortcuts() {
       if(key === "delete" || key === "backspace"){ event.preventDefault(); deleteSelection(); }
       else if(key === "escape"){
         if(state.sideFull){ state.setSideFull(false); return; }
-        state.setTool("select"); state.select(null);
+        state.setTool("select"); state.select(null); state.setInspectLab(false);
       }
       else if(key === "a" && !state.sideFull){ event.preventDefault(); state.setAdding(true); }
       else if(key === "l"){ event.preventDefault(); state.toggleLog(); }
@@ -184,7 +187,6 @@ function SidePanel() {
         </button>
       </div>
       <div className="side-body" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-        {tab === "properties" && <PropertiesPanel />}
         {tab === "document" && <DocumentPanel />}
         {tab === "simulation" && (emulating ? <EmulationPanel /> : <SimulationPanel />)}
       </div>
@@ -200,7 +202,9 @@ export function App() {
   const sideWidth = useStore(state => state.sideWidth);
   const sideFull = useStore(state => state.sideFull);
   const sideFloating = useStore(state => state.sideFloating);
+  const motion = useProfile(state => state.motion ?? "full");
   useEffect(() => { document.body.dataset.theme = theme; }, [theme]);
+  useEffect(() => { document.body.dataset.motion = motion; }, [motion]);
   // what images this server has: the palette offers their devices
   useEffect(() => { void useImages.getState().refresh(); }, []);
 
@@ -227,6 +231,7 @@ export function App() {
                 <button type="button" className="link" onClick={() => useStore.getState().setTool("select")}>{t("Cancelar")}</button>
               </div>
             )}
+            <Inspector />
             <DeviceWindows />
             <Toasts />
             </div>
@@ -237,6 +242,7 @@ export function App() {
       </div>
       <TemplateGallery />
       <Marketplace />
+      <Dashboard />
     </ReactFlowProvider>
   );
 }

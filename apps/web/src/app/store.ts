@@ -34,11 +34,15 @@ function loadSpeed(): Speed {
   }catch(_){ /* no storage */ }
   return 1;
 }
-export type Tab = "properties" | "document" | "simulation";
+/** the side panel: the mode's (simulation or emulation) and the document */
+export type Tab = "simulation" | "document";
+
+/** the sections of the user's dashboard */
+export type DashboardSection = "profile" | "preferences" | "labs" | "server" | "shortcuts";
 export type Theme = "azul" | "marron" | "editorial" | "morado";
 
 export const THEMES: { id: Theme; label: string; light: boolean; swatch: [string, string, string] }[] = [
-  { id: "azul", label: tx("Azul"), light: false, swatch: ["#0d0d0e", "#1b1b1d", "#3d7eff"] },
+  { id: "azul", label: tx("Azul"), light: false, swatch: ["#0b0e13", "#161b23", "#4f8cff"] },
   { id: "marron", label: tx("Marrón"), light: false, swatch: ["#100c09", "#211a15", "#c8834b"] },
   { id: "editorial", label: tx("Editorial"), light: true, swatch: ["#f5f3ee", "#ffffff", "#b3261e"] },
   { id: "morado", label: tx("Morado"), light: false, swatch: ["#0c0a10", "#1c1823", "#9b6dff"] },
@@ -145,6 +149,10 @@ interface State {
   adding: boolean;
   /** the gallery of ready-made labs is open */
   gallery: boolean;
+  /** the inspector shows the lab (its notes, its topologies) while nothing is selected */
+  inspectLab: boolean;
+  /** the user's dashboard, open on one of its sections */
+  dashboard: DashboardSection | null;
   /** the Marketplace is open, on its images or on the profiles */
   marketplace: "images" | "profiles" | null;
   /** device windows, the last one on top */
@@ -171,6 +179,8 @@ interface State {
   /** a new lab with a copy of a template */
   openTemplate: (id: string) => void;
   setGallery: (open: boolean) => void;
+  setInspectLab: (open: boolean) => void;
+  setDashboard: (section: DashboardSection | null) => void;
   setMarketplace: (open: State["marketplace"]) => void;
   openWindow: (device: string, tab?: DeviceWindow["tab"], detached?: boolean, capture?: string) => void;
   closeWindow: (device: string) => void;
@@ -264,7 +274,7 @@ export const useStore = create<State>((set, get) => ({
   // the app opens emulating: real containers (the simulation, one click away)
   mode: "emulation",
   speed: loadSpeed(),
-  tab: "properties",
+  tab: "simulation",
   theme: loadTheme(),
   run: null,
   draft: { kind: "ping", from: "", targets: {}, ttl: 64, maxHops: 30 },
@@ -275,6 +285,8 @@ export const useStore = create<State>((set, get) => ({
   toast: null,
   adding: false,
   gallery: false,
+  inspectLab: false,
+  dashboard: null,
   marketplace: null,
   windows: [],
   sideWidth: loadSideWidth(),
@@ -329,10 +341,13 @@ export const useStore = create<State>((set, get) => ({
     const template = templateById(id);
     if(!template) return;
     get().startLab(template.build(t));
-    set({ gallery: false, selection: null, tab: "properties" });
+    // its notes (what to try) in the inspector
+    set({ gallery: false, selection: null, inspectLab: true });
     get().notify(t("Abierto «{name}» como laboratorio nuevo.", { name: t(template.name) }), "ok");
   },
   setGallery: gallery => set({ gallery }),
+  setInspectLab: inspectLab => set({ inspectLab }),
+  setDashboard: dashboard => set({ dashboard }),
   setMarketplace: marketplace => set({ marketplace }),
   openWindow: (device, tab, detached, capture) => {
     const open = get().windows.find(item => item.device === device);

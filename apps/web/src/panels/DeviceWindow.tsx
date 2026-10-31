@@ -13,7 +13,7 @@ import { Icon } from "../editor/icons";
 import { DeviceShell } from "../emulation/DeviceShell";
 import { useEmulation } from "../emulation/store";
 import { useT } from "../i18n";
-import { DeviceProperties } from "./PropertiesPanel";
+import { DeviceProperties } from "./Inspector";
 import { Popup } from "./Popup";
 import { CaptureView } from "../capture/CaptureView";
 
