@@ -83,7 +83,11 @@ export function DeviceShell({ lab, device, shell }: { lab: string; device: strin
           <button type="button" className="ghost small" onClick={() => setSession(session + 1)}>{t("Reconectar")}</button>
         )}
       </div>
-      <div className="shell-term" ref={box} aria-label={t("Terminal del dispositivo")} />
+      {/* the frame has the padding; the terminal is fitted to what is inside it
+          (with border-box, the fit addon would count the padding as rows) */}
+      <div className="shell-term">
+        <div className="shell-fit" ref={box} aria-label={t("Terminal del dispositivo")} />
+      </div>
     </div>
   );
 }

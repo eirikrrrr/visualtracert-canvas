@@ -39,6 +39,9 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
   como lo que es: el envoltorio de la máquina virtual. La shell del contenedor se llama así.
 
 ### Arreglado
+- La CLI de un dispositivo tenía una fila (y una o dos columnas) de más: el ajuste del terminal
+  contaba como espacio el relleno de su recuadro. En RouterOS, que coloca su prompt en la última
+  fila, la línea en la que se escribe quedaba oculta bajo el borde.
 - La barra espaciadora no escribía en el editor del documento: React Flow la tomaba para arrastrar
   el lienzo, porque Monaco escribe con EditContext sobre un `div` que no reconocía como campo.
 - MikroTik con muchos puertos: su CLI no abría. Con 256 MB, RouterOS con ocho tarjetas se quedaba
