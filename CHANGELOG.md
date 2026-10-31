@@ -6,6 +6,8 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 
 ## [Sin publicar]
 
+## [0.4.0] - 2026-10-31
+
 ### Añadido
 - Panel de usuario (el avatar de la barra superior): perfil (foto, nombre, «sobre ti» y lo que has
   construido), preferencias (idioma, tema con su vista previa, velocidad de simulación, reducir
@@ -176,7 +178,8 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 - Primera versión: editor visual de topologías, documento YAML/JSON sincronizado en los dos sentidos,
   panel de propiedades y simulación de ping (ARP, ICMP, switches con VLAN y rutas estáticas) paso a paso.
 
-[Sin publicar]: https://github.com/eirikrrrr/visual-tracert/compare/v0.3.0...HEAD
+[Sin publicar]: https://github.com/eirikrrrr/visual-tracert/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/eirikrrrr/visual-tracert/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/eirikrrrr/visual-tracert/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/eirikrrrr/visual-tracert/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/eirikrrrr/visual-tracert/releases/tag/v0.1.0
