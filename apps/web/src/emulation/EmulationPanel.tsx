@@ -1,7 +1,9 @@
 // Emulation panel: deploy the lab as real containers joined by veth cables,
-// stop it, and run real commands on its devices (ping, traceroute, their
-// addresses, routes and ARP neighbours), with what each one printed.
-import { networkFingerprint, roleOf } from "@visual-tracert/model";
+// stop it, restart a device, a topology or all of them (grouped by topology),
+// and run real commands on its devices (ping, traceroute, their addresses,
+// routes and ARP neighbours), with what each one printed.
+import { devicesOf, networkFingerprint, roleOf, ZONE_COLORS, zonesOf } from "@visual-tracert/model";
+import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../app/store";
 import { Icon } from "../editor/icons";
@@ -23,7 +25,7 @@ export function EmulationPanel() {
   const t = useT();
   const labId = useStore(state => state.labId);
   const topology = useStore(state => state.topology);
-  const { reachable, lab, warnings, busy, error, console } = useEmulation();
+  const { reachable, lab, warnings, busy, restarting, error, console } = useEmulation();
   const [device, setDevice] = useState("");
   const [command, setCommand] = useState<Command>("ping");
   const [target, setTarget] = useState("");
@@ -47,6 +49,12 @@ export function EmulationPanel() {
   const sources = running.filter(item => roleOf(item.type) !== "switch");
   const from = sources.some(item => item.id === device) ? device : sources[0]?.id ?? "";
   const nameOf = (id: string) => topology.devices.find(item => item.id === id)?.name ?? id;
+  // a restart needs the lab as it was deployed: a changed one is deployed again
+  const canRestart = deployed && !changed && busy === null;
+  const restartTitle = changed ? t("La topología cambió desde el despliegue: vuelve a desplegar en lugar de reiniciar.") : undefined;
+  const containerOf = new Map((deployed ? lab!.devices : []).map(item => [item.device, item.container]));
+  const restart = (devices: string[]) => { if(devices.length) void actions().restart(labId, topology, devices); };
+  const orphans = deployed ? lab!.devices.filter(item => !topology.devices.some(device => device.id === item.device)) : [];
   const needsTarget = COMMANDS.find(item => item.id === command)!.target;
   const addresses = topology.devices.flatMap(item => item.interfaces.filter(iface => iface.ip).map(iface => ({ ip: iface.ip!, name: item.name })));
 
@@ -141,16 +149,68 @@ export function EmulationPanel() {
 
       {deployed && (
         <>
-          <h3>{t("Contenedores")}</h3>
-          <ul className="emu-devices">
-            {lab!.devices.map(item => (
-              <li key={item.device}>
-                <span>{nameOf(item.device)}</span>
-                <span className="mono muted">{item.container}</span>
-                <span className={`emu-state ${item.state === "running" ? "on" : "off"}`}>{item.state === "running" ? t("en marcha") : item.state}</span>
-              </li>
-            ))}
-          </ul>
+          <div className="events-head">
+            <h3>{t("Contenedores")}</h3>
+            <button type="button" className="ghost small" disabled={!canRestart} title={restartTitle}
+              onClick={() => restart(lab!.devices.map(item => item.device).filter(id => topology.devices.some(device => device.id === id)))}>
+              <Icon name="restart" size={14} />{busy === "restart" && restarting.length === lab!.devices.length ? t("Reiniciando…") : t("Reiniciar todo")}
+            </button>
+          </div>
+          {zonesOf(topology).map(zone => {
+            const members = devicesOf(topology, zone.id);
+            const deployedHere = members.filter(item => states.has(item.id)).map(item => item.id);
+            const runningHere = deployedHere.filter(id => states.get(id) === "running").length;
+            return (
+              <details key={zone.id} className="emu-zone" open style={{ "--zone": zone.color ?? ZONE_COLORS[0] } as CSSProperties}>
+                <summary>
+                  <span className="zone-dot" aria-hidden="true" />
+                  <strong>{zone.name}</strong>
+                  <span className="muted small">{t("{n} de {total} en marcha", { n: runningHere, total: members.length })}</span>
+                  <button type="button" className="ghost small" disabled={!canRestart || !deployedHere.length} title={restartTitle}
+                    onClick={event => { event.preventDefault(); restart(deployedHere); }}>
+                    <Icon name="restart" size={14} />{t("Reiniciar")}
+                  </button>
+                </summary>
+                <ul className="emu-devices">
+                  {members.map(item => {
+                    const state = states.get(item.id);
+                    const going = restarting.includes(item.id);
+                    return (
+                      <li key={item.id}>
+                        <span>{item.name}</span>
+                        <span className="mono muted">{containerOf.get(item.id) ?? ""}</span>
+                        <span className={`emu-state ${going ? "" : state === "running" ? "on" : state ? "off" : "idle"}`}>
+                          {going ? t("reiniciando…") : state === "running" ? t("en marcha") : state ?? t("no se inicia")}
+                        </span>
+                        {state ? (
+                          <button type="button" className={`icon-button small${going ? " spinning" : ""}`} disabled={!canRestart}
+                            aria-label={t("Reiniciar {device}", { device: item.name })} title={restartTitle ?? t("Reiniciar {device}", { device: item.name })}
+                            onClick={() => restart([item.id])}>
+                            <Icon name="restart" size={15} />
+                          </button>
+                        ) : <span />}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </details>
+            );
+          })}
+          {orphans.length > 0 && (
+            <details className="emu-zone" open>
+              <summary><strong>{t("Fuera de la topología")}</strong></summary>
+              <ul className="emu-devices">
+                {orphans.map(item => (
+                  <li key={item.device}>
+                    <span>{item.device}</span>
+                    <span className="mono muted">{item.container}</span>
+                    <span className={`emu-state ${item.state === "running" ? "on" : "off"}`}>{item.state === "running" ? t("en marcha") : item.state}</span>
+                    <span />
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </>
       )}
     </div>

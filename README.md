@@ -173,6 +173,10 @@ memoria, con `NET_ADMIN` solo en su espacio de red), por WebSocket en
 `/api/labs/:lab/devices/:device/shell`. No hay usuarios: quien alcance el puerto 9150 alcanza esas
 shells, así que el editor no debe publicarse fuera de una red de confianza.
 
+Un equipo, una topología o todo se pueden reiniciar sin detener el resto
+(`POST /api/labs/:lab/restart`): sus contenedores y sus cables se hacen de nuevo y, al otro extremo de
+cada cable, el puerto se vuelve a configurar (su dirección, su puente, sus rutas).
+
 ## Versiones
 
 Todo el repositorio comparte una versión ([SemVer](https://semver.org/lang/es/)) y cada una queda en

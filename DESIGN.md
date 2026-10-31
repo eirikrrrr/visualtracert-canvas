@@ -26,7 +26,7 @@ con un comentario de cabecera para cada uno.
 
 ```
 ┌──────────────────────── barra superior ────────────────────────┐
-│ logo · versión · laboratorio · Simulación/Emulación · idioma · tema │
+│ logo · versión · laboratorio · Emulación/Simulación · idioma · tema │
 ├──────────────────────────────────────────┬─────────────────────┤
 │ ┌─┐                                      │ Propiedades │ Doc… │
 │ │h│  lienzo (React Flow)                 │                     │
@@ -44,7 +44,7 @@ con un comentario de cabecera para cada uno.
 ```
 
 - **Barra superior** (`TopBar.tsx`): marca y versión (`v{__APP_VERSION__}`), menú de
-  laboratorios, selector de modo **Simulación / Emulación**, idioma y tema.
+  laboratorios, selector de modo **Emulación / Simulación**, idioma y tema.
 - **Barra de herramientas** (`Toolbar.tsx`, izquierda): seleccionar (V), ping (P),
   captura (C), eliminar (Supr), zoom, encuadrar (F), deshacer y rehacer.
 - **Barra inferior** (`Palette.tsx`): «Añadir dispositivo» (A), «Marketplace»,
@@ -217,7 +217,13 @@ Los atajos no actúan mientras se escribe en un campo, en el documento o en una 
 - **Emulación:** la pestaña pasa a llamarse Emulación. Se despliega el laboratorio como
   contenedores. Las ventanas de dispositivo ofrecen su CLI real (con selector de shell: `vtysh`,
   `sr_cli`, `bash`, `zsh`, `sh`) y la captura de tráfico.
-  - **Aviso de cambios:** si la topología cambió desde el despliegue, una nota lo dice.
+  - **Contenedores por topología:** el panel los agrupa por topología, en grupos que se abren y
+    cierran desde su cabecera (su punto de color, su nombre, cuántos están en marcha y
+    «Reiniciar»). Cada equipo tiene su botón de reinicio, cuyo icono gira mientras tanto, y
+    «Reiniciar todo» reinicia el laboratorio entero. Los que su topología no inicia se ven en
+    gris («no se inicia»), sin botón.
+  - **Aviso de cambios:** si la topología cambió desde el despliegue, una nota lo dice, y los
+    reinicios se desactivan: hay que volver a desplegar.
   - **Huella:** el cambio se detecta con una huella de la red (`networkFingerprint`) que no tiene
     en cuenta posiciones ni textos.
 

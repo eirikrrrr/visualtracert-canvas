@@ -7,7 +7,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { IMAGES, isIp, spanish, type ImageId, type ImageInfo, type T, type Topology } from "@visual-tracert/model";
 import { docker, DockerError, type ContainerSummary } from "./docker";
-import { LABELS, planLab, type ProfileCatalog } from "./plan";
+import { LABELS, planLab, type LinkPlan, type NodePlan, type Plan, type ProfileCatalog } from "./plan";
 import { loadProfiles, profileStatus } from "./profiles";
 import { contextHash, ensureImage, HASH, vmDevices } from "./vrnetlab";
 
@@ -93,52 +93,121 @@ export function destroy(lab: string): Promise<LabState> {
   });
 }
 
+// the plan of a lab: the profiles it can use, and what this server allows
+async function planOf(lab: string, topology: Topology, t: T): Promise<Plan> {
+  const profiles: ProfileCatalog = new Map(await Promise.all((await loadProfiles()).map(async profile =>
+    [profile.id, { profile, ready: (await profileStatus(profile)).state === "built" }] as const)));
+  return planLab(lab, topology, t, profiles, { allowPrivileged: ALLOW_PRIVILEGED });
+}
+
+/** a device's container, created and started: its process, as the host sees it */
+async function startNode(lab: string, plan: Plan, node: NodePlan): Promise<number> {
+  const id = await docker.create(node.container, {
+    Image: node.image,
+    // a shell kept alive; or what the image runs (a server, a router's
+    // daemons, a virtual machine's launcher)
+    ...(node.run === "sleep" ? { Entrypoint: ["sleep"], Cmd: ["2147483647"] } : node.cmd ? { Cmd: node.cmd } : {}),
+    ...(node.user ? { User: node.user } : {}),
+    ...(node.env ? { Env: node.env } : {}),
+    Hostname: node.hostname,
+    Labels: { [LABELS.lab]: lab, [LABELS.device]: node.device, [LABELS.fingerprint]: plan.fingerprint, [LABELS.image]: node.imageId },
+    HostConfig: {
+      NetworkMode: "none", AutoRemove: true, Init: node.run !== "image", Memory: node.memory * MB, CapAdd: ["NET_ADMIN", ...node.caps], Privileged: node.privileged,
+      ...(node.run === "vm" ? { Devices: vmDevices() } : {}),
+    },
+  });
+  await docker.start(id);
+  return docker.pid(id);
+}
+
+/** a cable: a veth pair here, each end moved into its device */
+async function cable(link: LinkPlan, pids: Map<string, number>): Promise<void> {
+  await host(["ip", "link", "add", link.a.temp, "type", "veth", "peer", "name", link.b.temp]);
+  await host(["ip", "link", "set", link.a.temp, "netns", String(pids.get(link.a.device))]);
+  await host(["ip", "link", "set", link.b.temp, "netns", String(pids.get(link.b.device))]);
+}
+
+const inside = (pid: number | undefined, lines: string[]) => host(["nsenter", "-t", String(pid), "-n", "sh", "-ec", lines.join("\n")]);
+
+/** what a device starts once wired: left running, it does not hold the lab */
+async function startup(lab: string, node: NodePlan): Promise<void> {
+  if(!node.startup.length) return;
+  const container = (await docker.list({ [LABELS.lab]: lab, [LABELS.device]: node.device }))[0];
+  if(container) await docker.execDetached(container.Id, ["/bin/sh", "-c", node.startup.join("\n")]);
+}
+
 /** builds the lab from its topology, after removing what was running */
 export function deploy(lab: string, topology: Topology, t: T = spanish): Promise<LabState & { warnings: string[] }> {
   return serial(lab, async () => {
-    const profiles: ProfileCatalog = new Map(await Promise.all((await loadProfiles()).map(async profile =>
-      [profile.id, { profile, ready: (await profileStatus(profile)).state === "built" }] as const)));
-    const plan = planLab(lab, topology, t, profiles, { allowPrivileged: ALLOW_PRIVILEGED });
+    const plan = await planOf(lab, topology, t);
     await removeAll(lab);
     for(const image of new Set(plan.nodes.map(node => node.image))) await ensureImage(image);
     const pids = new Map<string, number>();
     try{
-      await Promise.all(plan.nodes.map(async node => {
-        const id = await docker.create(node.container, {
-          Image: node.image,
-          // a shell kept alive; or what the image runs (a server, a router's
-          // daemons, a virtual machine's launcher)
-          ...(node.run === "sleep" ? { Entrypoint: ["sleep"], Cmd: ["2147483647"] } : node.cmd ? { Cmd: node.cmd } : {}),
-          ...(node.user ? { User: node.user } : {}),
-          ...(node.env ? { Env: node.env } : {}),
-          Hostname: node.hostname,
-          Labels: { [LABELS.lab]: lab, [LABELS.device]: node.device, [LABELS.fingerprint]: plan.fingerprint, [LABELS.image]: node.imageId },
-          HostConfig: {
-            NetworkMode: "none", AutoRemove: true, Init: node.run !== "image", Memory: node.memory * MB, CapAdd: ["NET_ADMIN", ...node.caps], Privileged: node.privileged,
-            ...(node.run === "vm" ? { Devices: vmDevices() } : {}),
-          },
-        });
-        await docker.start(id);
-        pids.set(node.device, await docker.pid(id));
-      }));
-      // the cables: a veth pair here, each end moved into its device
-      for(const link of plan.links){
-        await host(["ip", "link", "add", link.a.temp, "type", "veth", "peer", "name", link.b.temp]);
-        await host(["ip", "link", "set", link.a.temp, "netns", String(pids.get(link.a.device))]);
-        await host(["ip", "link", "set", link.b.temp, "netns", String(pids.get(link.b.device))]);
-      }
-      await Promise.all(plan.nodes.map(node =>
-        host(["nsenter", "-t", String(pids.get(node.device)), "-n", "sh", "-ec", node.script.join("\n")])));
-      // what each one starts once wired: left running, it does not hold the deployment
-      await Promise.all(plan.nodes.filter(node => node.startup.length).map(async node => {
-        const container = (await docker.list({ [LABELS.lab]: lab, [LABELS.device]: node.device }))[0];
-        if(container) await docker.execDetached(container.Id, ["/bin/sh", "-c", node.startup.join("\n")]);
-      }));
+      await Promise.all(plan.nodes.map(async node => pids.set(node.device, await startNode(lab, plan, node))));
+      for(const link of plan.links) await cable(link, pids);
+      await Promise.all(plan.nodes.map(node => inside(pids.get(node.device), node.script)));
+      await Promise.all(plan.nodes.map(node => startup(lab, node)));
     }catch(error){
       // whatever was half built goes: the ends still here, and the containers
       await Promise.all(plan.links.map(link => host(["ip", "link", "del", link.a.temp]).catch(() => undefined)));
       await removeAll(lab).catch(() => undefined);
       throw new Error(t("No se pudo desplegar el laboratorio: {error}", { error: (error as Error).message }));
+    }
+    return { ...(await status(lab)), warnings: plan.warnings };
+  });
+}
+
+/** Restarts some devices of a deployed lab, the rest left running: their
+ * containers made anew, their cables too, and at the other end of each one
+ * the port configured again (its address, its bridge, its routes). The lab
+ * must be as it was deployed: a changed topology is deployed again instead. */
+export function restart(lab: string, topology: Topology, devices: string[], t: T = spanish): Promise<LabState & { warnings: string[] }> {
+  return serial(lab, async () => {
+    const plan = await planOf(lab, topology, t);
+    const containers = await containersOf(lab);
+    if(!containers.length) throw new Error(t("El laboratorio no está desplegado."));
+    if(containers[0].Labels[LABELS.fingerprint] !== plan.fingerprint) throw new Error(t("La topología cambió desde el despliegue: vuelve a desplegar en lugar de reiniciar."));
+    const chosen = plan.nodes.filter(node => devices.includes(node.device));
+    if(!chosen.length) throw new Error(t("Ninguno de esos equipos se inicia en este laboratorio."));
+    const names = new Set(chosen.map(node => node.device));
+    for(const image of new Set(chosen.map(node => node.image))) await ensureImage(image);
+
+    // gone, with their cables (both ends: a veth goes with its namespace)
+    await Promise.all(containers.filter(container => names.has(container.Labels[LABELS.device])).map(container => docker.remove(container.Id).catch(error => {
+      if(!(error instanceof DockerError && (error.status === 404 || error.status === 409))) throw error;
+    })));
+    const pids = new Map<string, number>();
+    for(const container of containers.filter(item => !names.has(item.Labels[LABELS.device]) && item.State === "running")){
+      pids.set(container.Labels[LABELS.device], await docker.pid(container.Id));
+    }
+    // their cables; only to devices running (one stopped on its own is not)
+    const links = plan.links.filter(link => names.has(link.a.device) || names.has(link.b.device));
+    try{
+      await Promise.all(chosen.map(async node => pids.set(node.device, await startNode(lab, plan, node))));
+      const wired = links.filter(link => pids.has(link.a.device) && pids.has(link.b.device));
+      for(const link of wired) await cable(link, pids);
+      await Promise.all(chosen.map(node => inside(pids.get(node.device), node.script)));
+      // at the other end: the port again (once its old end is gone), then the tail
+      const others = new Map<string, string[]>();
+      for(const end of wired.flatMap(link => [link.a, link.b]).filter(end => !names.has(end.device))){
+        others.set(end.device, [...others.get(end.device) ?? [], end.ifname]);
+      }
+      await Promise.all([...others].map(([device, ifnames]) => {
+        const node = plan.nodes.find(item => item.device === device)!;
+        return inside(pids.get(device), [
+          ...ifnames.flatMap(ifname => [
+            `i=0; while ip link show dev ${ifname} >/dev/null 2>&1 && [ $i -lt 100 ]; do i=$((i + 1)); sleep 0.1; done`,
+            ...node.ports[ifname] ?? [],
+            ...node.retap?.[ifname] ?? [],
+          ]),
+          ...node.tail,
+        ]);
+      }));
+      await Promise.all(chosen.map(node => startup(lab, node)));
+    }catch(error){
+      await Promise.all(links.map(link => host(["ip", "link", "del", link.a.temp]).catch(() => undefined)));
+      throw new Error(t("No se pudo reiniciar: {error}", { error: (error as Error).message }));
     }
     return { ...(await status(lab)), warnings: plan.warnings };
   });

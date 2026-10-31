@@ -21,12 +21,15 @@ interface EmulationState {
   lab: LabState | null;
   /** what the last deployment left out */
   warnings: string[];
-  busy: "deploy" | "stop" | "run" | null;
+  busy: "deploy" | "stop" | "run" | "restart" | null;
+  /** the devices being restarted */
+  restarting: string[];
   error: string | null;
   console: ConsoleEntry[];
   refresh: (lab: string) => Promise<void>;
   deploy: (lab: string, topology: Topology) => Promise<void>;
   stop: (lab: string) => Promise<void>;
+  restart: (lab: string, topology: Topology, devices: string[]) => Promise<void>;
   run: (lab: string, device: string, command: Command, target?: string) => Promise<void>;
   clearConsole: () => void;
 }
@@ -51,6 +54,7 @@ export const useEmulation = create<EmulationState>((set, get) => {
     lab: null,
     warnings: [],
     busy: null,
+    restarting: [],
     error: null,
     console: [],
     refresh: async lab => {
@@ -67,6 +71,14 @@ export const useEmulation = create<EmulationState>((set, get) => {
       return { lab: state, warnings };
     }),
     stop: lab => act("stop", async () => ({ lab: await emulator.stop(lab), warnings: [] })),
+    restart: async (lab, topology, devices) => {
+      set({ restarting: devices });
+      await act("restart", async () => {
+        const { warnings, ...state } = await emulator.restart(lab, topology, devices);
+        return { lab: state, warnings };
+      });
+      set({ restarting: [] });
+    },
     run: (lab, device, command, target) => act("run", async () => {
       const result = await emulator.run(lab, device, command, target);
       return { console: [...get().console, { id: ++entryId, device, ...result }].slice(-CONSOLE_LIMIT) };

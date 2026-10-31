@@ -9,8 +9,8 @@ import { Icon } from "../editor/icons";
 import { LANGS, tx, useLang, useT, type T } from "../i18n";
 
 const MODES: { id: Mode; label: string; title: string }[] = [
-  { id: "simulation", label: tx("Simulación"), title: tx("La red se simula aquí: cada acción se ve trama a trama sobre el lienzo") },
   { id: "emulation", label: tx("Emulación"), title: tx("Cada equipo es un contenedor real y cada cable, un enlace virtual: los comandos se ejecutan de verdad") },
+  { id: "simulation", label: tx("Simulación"), title: tx("La red se simula aquí: cada acción se ve trama a trama sobre el lienzo") },
 ];
 
 function ago(time: number, t: T, locale: string): string {

@@ -4,6 +4,7 @@
 //   PUT    /api/labs/:lab           deploy it: the topology document (JSON)
 //   DELETE /api/labs/:lab           remove it
 //   POST   /api/labs/:lab/run       { device, command, target? } on a device
+//   POST   /api/labs/:lab/restart   { devices, document }: those devices again, the rest left running
 //   GET    /api/images              every image of the catalog, and what Docker has of each
 //   GET    /api/images/:image       one of them
 //   POST   /api/images/:image/pull  download it (Marketplace); build it, a virtual machine
@@ -30,7 +31,7 @@ import { version } from "../../../package.json";
 import { CAPTURE_LIMIT, CaptureError, startCapture } from "./capture";
 import { docker, DockerError } from "./docker";
 import { buildProfile, loadProfiles, profileStatus, removeProfile, saveProfile } from "./profiles";
-import { COMMANDS, deploy, destroy, execute, imageStatus, openShell, status, type Command, type Size } from "./lab";
+import { COMMANDS, deploy, destroy, execute, imageStatus, openShell, restart, status, type Command, type Size } from "./lab";
 import { ensureImage } from "./vrnetlab";
 
 const MAX_BODY = 2 * 1024 * 1024;
@@ -139,11 +140,20 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     throw new HttpError(405, method);
   }
 
-  const match = url.pathname.match(/^\/api\/labs\/([^/]+)(\/run)?$/);
+  const match = url.pathname.match(/^\/api\/labs\/([^/]+)(\/run|\/restart)?$/);
   if(!match) throw new HttpError(404, t("No existe esa ruta del emulador."));
   const lab = decodeURIComponent(match[1]);
   if(!LAB_ID.test(lab)) throw new HttpError(400, t("El identificador del laboratorio no es válido."));
 
+  if(match[2] === "/restart"){
+    if(method !== "POST") throw new HttpError(405, "POST");
+    const body = (await bodyOf(req)) as { devices?: unknown; document?: unknown };
+    if(!Array.isArray(body.devices) || !body.devices.length || !body.devices.every(item => typeof item === "string")) throw new HttpError(400, t("Falta qué equipos reiniciar."));
+    const parsed = parse(JSON.stringify(body.document ?? {}), "json", t);
+    if(!parsed.topology) throw new HttpError(400, parsed.problems.map(problem => problem.message).join(" "));
+    send(res, 200, await restart(lab, parsed.topology, body.devices as string[], t));
+    return;
+  }
   if(match[2]){
     if(method !== "POST") throw new HttpError(405, "POST");
     const body = (await bodyOf(req)) as { device?: unknown; command?: unknown; target?: unknown };

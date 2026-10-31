@@ -47,8 +47,18 @@ export interface NodePlan {
   /** shell commands run inside it once it is wired */
   startup: string[];
   hostname: string;
-  /** shell lines run inside the device's network namespace, in order */
+  /** shell lines run inside the device's network namespace, in order: its
+   * base, each port's lines and its tail */
   script: string[];
+  /** each cabled port's lines (by its Linux name): done again when its cable
+   * is, after the device at its other end restarts */
+  ports: Record<string, string[]>;
+  /** what comes after the ports (forwarding, routes, a gateway): it may run
+   * again, as it does after a port is wired again */
+  tail: string[];
+  /** a virtual machine's: joining a port wired again to its NIC (the launcher
+   * did it the first time) */
+  retap?: Record<string, string[]>;
 }
 
 export interface LinkEnd {
@@ -133,20 +143,20 @@ export function planLab(lab: string, topology: Topology, t: T = spanish, profile
   const nodes = started.map((device): NodePlan => {
     const role = roleOf(device.type);
     const ports = endsOf(device.id).map(end => ({ end, iface: device.interfaces.find(iface => iface.name === end.iface)! }));
-    const script = ["ip link set lo up"];
-    for(const { end, iface } of ports){
-      script.push(
-        `ip link set ${end.temp} name ${end.ifname}`,
-        `ip link set dev ${end.ifname} address ${iface.mac}`,
-        `ip link set dev ${end.ifname} alias ${quote(iface.name)}`,
-      );
-    }
+    const base = ["ip link set lo up"];
+    const port: Record<string, string[]> = Object.fromEntries(ports.map(({ end, iface }) => [end.ifname, [
+      `ip link set ${end.temp} name ${end.ifname}`,
+      `ip link set dev ${end.ifname} address ${iface.mac}`,
+      `ip link set dev ${end.ifname} alias ${quote(iface.name)}`,
+    ]]));
+    const tail: string[] = [];
     const own = imageOf(device.type);
-    if(own.config === "srlinux") script.push(...ports.map(({ end }) => `ip link set ${end.ifname} up`));
+    if(own.config === "srlinux") for(const { end } of ports) port[end.ifname].push(`ip link set ${end.ifname} up`);
     // the machine's NICs take the port's frames: Linux stays quiet on it
-    else if(own.config === "routeros") script.push(...ports.flatMap(({ end }) => [`sysctl -qw net.ipv6.conf.${end.ifname}.disable_ipv6=1`, `ip link set ${end.ifname} up`]));
-    else if(role === "switch") script.push(...bridgeScript(ports.map(port => port.iface), port => ports.find(item => item.iface === port)!.end.ifname));
-    else script.push(...addressScript(device, role, ports, warnings, t));
+    else if(own.config === "routeros") for(const { end } of ports) port[end.ifname].push(`sysctl -qw net.ipv6.conf.${end.ifname}.disable_ipv6=1`, `ip link set ${end.ifname} up`);
+    else if(role === "switch") bridgeScript(ports, base, port);
+    else tail.push(...addressScript(device, role, ports, port, warnings, t));
+    const script = [...base, ...ports.flatMap(({ end }) => port[end.ifname]), ...tail];
     // its profile, if there is one ready; if not, the image of its type
     const chosen = device.profile ? profiles.get(device.profile) : undefined;
     if(device.profile && !chosen) warnings.push(t("{device}: el perfil \"{profile}\" no existe en este servidor: usa {image}.", { device: device.name, profile: device.profile, image: imageOf(device.type).name }));
@@ -154,7 +164,8 @@ export function planLab(lab: string, topology: Topology, t: T = spanish, profile
     const profile = chosen?.ready ? chosen.profile : undefined;
     const image = profile ? IMAGES[profile.base] : imageOf(device.type);
     return {
-      device: device.id, name: device.name, role, script,
+      device: device.id, name: device.name, role, script, ports: port, tail,
+      ...(own.config === "routeros" ? { retap: Object.fromEntries(ports.map(({ end }) => [end.ifname, retap(end.ifname, device.interfaces.findIndex(iface => iface.name === end.iface))])) } : {}),
       container: containerName(lab, device.id),
       image: profile ? profileTag(profile.id) : image.ref,
       imageId: image.id,
@@ -264,28 +275,40 @@ function routerosEnv(device: Device, role: Role, ifnames: Map<string, string>, c
   ];
 }
 
-// a switch: one bridge, every cabled port in it, in its access VLAN
-function bridgeScript(ports: Interface[], ifname: (iface: Interface) => string): string[] {
-  const script = ["ip link add br0 type bridge vlan_filtering 1", "ip link set br0 up"];
-  for(const iface of ports){
-    const name = ifname(iface);
-    script.push(`ip link set ${name} master br0`, `ip link set ${name} up`);
-    const vlan = iface.vlan ?? 1;
-    if(vlan !== 1) script.push(`bridge vlan del vid 1 dev ${name}`, `bridge vlan add vid ${vlan} dev ${name} pvid untagged`);
-  }
-  return script;
+// a RouterOS port wired again: its frames to the machine's NIC (its tap) and
+// back, as the launcher joined them (vrnetlab/routeros/launch.py)
+function retap(ifname: string, index: number): string[] {
+  const tap = `vrtap${index}`;
+  const redirect = (from: string, to: string) => `tc filter add dev ${from} parent ffff: protocol all u32 match u8 0 0 action mirred egress redirect dev ${to}`;
+  return [
+    `tc qdisc del dev ${tap} ingress 2>/dev/null || true`,
+    `tc qdisc add dev ${ifname} ingress`, redirect(ifname, tap),
+    `tc qdisc add dev ${tap} ingress`, redirect(tap, ifname),
+  ];
 }
 
-// an end device or a router: addresses, then its gateway or its routes
-function addressScript(device: Device, role: Role, ports: { end: LinkEnd; iface: Interface }[], warnings: string[], t: T): string[] {
+// a switch: one bridge (its base), every cabled port in it, in its access VLAN
+function bridgeScript(ports: { end: LinkEnd; iface: Interface }[], base: string[], port: Record<string, string[]>): void {
+  base.push("ip link add br0 type bridge vlan_filtering 1", "ip link set br0 up");
+  for(const { end, iface } of ports){
+    const name = end.ifname;
+    port[name].push(`ip link set ${name} master br0`, `ip link set ${name} up`);
+    const vlan = iface.vlan ?? 1;
+    if(vlan !== 1) port[name].push(`bridge vlan del vid 1 dev ${name}`, `bridge vlan add vid ${vlan} dev ${name} pvid untagged`);
+  }
+}
+
+// an end device or a router: each port's address; then (its tail) its gateway,
+// or its forwarding and routes
+function addressScript(device: Device, role: Role, ports: { end: LinkEnd; iface: Interface }[], port: Record<string, string[]>, warnings: string[], t: T): string[] {
   const script: string[] = [];
   for(const { end, iface } of ports){
-    if(iface.ip && iface.prefix) script.push(`ip addr add ${iface.ip}/${iface.prefix} dev ${end.ifname}`);
+    if(iface.ip && iface.prefix) port[end.ifname].push(`ip addr add ${iface.ip}/${iface.prefix} dev ${end.ifname}`);
     else if(iface.dhcp) warnings.push(t("{device}: {iface} toma su dirección por DHCP, que aún no se emula: queda sin dirección.", { device: device.name, iface: iface.name }));
-    script.push(`ip link set ${end.ifname} up`);
+    port[end.ifname].push(`ip link set ${end.ifname} up`);
   }
   // a next hop only works on a network that is cabled and addressed
-  const connected = ports.map(port => port.iface).filter(iface => iface.ip && iface.prefix);
+  const connected = ports.map(item => item.iface).filter(iface => iface.ip && iface.prefix);
   const reachable = (ip: string) => connected.some(iface => sameSubnet(iface.ip!, ip, iface.prefix!));
 
   if(role === "router"){

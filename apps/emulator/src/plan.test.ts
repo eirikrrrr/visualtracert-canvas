@@ -132,6 +132,21 @@ describe("planLab", () => {
     expect(config).toMatch(/\/ip route add dst-address=172\.16\.\d\.0\/24 gateway=10\.0\.\d+\.\d+/);
   });
 
+  it("splits each device's script so a port can be wired again after its peer restarts", () => {
+    const topology = updateDevice(open("cadena-routers"), "r2", device => ({ ...device, type: "routeros" }));
+    const plan = planLab("lab", topology);
+    const r1 = node(plan, "r1");
+    // the whole script: the base, each port's lines, the tail
+    expect(r1.script.slice(-r1.tail.length)).toEqual(r1.tail);
+    for(const lines of Object.values(r1.ports)) expect(r1.script.join("\n")).toContain(lines.join("\n"));
+    // a port: renamed, addressed and up again; the routes in the tail, replaceable
+    expect(r1.ports["Gi0-0"].join("\n")).toMatch(/name Gi0-0[\s\S]*ip addr add 172\.16\.1\.1\/24 dev Gi0-0[\s\S]*ip link set Gi0-0 up/);
+    expect(r1.tail.every(line => line.startsWith("sysctl") || line.startsWith("ip route replace"))).toBe(true);
+    // RouterOS: its port joined again to the machine's NIC, in the port's order
+    const r2 = node(plan, "r2");
+    expect(r2.retap!["Gi0-0"].join("\n")).toContain("redirect dev vrtap0");
+  });
+
   it("quotes what comes from the document", () => {
     const topology = updateDevice(open("lan-basica"), "pc-1", device => ({
       ...device, interfaces: device.interfaces.map(iface => ({ ...iface, name: "it's; rm -rf /" })),

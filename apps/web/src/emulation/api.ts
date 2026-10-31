@@ -79,6 +79,9 @@ export const emulator = {
   /** the topology goes as the editor's JSON document */
   deploy: (lab: string, topology: Topology) => call<LabState & { warnings: string[] }>("PUT", labPath(lab), serialize(topology, "json")),
   stop: (lab: string) => call<LabState>("DELETE", labPath(lab)),
+  /** some devices again (their containers and cables), the rest left running */
+  restart: (lab: string, topology: Topology, devices: string[]) =>
+    call<LabState & { warnings: string[] }>("POST", `${labPath(lab)}/restart`, JSON.stringify({ devices, document: JSON.parse(serialize(topology, "json")) })),
   run: (lab: string, device: string, command: Command, target?: string) =>
     call<CommandResult>("POST", `${labPath(lab)}/run`, JSON.stringify({ device, command, target })),
   image: (id: ImageId) => call<ImageStatus>("GET", `/images/${encodeURIComponent(id)}`),
