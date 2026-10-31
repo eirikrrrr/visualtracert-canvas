@@ -22,6 +22,9 @@ export const LABELS = {
   image: "visual-tracert.image",
   /** when the lab is stopped by itself (an exercise's time limit), in ms since the epoch */
   expires: "visual-tracert.expires",
+  /** the account that deployed it (its id, and its username): only it, or an admin, reaches it */
+  owner: "visual-tracert.owner",
+  ownerName: "visual-tracert.owner-name",
 } as const;
 
 export interface NodePlan {

@@ -1,6 +1,6 @@
 // The emulator's HTTP API, behind the web's nginx at /api:
 //   GET    /api/health              is it up, can it reach Docker, has it KVM, are privileged containers allowed
-//   GET    /api/labs                the labs with containers on this server
+//   GET    /api/labs                the caller's labs with containers on this server (an admin: everyone's, with owner)
 //   GET    /api/labs/:lab           what of the lab is running
 //   PUT    /api/labs/:lab?expires=  deploy it: the topology document (JSON); expires
 //                                   (ms since the epoch): stopped by itself then
@@ -25,6 +25,11 @@
 //   WS     /api/labs/:lab/devices/:device/capture?iface=&filter=
 //          a traffic capture on a port ("any": all): binary frames are pcap
 //          (its header first); text frames {"type":"status"|"error",message}
+// Who calls comes from nginx (X-User-Id, -Name, -Role, after the session
+// check): a lab is its deployer's (labels owner, owner-name), and only they or
+// an admin reach it, its CLI and captures too; each account has a quota of
+// labs and containers running (admins: none). With no X-User-* (this host
+// directly, in development) everything is reachable.
 // Messages come in the language the request asks for (Accept-Language, or
 // ?lang= on the WebSocket). The topology comes as the editor's JSON document
 // and is checked by the same parser as the editor.
@@ -39,7 +44,7 @@ import { version } from "../../../package.json";
 import { CAPTURE_LIMIT, CaptureError, startCapture } from "./capture";
 import { docker, DockerError } from "./docker";
 import { buildProfile, loadProfiles, profileStatus, removeProfile, saveProfile } from "./profiles";
-import { ALLOW_PRIVILEGED, COMMANDS, deploy, destroy, execute, imageStatus, liveAddresses, openShell, relaunch, runningLabs, status, stopDevices, type Command, type Size } from "./lab";
+import { ALLOW_PRIVILEGED, COMMANDS, deploy, destroy, execute, imageStatus, liveAddresses, openShell, ownerOf, QUOTA, QuotaError, relaunch, runningLabs, status, stopDevices, type Command, type Owner, type Size } from "./lab";
 import { ensureImage } from "./vrnetlab";
 
 const MAX_BODY = 2 * 1024 * 1024;
@@ -73,6 +78,26 @@ function bodyOf(req: IncomingMessage): Promise<unknown> {
   });
 }
 
+/** who calls, as nginx says after checking the session (X-User-*); nobody:
+ * this host directly, in development (127.0.0.1:9151), as an admin */
+interface Caller { id: string; name: string; role: string }
+
+function callerOf(req: IncomingMessage): Caller | null {
+  const id = req.headers["x-user-id"];
+  if(typeof id !== "string" || !id) return null;
+  return { id, name: String(req.headers["x-user-name"] ?? ""), role: String(req.headers["x-user-role"] ?? "student") };
+}
+
+const isAdmin = (caller: Caller | null) => !caller || caller.role === "admin";
+
+/** a lab the caller may reach: theirs, nobody's yet, or any for an admin.
+ * Another's is as if it did not exist */
+async function reach(lab: string, caller: Caller | null, t: T): Promise<Owner | undefined> {
+  const owner = await ownerOf(lab);
+  if(owner && caller && owner.id !== caller.id && !isAdmin(caller)) throw new HttpError(404, t("No existe ese laboratorio."));
+  return owner;
+}
+
 function send(res: ServerResponse, code: number, data: unknown) {
   const text = JSON.stringify(data);
   res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
@@ -86,7 +111,7 @@ async function route(req: IncomingMessage, res: ServerResponse) {
 
   if(url.pathname === "/api/health" && method === "GET"){
     // and what it can run: virtual machines at full speed (KVM), privileged containers
-    send(res, 200, { ok: true, version, docker: await docker.ping(), kvm: existsSync("/dev/kvm"), privileged: ALLOW_PRIVILEGED });
+    send(res, 200, { ok: true, version, docker: await docker.ping(), kvm: existsSync("/dev/kvm"), privileged: ALLOW_PRIVILEGED, quota: QUOTA });
     return;
   }
 
@@ -149,14 +174,17 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     throw new HttpError(405, method);
   }
 
+  const caller = callerOf(req);
+  // an account sees its labs; an admin, everyone's
   if(url.pathname === "/api/labs" && method === "GET"){
-    send(res, 200, await runningLabs());
+    send(res, 200, await runningLabs(isAdmin(caller) ? undefined : caller!.id));
     return;
   }
   const match = url.pathname.match(/^\/api\/labs\/([^/]+)(\/run|\/start|\/restart|\/stop|\/addresses)?$/);
   if(!match) throw new HttpError(404, t("No existe esa ruta del emulador."));
   const lab = decodeURIComponent(match[1]);
   if(!LAB_ID.test(lab)) throw new HttpError(400, t("El identificador del laboratorio no es válido."));
+  const owner = await reach(lab, caller, t);
 
   if(match[2] === "/addresses"){
     if(method !== "GET") throw new HttpError(405, "GET");
@@ -171,7 +199,7 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     if(match[2] === "/stop"){ send(res, 200, await stopDevices(lab, devices)); return; }
     const parsed = parse(JSON.stringify(body.document ?? {}), "json", t);
     if(!parsed.topology) throw new HttpError(400, parsed.problems.map(problem => problem.message).join(" "));
-    send(res, 200, await relaunch(lab, parsed.topology, devices, match[2] === "/restart", t));
+    send(res, 200, await relaunch(lab, parsed.topology, devices, match[2] === "/restart", t, !isAdmin(caller)));
     return;
   }
   if(match[2]){
@@ -187,9 +215,11 @@ async function route(req: IncomingMessage, res: ServerResponse) {
   if(method === "PUT"){
     const parsed = parse(JSON.stringify(await bodyOf(req)), "json", t);
     if(!parsed.topology) throw new HttpError(400, parsed.problems.map(problem => problem.message).join(" "));
+    // another's lab is not deployed over, not even by an admin: it would become theirs
+    if(owner && caller && owner.id !== caller.id) throw new HttpError(409, t("Ese laboratorio es de {name}: no se puede desplegar encima.", { name: owner.name }));
     // an exercise's lab: stopped by itself when its time is up
     const expires = Number(url.searchParams.get("expires")) || undefined;
-    send(res, 200, await deploy(lab, parsed.topology, t, expires));
+    send(res, 200, await deploy(lab, parsed.topology, t, { expires, ...(caller ? { owner: { id: caller.id, name: caller.name }, limited: !isAdmin(caller) } : {}) }));
     return;
   }
   throw new HttpError(405, method);
@@ -275,7 +305,7 @@ function refuse(socket: Duplex, status: number, text: string) {
 export function startServer(port: number) {
   const server = createServer((req, res) => {
     route(req, res).catch(error => {
-      const code = error instanceof HttpError ? error.status : 500;
+      const code = error instanceof HttpError ? error.status : error instanceof QuotaError ? 409 : 500;
       if(code === 500) console.error(error);
       send(res, code, { error: (error as Error).message });
     });
@@ -289,14 +319,14 @@ export function startServer(port: number) {
     if(!LAB_ID.test(lab) || !device || device.length > 128){ refuse(socket, 400, "Bad Request"); return; }
     const t = translator(langOf(req, url));
     const size = sizeOf(url.searchParams.get("cols"), url.searchParams.get("rows"));
-    if(match[3] === "capture"){
-      const iface = (url.searchParams.get("iface") ?? "any").slice(0, 64);
-      const filter = url.searchParams.get("filter") ?? "";
-      shells.handleUpgrade(req, socket, head, ws => { void attachCapture(ws, lab, device, iface, filter, t); });
-      return;
-    }
+    const capture = match[3] === "capture";
+    const iface = (url.searchParams.get("iface") ?? "any").slice(0, 64);
+    const filter = url.searchParams.get("filter") ?? "";
     const shell = url.searchParams.get("shell") ?? undefined;
-    shells.handleUpgrade(req, socket, head, ws => { void attachShell(ws, lab, device, size, shell, t); });
+    // another's lab: its CLI and captures are theirs
+    reach(lab, callerOf(req), t).then(() => shells.handleUpgrade(req, socket, head, ws => {
+      void (capture ? attachCapture(ws, lab, device, iface, filter, t) : attachShell(ws, lab, device, size, shell, t));
+    }), () => refuse(socket, 404, "Not Found"));
   });
   server.listen(port, () => console.log(`visual-tracert emulator ${version} on :${port}`));
   return server;

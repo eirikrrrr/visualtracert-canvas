@@ -52,6 +52,8 @@ export interface ContainerSummary {
   Names: string[];
   State: string;
   Labels: Record<string, string>;
+  /** when it was created, in seconds since the epoch */
+  Created: number;
 }
 
 export interface ImageSummary {

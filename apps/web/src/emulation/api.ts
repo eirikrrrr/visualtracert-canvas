@@ -25,6 +25,18 @@ export interface Health {
   docker: boolean;
   kvm?: boolean;
   privileged?: boolean;
+  /** what one account may have running at once (admins: no limit) */
+  quota?: { labs: number; containers: number };
+}
+
+/** a lab with containers on the server: whose, and since when */
+export interface RunningLab {
+  lab: string;
+  containers: number;
+  running: number;
+  owner?: { id: string; name: string };
+  expires?: number;
+  since: number;
 }
 
 export type Command = "ping" | "traceroute" | "addresses" | "routes" | "neighbours";
@@ -88,8 +100,8 @@ const labPath = (lab: string) => `/labs/${encodeURIComponent(lab)}`;
 
 export const emulator = {
   status: (lab: string) => call<LabState>("GET", labPath(lab)),
-  /** the labs with containers on this server, with how many run */
-  labs: () => call<{ lab: string; containers: number; running: number }[]>("GET", "/labs"),
+  /** the user's labs with containers on this server (an admin: everyone's), with how many run */
+  labs: () => call<RunningLab[]>("GET", "/labs"),
   /** the topology goes as the editor's JSON document; with expires (ms since
    * the epoch), the emulator stops it by itself then */
   deploy: (lab: string, topology: Topology, expires?: number) =>

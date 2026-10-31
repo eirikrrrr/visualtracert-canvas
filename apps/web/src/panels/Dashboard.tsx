@@ -13,6 +13,7 @@ import { squarePhoto, useProfile } from "../app/profile";
 import { SPEEDS, THEMES, useStore, type DashboardSection } from "../app/store";
 import { Icon } from "../editor/icons";
 import { useImages } from "../emulation/images";
+import { emulator, type RunningLab } from "../emulation/api";
 import { useEmulation } from "../emulation/store";
 import { tx, useLang, useT } from "../i18n";
 import { useProgress } from "../practice/progress";
@@ -214,6 +215,62 @@ function LabsSection() {
   );
 }
 
+/** the labs with containers on the server: the user's (an admin: everyone's),
+ * whose and since when, each one stopped from here */
+function RunningLabs() {
+  const t = useT();
+  const role = useAuth(state => state.user?.role);
+  const quota = useEmulation(state => state.health?.quota);
+  const names = useStore(state => state.labs);
+  const [labs, setLabs] = useState<RunningLab[] | null>(null);
+  const [stopping, setStopping] = useState<string | null>(null);
+  const load = () => { emulator.labs().then(setLabs).catch(() => setLabs([])); };
+  useEffect(load, []);
+  const admin = role === "admin";
+  const stop = async (lab: string) => {
+    setStopping(lab);
+    try{
+      await emulator.stop(lab);
+      if(lab === useStore.getState().labId) void useEmulation.getState().refresh(lab);
+    }catch(error){ useStore.getState().notify((error as Error).message, "error"); }
+    setStopping(null);
+    load();
+  };
+  return (
+    <>
+      <h3>{admin ? t("Laboratorios encendidos en el servidor ({n})", { n: labs?.length ?? 0 }) : t("Tus laboratorios encendidos ({n})", { n: labs?.length ?? 0 })}</h3>
+      {quota && !admin && (
+        <p className="muted small">{t("Puedes tener hasta {labs} laboratorios y {containers} equipos encendidos a la vez. Usas {used} equipos.", { labs: quota.labs, containers: quota.containers, used: labs?.reduce((sum, lab) => sum + lab.containers, 0) ?? 0 })}</p>
+      )}
+      {labs === null ? <p className="muted small">{t("Cargando…")}</p> : labs.length === 0 ? <p className="muted small">{t("Ningún laboratorio encendido.")}</p> : (
+        <ul className="dash-labs">
+          {labs.map(lab => (
+            <li key={lab.lab} className={lab.lab === useStore.getState().labId ? "current" : ""}>
+              <div className="dash-lab-text">
+                <strong>{names.find(item => item.id === lab.lab)?.name ?? lab.lab}</strong>
+                <span className="muted small">
+                  {admin && lab.owner && <>{lab.owner.name} · </>}
+                  {t("{n} equipos", { n: lab.containers })} · {t("desde hace {time}", { time: span(Date.now() - lab.since) })}
+                  {lab.expires && <> · {t("caduca en {time}", { time: span(lab.expires - Date.now()) })}</>}
+                </span>
+              </div>
+              <button type="button" className="ghost small" disabled={stopping === lab.lab} onClick={() => void stop(lab.lab)}>
+                <Icon name="stop" size={14} />{stopping === lab.lab ? t("Deteniendo…") : t("Detener")}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+/** "5 min", "2 h": a length of time */
+function span(ms: number): string {
+  const minutes = Math.max(0, Math.round(ms / 60000));
+  return minutes < 60 ? `${minutes} min` : `${Math.round(minutes / 60)} h`;
+}
+
 function ServerSection() {
   const t = useT();
   const health = useEmulation(state => state.health);
@@ -230,6 +287,7 @@ function ServerSection() {
   return (
     <>
       <dl className="emu-info">{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+      <RunningLabs />
       <h3>{t("Imágenes en este servidor ({n})", { n: here.length })}</h3>
       <ul className="dash-images">
         {here.map(image => (

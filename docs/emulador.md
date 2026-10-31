@@ -370,8 +370,12 @@ flowchart LR
   a `/api`, también al abrir una CLI o una captura por WebSocket. Sin sesión, 401; desde otra web
   (su `Origin`), 403, para que una página ajena no abra una shell con la cookie del usuario.
   Cambiar las imágenes y perfiles del servidor es solo de administradores. El emulador recibe
-  quién llama en `X-User-Id`, `X-User-Name` y `X-User-Role`; todavía no lo usa: hasta la fase C,
-  cualquier cuenta puede tocar cualquier laboratorio.
+  quién llama en `X-User-Id`, `X-User-Name` y `X-User-Role`.
+- **Cada laboratorio tiene dueño:** sus contenedores llevan la etiqueta `visual-tracert.owner`
+  (y `.owner-name`). Otra cuenta no lo ve ni lo toca (404, también su CLI y su captura); un
+  administrador sí. **Límite por cuenta:** como mucho `MAX_LABS_PER_USER` laboratorios (3) y
+  `MAX_CONTAINERS_PER_USER` equipos (24) encendidos a la vez, sin límite para administradores.
+  Sin cabeceras `X-User-*` (este equipo directamente, en desarrollo) todo es alcanzable.
 - **Entradas validadas:** los identificadores de laboratorio (`[A-Za-z0-9_-]{1,64}`), los
   comandos (una lista cerrada, con destino validado como IP o nombre), el filtro de captura y
   los perfiles (paquetes y líneas con su propio patrón). Los textos del documento que llegan a

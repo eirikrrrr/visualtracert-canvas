@@ -53,7 +53,8 @@ flowchart LR
   capturas por WebSocket, nginx pregunta al servicio de cuentas (`auth_request`): sin sesión
   responde 401; desde otro sitio, o si la acción es de administrador (cambiar imágenes y perfiles
   del servidor), 403. El usuario llega al emulador en las cabeceras `X-User-Id`, `X-User-Name` y
-  `X-User-Role`.
+  `X-User-Role`: cada laboratorio es de quien lo desplegó, otra cuenta no lo alcanza y cada una
+  tiene un límite de laboratorios y equipos encendidos.
 - **Las cuentas son un servicio aparte.** El emulador no guarda contraseñas: `apps/api` corre sin
   privilegios, con su base SQLite en el volumen `api-data`.
 - **El modelo es la misma pieza en los dos lados.** La web serializa la topología a JSON con

@@ -57,6 +57,51 @@ export interface LabState {
 
 const containersOf = (lab: string) => docker.list({ [LABELS.lab]: lab });
 
+/** who deployed a lab: the account's id and its username */
+export interface Owner { id: string; name: string }
+
+/** what a lab's containers carry besides the lab: its time limit, its owner */
+export interface Meta {
+  expires?: number;
+  owner?: Owner;
+  /** false: its owner has no quota (an admin) */
+  limited?: boolean;
+}
+
+const metaOf = (containers: ContainerSummary[]): Meta => {
+  const labels = containers[0]?.Labels ?? {};
+  const expires = Number(containers.find(item => item.Labels[LABELS.expires])?.Labels[LABELS.expires]) || undefined;
+  return { expires, ...(labels[LABELS.owner] ? { owner: { id: labels[LABELS.owner], name: labels[LABELS.ownerName] ?? "" } } : {}) };
+};
+
+/** a lab's owner (undefined: nobody's, or it has no containers) */
+export async function ownerOf(lab: string): Promise<Owner | undefined> {
+  return metaOf(await containersOf(lab)).owner;
+}
+
+/** what one account may have running at once: labs, and containers in all of them */
+export const QUOTA = {
+  labs: Math.max(1, Number(process.env.MAX_LABS_PER_USER) || 3),
+  containers: Math.max(1, Number(process.env.MAX_CONTAINERS_PER_USER) || 24),
+};
+
+export class QuotaError extends Error {}
+
+/** refuses what would take an account past its quota: `adding` containers to
+ * the lab (`fresh`: the lab is deployed anew, what it had does not count) */
+async function checkQuota(lab: string, owner: Owner, adding: number, t: T, fresh: boolean): Promise<void> {
+  const mine = await docker.list({ [LABELS.owner]: owner.id });
+  const others = mine.filter(container => container.Labels[LABELS.lab] !== lab);
+  const labs = new Set(others.map(container => container.Labels[LABELS.lab]));
+  if(fresh && labs.size >= QUOTA.labs){
+    throw new QuotaError(t("Ya tienes {n} laboratorios encendidos, el máximo: detén alguno antes de iniciar otro.", { n: labs.size }));
+  }
+  const used = others.length + (fresh ? 0 : mine.length - others.length);
+  if(used + adding > QUOTA.containers){
+    throw new QuotaError(t("Pasarías de {max} equipos encendidos entre todos tus laboratorios (tienes {n}): detén alguno.", { max: QUOTA.containers, n: used }));
+  }
+}
+
 async function stateOf(lab: string, containers: ContainerSummary[]): Promise<LabState> {
   const devices = await Promise.all(containers.map(async container => {
     const own = IMAGES[container.Labels[LABELS.image] as ImageId]?.vrnetlab;
@@ -96,14 +141,26 @@ export function sweepExpired(every = 30_000): () => void {
   return () => clearInterval(timer);
 }
 
-/** the labs that have containers on this server, with how many run */
-export async function runningLabs(): Promise<{ lab: string; containers: number; running: number }[]> {
-  const labs = new Map<string, { lab: string; containers: number; running: number }>();
-  for(const container of await docker.list({ [LABELS.lab]: null })){
+export interface RunningLab {
+  lab: string;
+  containers: number;
+  running: number;
+  owner?: Owner;
+  expires?: number;
+  /** when its first container was created, in ms since the epoch */
+  since: number;
+}
+
+/** the labs that have containers on this server (only an account's, with
+ * owner), with how many run, whose they are and since when */
+export async function runningLabs(owner?: string): Promise<RunningLab[]> {
+  const labs = new Map<string, RunningLab>();
+  for(const container of await docker.list(owner ? { [LABELS.owner]: owner } : { [LABELS.lab]: null })){
     const lab = container.Labels[LABELS.lab];
-    const entry = labs.get(lab) ?? { lab, containers: 0, running: 0 };
+    const entry = labs.get(lab) ?? { lab, containers: 0, running: 0, since: Infinity, ...metaOf([container]) };
     entry.containers += 1;
     if(container.State === "running") entry.running += 1;
+    entry.since = Math.min(entry.since, Number(container.Created) * 1000 || Date.now());
     labs.set(lab, entry);
   }
   return [...labs.values()].sort((p, q) => p.lab.localeCompare(q.lab));
@@ -137,7 +194,7 @@ async function planOf(lab: string, topology: Topology, t: T, include: string[] =
 }
 
 /** a device's container, created and started: its id, and its process as the host sees it */
-async function startNode(lab: string, plan: Plan, node: NodePlan, expires?: number): Promise<{ id: string; pid: number }> {
+async function startNode(lab: string, plan: Plan, node: NodePlan, meta: Meta): Promise<{ id: string; pid: number }> {
   const id = await docker.create(node.container, {
     Image: node.image,
     // a shell kept alive; or what the image runs (a server, a router's
@@ -148,7 +205,8 @@ async function startNode(lab: string, plan: Plan, node: NodePlan, expires?: numb
     Hostname: node.hostname,
     Labels: {
       [LABELS.lab]: lab, [LABELS.device]: node.device, [LABELS.fingerprint]: plan.fingerprint, [LABELS.image]: node.imageId,
-      ...(expires ? { [LABELS.expires]: String(expires) } : {}),
+      ...(meta.expires ? { [LABELS.expires]: String(meta.expires) } : {}),
+      ...(meta.owner ? { [LABELS.owner]: meta.owner.id, [LABELS.ownerName]: meta.owner.name } : {}),
     },
     HostConfig: {
       NetworkMode: "none", AutoRemove: true, Init: node.run !== "image", Memory: node.memory * MB, CapAdd: ["NET_ADMIN", ...node.caps], Privileged: node.privileged,
@@ -187,16 +245,17 @@ async function startup(node: NodePlan, id: string | undefined): Promise<void> {
 
 /** builds the lab from its topology, after removing what was running; with
  * expires (ms since the epoch), it is stopped by itself then (sweep) */
-export function deploy(lab: string, topology: Topology, t: T = spanish, expires?: number): Promise<LabState & { warnings: string[] }> {
+export function deploy(lab: string, topology: Topology, t: T = spanish, meta: Meta = {}): Promise<LabState & { warnings: string[] }> {
   return serial(lab, async () => {
     const plan = await planOf(lab, topology, t);
+    if(meta.owner && meta.limited !== false) await checkQuota(lab, meta.owner, plan.nodes.length, t, true);
     await removeAll(lab);
     for(const image of new Set(plan.nodes.map(node => node.image))) await ensureImage(image);
     const pids = new Map<string, number>();
     try{
       const ids = new Map<string, string>();
       await Promise.all(plan.nodes.map(async node => {
-        const { id, pid } = await startNode(lab, plan, node, expires);
+        const { id, pid } = await startNode(lab, plan, node, meta);
         ids.set(node.device, id);
         pids.set(node.device, pid);
       }));
@@ -219,12 +278,12 @@ export function deploy(lab: string, topology: Topology, t: T = spanish, expires?
  * (its address, its bridge, its routes). A device starts this way even when its
  * topology does not start it. What runs must be the topology as it was
  * deployed: a changed one is applied by restarting the whole lab. */
-export function relaunch(lab: string, topology: Topology, devices: string[], restart: boolean, t: T = spanish): Promise<LabState & { warnings: string[] }> {
+export function relaunch(lab: string, topology: Topology, devices: string[], restart: boolean, t: T = spanish, limited = true): Promise<LabState & { warnings: string[] }> {
   return serial(lab, async () => {
     const containers = await containersOf(lab);
     const running = containers.filter(item => item.State === "running").map(item => item.Labels[LABELS.device]);
-    // its time limit, if it has one, for the devices made anew too
-    const expires = Number(containers.find(item => item.Labels[LABELS.expires])?.Labels[LABELS.expires]) || undefined;
+    // its time limit and its owner, for the devices made anew too
+    const meta = metaOf(containers);
     // the plan of what runs and of these: their cables are between them
     const plan = await planOf(lab, topology, t, [...new Set([...running, ...devices])]);
     if(containers.length && containers[0].Labels[LABELS.fingerprint] !== plan.fingerprint) throw new Error(t("La topología cambió desde el despliegue: reinicia todo el laboratorio para aplicarla."));
@@ -233,6 +292,7 @@ export function relaunch(lab: string, topology: Topology, devices: string[], res
       if(plan.nodes.some(node => devices.includes(node.device))) return { ...(await status(lab)), warnings: plan.warnings };
       throw new Error(t("Ninguno de esos equipos se puede iniciar en este laboratorio."));
     }
+    if(meta.owner && limited) await checkQuota(lab, meta.owner, chosen.filter(node => !running.includes(node.device)).length, t, false);
     const names = new Set(chosen.map(node => node.device));
     for(const image of new Set(chosen.map(node => node.image))) await ensureImage(image);
 
@@ -247,7 +307,7 @@ export function relaunch(lab: string, topology: Topology, devices: string[], res
     try{
       const ids = new Map<string, string>();
       await Promise.all(chosen.map(async node => {
-        const { id, pid } = await startNode(lab, plan, node, expires);
+        const { id, pid } = await startNode(lab, plan, node, meta);
         ids.set(node.device, id);
         pids.set(node.device, pid);
       }));

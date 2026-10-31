@@ -28,18 +28,27 @@ contraseña provisional, o si un usuario que no es administrador intenta cambiar
 { "ok": true, "version": "0.4.0", "docker": true, "kvm": true, "privileged": false }
 ```
 
-`kvm`: hay `/dev/kvm` (las máquinas virtuales van a velocidad casi nativa). `privileged`: el
+`quota`: lo que una cuenta puede tener encendido a la vez, `{ "labs": 3, "containers": 24 }`
+(`MAX_LABS_PER_USER`, `MAX_CONTAINERS_PER_USER`; los administradores no tienen límite). Pasarse al
+desplegar o iniciar equipos responde `409` con el motivo. `kvm`: hay `/dev/kvm` (las máquinas virtuales van a velocidad casi nativa). `privileged`: el
 servidor permite contenedores privilegiados (`ALLOW_PRIVILEGED=1`).
 
 ### Laboratorios
 
 #### `GET /api/labs`
 
-Los laboratorios que tienen contenedores en el servidor:
+Tus laboratorios con contenedores en el servidor (un administrador ve los de todos), con su
+dueño, desde cuándo (`since`) y, si es un reto, cuándo caduca:
 
 ```json
-[{ "lab": "lab-mvwo7czd-jhk2", "containers": 3, "running": 3 }]
+[{ "lab": "lab-mvwo7czd-jhk2", "containers": 3, "running": 3, "since": 1793481330000,
+   "owner": { "id": "2", "name": "ana" }, "expires": 1793482230000 }]
 ```
+
+Cada laboratorio es de quien lo desplegó (etiquetas `visual-tracert.owner` y `.owner-name`). El
+laboratorio de otra cuenta responde `404 No existe ese laboratorio` en todas sus rutas, también
+en la CLI y la captura; un administrador llega a todos. Nadie despliega encima del laboratorio de
+otro (`409`).
 
 #### `GET /api/labs/:lab`
 

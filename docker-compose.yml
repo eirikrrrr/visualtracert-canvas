@@ -52,6 +52,9 @@ services:
       # with ALLOW_PRIVILEGED=1: such a container, and its CLI, is root on
       # this host. Off unless started as ALLOW_PRIVILEGED=1 docker compose up -d
       ALLOW_PRIVILEGED: "${ALLOW_PRIVILEGED:-0}"
+      # what one account may have running at once (admins: no limit)
+      MAX_LABS_PER_USER: "${MAX_LABS_PER_USER:-3}"
+      MAX_CONTAINERS_PER_USER: "${MAX_CONTAINERS_PER_USER:-24}"
       DATA_DIR: /data
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock

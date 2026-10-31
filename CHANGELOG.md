@@ -7,6 +7,11 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 ## [Sin publicar]
 
 ### Añadido
+- Cada laboratorio del emulador tiene dueño (fase C): solo quien lo desplegó, o un administrador,
+  lo ve, lo toca y abre sus CLI y capturas. Límite por cuenta de laboratorios y equipos
+  encendidos a la vez (3 y 24 por omisión, `MAX_LABS_PER_USER` y `MAX_CONTAINERS_PER_USER`; sin
+  límite para administradores). En el panel → Servidor, los laboratorios encendidos con «Detener»:
+  los tuyos con tu límite, o los de todos con su dueño si eres administrador.
 - Cuentas de usuario (fase A). Un servicio nuevo, `apps/api`, sin privilegios y con SQLite
   (`node:sqlite`), guarda usuarios, sesiones e invitaciones. La primera cuenta es el administrador
   y se crea con el código de instalación del registro del servicio (`docker compose logs api`);

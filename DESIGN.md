@@ -425,6 +425,10 @@ rol en un desplegable, una contraseña provisional (🔑), activar o desactivar 
 confirmación en la fila). El nombre del perfil es el de la cuenta. Si la sesión termina (una
 respuesta 401), la app vuelve a «Inicia sesión» con el aviso.
 
+En **Servidor**, los laboratorios encendidos: los del usuario, con su límite («hasta 3
+laboratorios y 24 equipos; usas 9»), o para un administrador los de todos con su dueño. Cada fila
+dice cuántos equipos, desde cuándo y cuándo caduca, con «Detener».
+
 ## Qué guarda el navegador
 
 `localStorage`, con el prefijo `visual-tracert.`:

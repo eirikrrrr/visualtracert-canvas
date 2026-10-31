@@ -200,10 +200,10 @@ El diseño de la web (temas, tokens, componentes, lienzo e interacción) está e
 La CLI de cada dispositivo es una shell de root dentro de su contenedor (sin red propia, 96 MB de
 memoria, con `NET_ADMIN` solo en su espacio de red), por WebSocket en
 `/api/labs/:lab/devices/:device/shell`. Solo llega a ellas quien ha iniciado sesión: nginx pregunta
-al servicio de cuentas antes de cada petición al emulador. Aun así, cada usuario puede todavía
-tocar los laboratorios de los demás (cada laboratorio tendrá dueño en la fase C), así que, de
-momento, comparte la instalación solo con gente de confianza. Para publicarla en Internet, ponla
-detrás de HTTPS (con `COOKIE_SECURE=1`).
+al servicio de cuentas antes de cada petición al emulador. Cada laboratorio es de quien
+lo desplegó (otra cuenta no lo ve ni abre sus CLI) y cada cuenta tiene un límite de laboratorios
+y equipos encendidos (`MAX_LABS_PER_USER`, `MAX_CONTAINERS_PER_USER`). Para publicarla en
+Internet, ponla detrás de HTTPS (con `COOKIE_SECURE=1`).
 
 Un equipo, una topología o todo se pueden iniciar, detener o reiniciar sin tocar el resto
 (`POST /api/labs/:lab/start`, `/stop` y `/restart`): sus contenedores y sus cables se hacen de nuevo
