@@ -128,7 +128,11 @@ const FLOAT_MIN = { width: 340, height: 300 };
 
 function SidePanel() {
   const t = useT();
-  const tab = useStore(state => state.tab);
+  // an exercise's lab has no document: it is solved on the canvas, or on its devices' CLI
+  const challenge = useStore(state => state.challenge);
+  const chosen = useStore(state => state.tab);
+  const tab = challenge && chosen === "document" ? "simulation" : chosen;
+  const tabs = challenge ? TABS.filter(item => item.id !== "document") : TABS;
   const events = useStore(state => state.run?.events.length ?? 0);
   const emulating = useStore(state => state.mode === "emulation");
   const full = useStore(state => state.sideFull);
@@ -174,7 +178,7 @@ function SidePanel() {
       {!full && !floating && <SideResizer />}
       <div className="tabs" role="tablist" aria-label={t("Panel")}>
         {floating && <Grip vertical onPointerDown={move} label={t("Mover el panel")} title={t("Arrastra para mover el panel")} />}
-        {TABS.map(item => (
+        {tabs.map(item => (
           <button key={item.id} type="button" role="tab" id={`tab-${item.id}`} aria-selected={tab === item.id} aria-controls={`panel-${item.id}`}
             className={tab === item.id ? "active" : ""} onClick={() => useStore.getState().setTab(item.id)}>
             {item.id === "simulation" && emulating ? t("Emulación") : t(item.label)}

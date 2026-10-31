@@ -334,6 +334,10 @@ Los laboratorios de los retos son desechables: empezar un reto detiene los conte
 retos que sigan encendidos, y «Volver a Practicar» tras superar uno detiene el suyo. «← Todos
 los retos» lo deja encendido, para volver con «Seguir» sin perder lo hecho en la CLI.
 
+El laboratorio de un reto vive en Practicar: no tiene pestaña Documento, y los botones Simulación
+y Emulación abren el último laboratorio propio del usuario (o el primero, o uno vacío). «Seguir»
+y el menú de laboratorios vuelven al reto en su modo: Fácil en Simulación, Medio en Emulación.
+
 Se pliega a su título.
 
 ## Marketplace

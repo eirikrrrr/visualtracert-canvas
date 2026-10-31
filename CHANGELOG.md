@@ -52,6 +52,10 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 - Editorial es el tema por defecto.
 
 ### Arreglado
+- El laboratorio de un reto ya no se queda abierto al pasar a Simulación o Emulación: esos modos
+  abren tu último laboratorio propio, y «Seguir» (o el menú de laboratorios) vuelve al reto en su
+  modo. Antes, un reto en Medio dejaba bloqueado el documento al cambiar de modo. Los retos no
+  tienen pestaña Documento.
 - En Emulación, el lienzo mostraba la dirección del documento aunque el equipo tuviera otra
   (cambiada desde su CLI). Ahora muestra la que el equipo tiene de verdad; si no coincide con el
   documento, la marca «en el equipo» y lo explica al pasar el ratón.

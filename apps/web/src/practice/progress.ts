@@ -11,7 +11,7 @@
 // and by the emulator itself, which stops a lab past its expiry).
 import { exerciseById, TIME_LIMIT, type Difficulty, type Solved } from "@visual-tracert/model";
 import { create } from "zustand";
-import { useStore } from "../app/store";
+import { useStore, type Mode } from "../app/store";
 import { emulator } from "../emulation/api";
 import { useEmulation } from "../emulation/store";
 import { t } from "../i18n";
@@ -98,6 +98,14 @@ export const clock = (ms: number) => {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 };
 
+// the user's own lab open last (not an exercise's): where Simulation and
+// Emulation go back to from a challenge
+const WORK_KEY = "visual-tracert.work";
+let workLab: string | null = null;
+try{ workLab = localStorage.getItem(WORK_KEY); }catch(_){ /* none */ }
+/** an exercise's lab being opened: not one of the user's own */
+let starting = false;
+
 // the open lab's challenge, and its lock: on while it is an exercise in medium difficulty
 const syncLock = () => {
   const linked = useProgress.getState().labs[useStore.getState().labId];
@@ -106,7 +114,48 @@ const syncLock = () => {
   if(useStore.getState().challenge !== Boolean(linked)) useStore.getState().setChallenge(Boolean(linked));
 };
 syncLock();
-useStore.subscribe((state, previous) => { if(state.labId !== previous.labId) syncLock(); });
+useStore.subscribe((state, previous) => {
+  if(state.labId === previous.labId) return;
+  syncLock();
+  const attempt = useProgress.getState().labs[state.labId];
+  if(!attempt && !starting){
+    workLab = state.labId;
+    try{ localStorage.setItem(WORK_KEY, workLab); }catch(_){ /* full or blocked */ }
+  }
+  // an exercise's lab opened from the menu: in its own mode
+  if(attempt && state.mode !== "practice") resumeMode(attempt);
+});
+
+const resumeMode = (attempt: LabExercise) => {
+  const mode = attempt.difficulty === "medium" ? "emulation" : "simulation";
+  if(useStore.getState().mode !== mode) useStore.getState().setMode(mode);
+};
+
+/** opens the user's own lab open last (or another of theirs, or a new one) */
+export function openOwnLab(): void {
+  const store = useStore.getState();
+  const attempts = useProgress.getState().labs;
+  const own = store.labs.filter(lab => !attempts[lab.id]);
+  const target = own.find(lab => lab.id === workLab) ?? own[0];
+  if(target) store.switchLab(target.id);
+  else store.createLab("empty");
+}
+
+/** a mode from the top bar: an exercise's lab stays in practice, so Simulation
+ * and Emulation open the user's own lab instead */
+export function chooseMode(mode: Mode): void {
+  const store = useStore.getState();
+  if(mode !== "practice" && store.challenge && mode !== store.mode) openOwnLab();
+  store.setMode(mode);
+}
+
+/** back to an exercise's lab in progress, in its mode */
+export function resumeExercise(lab: string): void {
+  const attempt = useProgress.getState().labs[lab];
+  if(!attempt) return;
+  useStore.getState().switchLab(lab);
+  resumeMode(attempt);
+}
 useProgress.subscribe(syncLock);
 
 /** stops the containers of a lab, and says so to the page if it is the open one */
@@ -174,7 +223,9 @@ export async function startExercise(id: string, difficulty: Difficulty = "easy")
   if(!exercise) return;
   await stopExerciseLabs();
   const store = useStore.getState();
+  starting = true;
   store.startLab(exercise.build(t));
+  starting = false;
   const labId = useStore.getState().labId;
   // the labs of the exercises before it: thrown away
   discardExerciseLabs(labId);

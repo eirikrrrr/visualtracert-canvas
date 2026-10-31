@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { LabMeta } from "../app/labs";
 import { initials, useProfile } from "../app/profile";
-import { useProgress } from "../practice/progress";
+import { chooseMode, useProgress } from "../practice/progress";
 import { THEMES, useStore, type Mode } from "../app/store";
 import { Icon } from "../editor/icons";
 import { LANGS, tx, useLang, useT, type T } from "../i18n";
@@ -216,7 +216,7 @@ export function TopBar() {
       <div className="modes" role="radiogroup" aria-label={t("Modo")}>
         {MODES.map(item => (
           <button key={item.id} type="button" role="radio" aria-checked={mode === item.id} title={t(item.title)}
-            className={mode === item.id ? "active" : ""} onClick={() => useStore.getState().setMode(item.id)}>
+            className={mode === item.id ? "active" : ""} onClick={() => chooseMode(item.id)}>
             <Icon name={item.id} size={17} />{t(item.label)}
           </button>
         ))}

@@ -11,11 +11,10 @@ import {
 } from "@visual-tracert/model";
 import { useMemo, useState, type CSSProperties } from "react";
 import { create } from "zustand";
-import { useStore } from "../app/store";
 import { Icon } from "../editor/icons";
 import { tx, useT } from "../i18n";
 import { MachineAvatar } from "./MachineAvatar";
-import { clock, startExercise, useProgress } from "./progress";
+import { clock, resumeExercise, startExercise, useProgress } from "./progress";
 
 const DIFFICULTIES: { id: Difficulty; hint: string; icon: string }[] = [
   { id: "easy", hint: tx("Desde la interfaz: propiedades y documento; se comprueba en la simulación."), icon: "select" },
@@ -77,16 +76,16 @@ function useMachineState(exercise: Exercise) {
   const done = useProgress(state => state.done);
   const times = useProgress(state => state.times);
   const attempts = useProgress(state => state.labs);
-  const labId = useStore(state => state.labId);
   const key = solvedKey(exercise.id, difficulty);
   const available = hasDifficulty(exercise, difficulty);
-  const current = attempts[labId];
+  // the attempt in progress (one at most: the others' labs are thrown away), open or not
+  const running = Object.entries(attempts).find(([, attempt]) => attempt.exercise === exercise.id && attempt.difficulty === difficulty && attempt.solvedIn === undefined && !attempt.expired);
   return {
     difficulty, available,
     open: available && isUnlocked(exercise, done, difficulty),
     solved: Boolean(done[key]),
     best: times[key],
-    here: current?.exercise === exercise.id && current.difficulty === difficulty && current.solvedIn === undefined && !current.expired,
+    here: running?.[0],
     solvedAny: Boolean(done[solvedKey(exercise.id, "easy")] || done[solvedKey(exercise.id, "medium")]),
   };
 }
@@ -100,7 +99,7 @@ function PlayButton({ exercise, size = "small" }: { exercise: Exercise; size?: "
   if(!state.available) return <span className="box-status muted small" title={exercise.cliUnavailable ? t(exercise.cliUnavailable) : undefined}>{t("Solo Fácil")}</span>;
   if(!state.open) return <span className="box-status muted small" title={t("Supera antes el nivel anterior de esta caja.")}><Icon name="lock" size={15} />{t("Bloqueado")}</span>;
   if(state.here){
-    return <button type="button" className={primary} onClick={event => { event.stopPropagation(); useStore.getState().setMode(state.difficulty === "medium" ? "emulation" : "simulation"); }}>{t("Seguir")}</button>;
+    return <button type="button" className={primary} onClick={event => { event.stopPropagation(); resumeExercise(state.here!); }}>{t("Seguir")}</button>;
   }
   return (
     <button type="button" className={state.solved ? ghost : primary} onClick={event => { event.stopPropagation(); void startExercise(exercise.id, state.difficulty); }}>
