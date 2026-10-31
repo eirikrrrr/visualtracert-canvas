@@ -1,0 +1,16 @@
+{
+  "name": "@visual-tracert/api",
+  "private": true,
+  "version": "0.4.0",
+  "description": "Cuentas y sesiones: usuarios con roles, invitaciones y la comprobación de sesión que nginx hace antes de cada llamada al emulador.",
+  "type": "module",
+  "scripts": {
+    "build": "rolldown -c",
+    "test": "vitest run",
+    "typecheck": "tsc -p ."
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "rolldown": "^1.2.16"
+  }
+}

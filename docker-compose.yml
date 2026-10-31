@@ -12,6 +12,27 @@ services:
     ports:
       - "0.0.0.0:9150:80"
 
+  # Accounts: users, sessions and invitations, in SQLite (the api-data volume).
+  # Unprivileged; nginx asks it before every emulator request. While there is
+  # no account, its log has the setup code the first one (the admin) needs:
+  #   docker compose logs api
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: visual-tracert-api:latest
+    container_name: visual-tracert-api
+    restart: unless-stopped
+    environment:
+      # Secure cookies: 1 always, 0 never, unset when the request came by HTTPS
+      COOKIE_SECURE: "${COOKIE_SECURE:-}"
+      # the code to create the admin (random, in the log, if unset)
+      SETUP_CODE: "${SETUP_CODE:-}"
+    volumes:
+      - api-data:/data
+    ports:
+      - "127.0.0.1:9152:8090"
+
   # Emulation: creates the devices' containers and the veth cables between
   # them. It needs Docker's socket and to enter other containers' network
   # namespaces (privileged, host PIDs): that is root on this machine, so it is
@@ -41,3 +62,4 @@ services:
 
 volumes:
   emulator-data:
+  api-data:

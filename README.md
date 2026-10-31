@@ -139,7 +139,10 @@ El resultado deseado es una plataforma de laboratorio de redes accesible desde c
 - **Simulación:** el recorrido de cada paquete (ARP, ICMP, DHCP, DNS, TCP/HTTP), paso a paso.
 - **Practicar:** retos por temas (IP, VLAN, enrutamiento, DHCP, DNS y web, diagnóstico)
   ordenados como un camino, que se validan con la simulación.
-- **Panel de usuario:** perfil local, preferencias (idioma, tema, animaciones), laboratorios,
+- **Cuentas:** inicio de sesión, registro con invitación, roles (alumno, profesor,
+  administrador) y un panel para gestionar usuarios e invitaciones. Sin sesión no se llega al
+  emulador ni a ninguna CLI.
+- **Panel de usuario:** perfil, cuenta, preferencias (idioma, tema, animaciones), laboratorios,
   estado del servidor y atajos.
 - **Interfaz:** cuatro temas, español, inglés y portugués, y tipografía incluida con la app.
 
@@ -154,6 +157,7 @@ Un monorepo con workspaces de npm:
 apps/
   web/            editor visual y simulación de paquetes en el navegador (Vite + React)
   emulator/       emulación: cada equipo, un contenedor; cada cable, un par veth (API en /api)
+  api/            cuentas: usuarios, sesiones e invitaciones en SQLite (API en /auth)
     vrnetlab/     las imágenes de máquinas virtuales (RouterOS) que el emulador construye
 packages/
   model/          lo que comparten las apps: tipos de la topología, documento YAML/JSON,
@@ -164,6 +168,9 @@ docs/             documentación técnica: arquitectura, emulador, documento y A
 - `npm install` en la raíz instala y enlaza todo.
 - `npm run dev` arranca el editor; `npm test` y `npm run typecheck` recorren todos los workspaces.
 - `docker compose up -d --build` construye cada app desde la raíz (para que vea `packages/`) y publica el editor en el puerto 9150.
+- La primera vez, la web pide crear el administrador con el código de instalación que muestra
+  `docker compose logs api`. Las demás cuentas se crean con invitaciones (panel de usuario →
+  Usuarios).
 
 El emulador necesita el socket de Docker y entrar en el espacio de red de otros contenedores (va con
 privilegios y con los PID del host): en la práctica es root sobre la máquina. Por eso solo se alcanza a
@@ -192,8 +199,11 @@ El diseño de la web (temas, tokens, componentes, lienzo e interacción) está e
 
 La CLI de cada dispositivo es una shell de root dentro de su contenedor (sin red propia, 96 MB de
 memoria, con `NET_ADMIN` solo en su espacio de red), por WebSocket en
-`/api/labs/:lab/devices/:device/shell`. No hay usuarios: quien alcance el puerto 9150 alcanza esas
-shells, así que el editor no debe publicarse fuera de una red de confianza.
+`/api/labs/:lab/devices/:device/shell`. Solo llega a ellas quien ha iniciado sesión: nginx pregunta
+al servicio de cuentas antes de cada petición al emulador. Aun así, cada usuario puede todavía
+tocar los laboratorios de los demás (cada laboratorio tendrá dueño en la fase C), así que, de
+momento, comparte la instalación solo con gente de confianza. Para publicarla en Internet, ponla
+detrás de HTTPS (con `COOKIE_SECURE=1`).
 
 Un equipo, una topología o todo se pueden iniciar, detener o reiniciar sin tocar el resto
 (`POST /api/labs/:lab/start`, `/stop` y `/restart`): sus contenedores y sus cables se hacen de nuevo

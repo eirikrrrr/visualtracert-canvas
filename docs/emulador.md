@@ -366,8 +366,12 @@ flowchart LR
 - **El emulador es root en la práctica:** tiene el socket de Docker, es privilegiado y comparte
   los PID del host. Por eso no se publica: solo nginx lo alcanza (`/api`), y para desarrollo
   escucha en `127.0.0.1:9151`.
-- **No hay usuarios:** quien llegue al puerto 9150 llega a las shells de root de los
-  contenedores. No hay que publicar el editor fuera de una red de confianza.
+- **Solo con sesión:** nginx pregunta al servicio de cuentas (`apps/api`) antes de cada petición
+  a `/api`, también al abrir una CLI o una captura por WebSocket. Sin sesión, 401; desde otra web
+  (su `Origin`), 403, para que una página ajena no abra una shell con la cookie del usuario.
+  Cambiar las imágenes y perfiles del servidor es solo de administradores. El emulador recibe
+  quién llama en `X-User-Id`, `X-User-Name` y `X-User-Role`; todavía no lo usa: hasta la fase C,
+  cualquier cuenta puede tocar cualquier laboratorio.
 - **Entradas validadas:** los identificadores de laboratorio (`[A-Za-z0-9_-]{1,64}`), los
   comandos (una lista cerrada, con destino validado como IP o nombre), el filtro de captura y
   los perfiles (paquetes y líneas con su propio patrón). Los textos del documento que llegan a

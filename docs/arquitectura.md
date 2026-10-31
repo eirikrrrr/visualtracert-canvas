@@ -1,11 +1,12 @@
 # Arquitectura
 
-visual-tracert es un monorepo con dos aplicaciones y un paquete compartido:
+visual-tracert es un monorepo con tres aplicaciones y un paquete compartido:
 
 | Pieza | Dónde | Qué es |
 |---|---|---|
 | **web** | `apps/web` | El editor y la simulación: React 19, React Flow (lienzo), Monaco (documento), xterm.js (terminales) y Zustand (estado). Se sirve con nginx. |
 | **emulador** | `apps/emulator` | El backend: un servicio Node sin frameworks (`node:http` y `ws`) que convierte un laboratorio en contenedores reales y cables veth, hablando con Docker por su socket. |
+| **cuentas** | `apps/api` | Usuarios, sesiones e invitaciones en SQLite (`node:sqlite`), sin privilegios. nginx le pregunta antes de cada llamada al emulador. |
 | **modelo** | `packages/model` | Lo que ambos comparten, en TypeScript puro: los tipos de la topología, el documento YAML/JSON, el catálogo de dispositivos e imágenes, las plantillas y las traducciones. |
 
 ## Vista general
@@ -20,6 +21,8 @@ flowchart LR
 
   subgraph Servidor["Servidor (Docker)"]
     NGINX["nginx :80<br/>(publicado en :9150)"]
+    API["cuentas (Node) :8090<br/>(solo 127.0.0.1:9152)"]
+    DB[("volumen api-data<br/>/data/visual-tracert.db")]
     EMU["emulador (Node) :8080<br/>(solo 127.0.0.1:9151)"]
     DATA[("volumen emulator-data<br/>/data/profiles.json")]
     SOCK[["/var/run/docker.sock"]]
@@ -32,7 +35,10 @@ flowchart LR
 
   UI -- "estáticos" --> NGINX
   UI -- "HTTP /api y WebSocket" --> NGINX
-  NGINX -- "proxy /api" --> EMU
+  NGINX -- "/auth" --> API
+  NGINX -. "auth_request<br/>antes de cada /api" .-> API
+  API <--> DB
+  NGINX -- "proxy /api<br/>(con sesión)" --> EMU
   EMU <--> DATA
   EMU -- "API de Docker" --> SOCK
   SOCK -. "crea y borra" .-> Lab
@@ -41,9 +47,15 @@ flowchart LR
 
 - **La web funciona sola.** La simulación, el editor y el documento corren en el navegador; sin
   emulador, todo eso sigue funcionando y solo falta la emulación.
-- **El emulador solo se alcanza a través de nginx.** Es root en la práctica (socket de Docker,
-  `privileged`, `pid: host`), así que no se publica: nginx lo expone en `/api` y, para
-  desarrollo, escucha solo en `127.0.0.1:9151`.
+- **El emulador solo se alcanza a través de nginx, y con sesión.** Es root en la práctica (socket
+  de Docker, `privileged`, `pid: host`), así que no se publica: nginx lo expone en `/api` y, para
+  desarrollo, escucha solo en `127.0.0.1:9151`. Antes de cada petición, también las CLI y
+  capturas por WebSocket, nginx pregunta al servicio de cuentas (`auth_request`): sin sesión
+  responde 401; desde otro sitio, o si la acción es de administrador (cambiar imágenes y perfiles
+  del servidor), 403. El usuario llega al emulador en las cabeceras `X-User-Id`, `X-User-Name` y
+  `X-User-Role`.
+- **Las cuentas son un servicio aparte.** El emulador no guarda contraseñas: `apps/api` corre sin
+  privilegios, con su base SQLite en el volumen `api-data`.
 - **El modelo es la misma pieza en los dos lados.** La web serializa la topología a JSON con
   `serialize()` y el emulador la lee con el mismo `parse()`: los dos validan igual y producen los
   mismos mensajes de error, en el idioma de quien pide (`Accept-Language`).
@@ -75,6 +87,7 @@ flowchart TB
 
 | Dato | Dónde | Notas |
 |---|---|---|
+| Cuentas, sesiones e invitaciones | `/data/visual-tracert.db` (volumen `api-data`) | SQLite en modo WAL; contraseñas con scrypt y solo el SHA-256 de cada sesión |
 | Laboratorios | `localStorage` del navegador | Un documento JSON por laboratorio (`visual-tracert.lab.*`) |
 | Perfil local y preferencias | `localStorage` | Nombre, foto, «sobre ti», tema, idioma, velocidad, animaciones |
 | Disposición de paneles y barras | `localStorage` | Ancho del panel lateral, posición de las barras, registro |
@@ -82,7 +95,8 @@ flowchart TB
 | Imágenes | Docker del servidor | Descargadas, construidas (perfiles) o construidas desde `vrnetlab/` |
 | Estado de un laboratorio | Etiquetas de sus contenedores | `visual-tracert.lab`, `.device`, `.fingerprint`, `.image`: sobrevive a un reinicio del emulador |
 
-No hay base de datos ni cuentas de usuario: el perfil es de cada navegador.
+Las cuentas viven en el servidor; los laboratorios, el progreso de Practicar, la foto y las
+preferencias siguen en el navegador hasta que pasen a la base de datos (fase B).
 
 ## La web por dentro
 

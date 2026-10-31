@@ -296,7 +296,8 @@ de hacking: cada reto es una **máquina**.
   candado hasta superarla), **Información** (la historia en una cita, qué harás, el tema y los
   equipos del laboratorio) y **Solución** (bloqueada hasta superarla, en cualquier modo).
 - **XP y rangos:** 10, 20 o 40 XP según el nivel, el doble en Medio; Novato, Aprendiz, Técnico,
-  Ingeniero y Arquitecto. No se muestran datos de otros usuarios: aún no hay cuentas.
+  Ingeniero y Arquitecto. No se muestran datos de otros usuarios: el progreso aún vive en el
+  navegador (pasará a la cuenta en la fase B).
 - **Dentro de una caja**, cada nivel se desbloquea al superar el anterior. Las cajas próximas
   (OSPF, BGP, NAT) van al final del camino, con el borde discontinuo y el motivo escrito.
 
@@ -404,11 +405,32 @@ Wireshark, como `Echo (ping) request` o `Who has … ? Tell …`.
 - **Movimiento reducido:** con `prefers-reduced-motion` o la preferencia del panel de usuario,
   las animaciones y transiciones se reducen al mínimo.
 
+## Cuentas
+
+Antes de la app, una tarjeta centrada (420 px) sobre `--bg` con un halo de `--accent-soft`: la
+marca, el idioma, el título en `--heading` y un formulario de una columna con el botón principal a
+todo el ancho. Los errores, en una caja `--danger` suave bajo los campos (`role="alert"`). Cuatro
+pantallas:
+- **Inicia sesión**, con «Crea tu cuenta» si se tiene una invitación;
+- **Crea tu cuenta:** código de invitación (en `--mono`; el enlace `?invite=` lo escribe), nombre,
+  usuario y contraseña dos veces;
+- **Crea la cuenta de administrador:** la primera vez, con el código de instalación del registro
+  del servicio (`docker compose logs api`), para que nadie se adelante;
+- **Elige tu contraseña:** tras una contraseña provisional de un administrador, antes de seguir.
+
+En el panel de usuario, **Cuenta** (usuario, rol, cambiar la contraseña, cerrar sesión) y, para un
+administrador, **Usuarios**: el formulario de invitación (rol, usos, días, una nota), las
+invitaciones vivas con «Copiar enlace», «Copiar código» y anular, y las cuentas, cada una con su
+rol en un desplegable, una contraseña provisional (🔑), activar o desactivar y eliminar (con
+confirmación en la fila). El nombre del perfil es el de la cuenta. Si la sesión termina (una
+respuesta 401), la app vuelve a «Inicia sesión» con el aviso.
+
 ## Qué guarda el navegador
 
 `localStorage`, con el prefijo `visual-tracert.`:
 - los laboratorios (cada uno como documento JSON);
-- el perfil local (nombre, foto, «sobre ti» y la preferencia de animaciones);
+- el perfil local (foto, «sobre ti», la preferencia de animaciones y una copia del nombre de la
+  cuenta);
 - el tema, el idioma y la velocidad;
 - la disposición del panel lateral y del registro;
 - la posición de las barras.

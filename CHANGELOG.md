@@ -7,6 +7,19 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 ## [Sin publicar]
 
 ### Añadido
+- Cuentas de usuario (fase A). Un servicio nuevo, `apps/api`, sin privilegios y con SQLite
+  (`node:sqlite`), guarda usuarios, sesiones e invitaciones. La primera cuenta es el administrador
+  y se crea con el código de instalación del registro del servicio (`docker compose logs api`);
+  las demás, con una invitación (código o enlace `?invite=`) que fija su rol: alumno, profesor o
+  administrador. Contraseñas con scrypt, sesión en cookie `HttpOnly`/`SameSite=Strict` de 30 días
+  y límite de intentos de inicio de sesión.
+- Sin sesión no se llega al emulador: nginx pregunta al servicio de cuentas antes de cada
+  petición a `/api`, también al abrir una CLI o una captura, y rechaza las que vienen de otra web.
+  Cambiar las imágenes y perfiles del servidor es solo de administradores.
+- Pantallas de inicio de sesión, registro, primer administrador y cambio de contraseña
+  provisional. En el panel de usuario, «Cuenta» (cambiar la contraseña, cerrar sesión) y, para un
+  administrador, «Usuarios»: invitaciones y cuentas (rol, activar o desactivar, contraseña
+  provisional, eliminar).
 - Practicar (el primer botón de modo): 12 retos en seis cajas por tema (Fundamentos IP, Switching
   y VLAN, Enrutamiento, DHCP, DNS y web, Diagnóstico) ordenadas como un camino numerado, más
   OSPF, BGP y NAT como próximas. Dentro de cada caja, los niveles se desbloquean en orden. Cada reto

@@ -1,6 +1,7 @@
 // The emulator's API (apps/emulator), at /api through the web's nginx (or
 // Vite's proxy in development). It answers in the interface language.
 import { serialize, type ImageId, type ImageInfo, type ImageProfile, type Topology } from "@visual-tracert/model";
+import { AuthError, useAuth } from "../app/auth";
 import { t, useLang } from "../i18n";
 
 export interface DeviceState {
@@ -76,6 +77,9 @@ async function call<R>(method: string, path: string, body?: string): Promise<R> 
     throw new Error(t("No se puede conectar con el emulador."));
   }
   const data = await res.json().catch(() => null);
+  // the session ended (nginx asks the accounts service first): back to the sign-in
+  if(res.status === 401){ useAuth.getState().expired(); throw new AuthError("unauthorized"); }
+  if(res.status === 403 && data?.error === "forbidden") throw new Error(t("Solo un administrador puede cambiar las imágenes y perfiles del servidor."));
   if(!res.ok) throw new Error(data?.error ?? t("El emulador no está disponible ({status}).", { status: res.status }));
   return data as R;
 }

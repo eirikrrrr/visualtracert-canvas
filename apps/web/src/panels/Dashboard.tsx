@@ -1,12 +1,14 @@
-// The user's dashboard: their local profile (name, photo, a few words, what
-// they have built), their preferences (language, theme, simulation speed,
-// animations), their labs, what the server offers (the emulator, its images
-// and profiles) and the keyboard shortcuts. A dialog over the workspace,
-// opened from the avatar of the top bar. Everything in it lives in this
-// browser, except what the server says.
+// The user's dashboard: their profile (the account's name; a photo and a few
+// words, in this browser; what they have built), their account (password,
+// signing out) and, for an admin, the users and invitations; their
+// preferences (language, theme, simulation speed, animations), their labs,
+// what the server offers (the emulator, its images and profiles) and the
+// keyboard shortcuts. A dialog over the workspace, opened from the avatar of
+// the top bar.
 import { IMAGES, LANGS, type Topology } from "@visual-tracert/model";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { loadLab } from "../app/labs";
+import { useAuth } from "../app/auth";
 import { squarePhoto, useProfile } from "../app/profile";
 import { SPEEDS, THEMES, useStore, type DashboardSection } from "../app/store";
 import { Icon } from "../editor/icons";
@@ -14,11 +16,14 @@ import { useImages } from "../emulation/images";
 import { useEmulation } from "../emulation/store";
 import { tx, useLang, useT } from "../i18n";
 import { useProgress } from "../practice/progress";
+import { AccountSection, UsersSection } from "./AccountSections";
 import { HelpList } from "./Inspector";
 import { Avatar } from "./TopBar";
 
 const SECTIONS: { id: DashboardSection; label: string; icon: string }[] = [
   { id: "profile", label: tx("Perfil"), icon: "user" },
+  { id: "account", label: tx("Cuenta"), icon: "key" },
+  { id: "users", label: tx("Usuarios"), icon: "users" },
   { id: "preferences", label: tx("Preferencias"), icon: "settings" },
   { id: "labs", label: tx("Laboratorios"), icon: "topology" },
   { id: "server", label: tx("Servidor"), icon: "emulation" },
@@ -64,7 +69,9 @@ function ProfileSection() {
   useEffect(() => setDraft({ name, bio: bio ?? "" }), [name, bio]);
   const save = () => {
     const next = draft.name.trim();
-    useProfile.getState().update({ name: next || name, bio: draft.bio.trim() });
+    useProfile.getState().update({ bio: draft.bio.trim() });
+    // the name is the account's
+    if(next && next !== name) useAuth.getState().rename(next).catch(error => { setDraft(value => ({ ...value, name })); useStore.getState().notify((error as Error).message, "error"); });
   };
   return (
     <>
@@ -103,7 +110,7 @@ function ProfileSection() {
         <div><strong>{profiles.length}</strong><span>{t("perfiles de imagen")}</span></div>
         <div><strong>{solved}</strong><span>{t("retos superados")}</span></div>
       </div>
-      <p className="muted small">{t("Este perfil vive en este navegador: todavía no hay cuentas de usuario.")}</p>
+      <p className="muted small">{t("Tu nombre es el de tu cuenta. La foto y la descripción viven aún en este navegador.")}</p>
     </>
   );
 }
@@ -284,7 +291,10 @@ export function Dashboard() {
     if(!section && element.open) element.close();
   }, [section]);
 
-  const current = SECTIONS.find(item => item.id === section);
+  const role = useAuth(state => state.user?.role);
+  // the users: an admin's only
+  const sections = SECTIONS.filter(item => item.id !== "users" || role === "admin");
+  const current = sections.find(item => item.id === section);
   return (
     <dialog ref={dialog} className="gallery dashboard" aria-labelledby="dash-title" onClose={close}
       onClick={event => { if(event.target === dialog.current) close(); }}>
@@ -295,7 +305,7 @@ export function Dashboard() {
               <Avatar size={40} />
               <div className="dash-lab-text"><strong>{name}</strong>{bio && <span className="muted small">{bio}</span>}</div>
             </div>
-            {SECTIONS.map(item => (
+            {sections.map(item => (
               <button key={item.id} type="button" className={item.id === section ? "active" : ""} aria-current={item.id === section ? "page" : undefined}
                 onClick={() => useStore.getState().setDashboard(item.id)}>
                 <Icon name={item.icon} size={17} />{t(item.label)}
@@ -309,6 +319,8 @@ export function Dashboard() {
             </header>
             <div className="dash-body" key={current.id}>
               {current.id === "profile" && <ProfileSection />}
+              {current.id === "account" && <AccountSection />}
+              {current.id === "users" && <UsersSection />}
               {current.id === "preferences" && <PreferencesSection />}
               {current.id === "labs" && <LabsSection />}
               {current.id === "server" && <ServerSection />}
