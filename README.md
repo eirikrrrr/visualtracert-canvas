@@ -137,8 +137,13 @@ El resultado deseado es una plataforma de laboratorio de redes accesible desde c
 - **Imágenes:** Alpine, Ubuntu, Debian, BusyBox, NGINX, netshoot, FRRouting, Nokia SR Linux y
   MikroTik RouterOS (máquina virtual, al estilo de vrnetlab), más perfiles de imagen propios.
 - **Simulación:** el recorrido de cada paquete (ARP, ICMP, DHCP, DNS, TCP/HTTP), paso a paso.
-- **Practicar:** retos por temas (IP, VLAN, enrutamiento, DHCP, DNS y web, diagnóstico)
-  ordenados como un camino, que se validan con la simulación.
+- **Practicar**, al estilo de un laboratorio de hacking, con su propio menú lateral:
+  - **Starting Point:** cuatro niveles con lecciones, referencias y las primeras máquinas.
+  - **Máquinas:** los retos por temas, en Fácil (simulación) o Medio (CLI de equipos reales,
+    comprobado por el servidor).
+  - **Tracks:** caminos guiados.
+  - **Seasons:** temporadas de máquinas alrededor de un tema, que crean los administradores.
+  - **Ranking:** global y por season.
 - **Cuentas:** inicio de sesión, registro con invitación, roles (alumno, profesor,
   administrador) y un panel para gestionar usuarios e invitaciones. Sin sesión no se llega al
   emulador ni a ninguna CLI.

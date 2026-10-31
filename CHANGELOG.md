@@ -7,6 +7,13 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 ## [Sin publicar]
 
 ### Añadido
+- Practicar con su propio menú lateral (el jugador, la season en curso con tu puesto, y cinco
+  secciones). **Starting Point:** cuatro niveles (Fundamentos, Conceptos, Referencias y
+  Máquinas), con diez lecciones cortas que se dan por hechas al acertar su pregunta, cuatro hojas
+  de referencia (CLI de Linux y de RouterOS, subredes, puertos) y las primeras máquinas.
+  **Tracks:** siete caminos guiados por las máquinas (uno solo de CLI, en Medio). **Seasons:**
+  tarjetas verticales; cada una con en qué se basan sus máquinas, sus máquinas y su ranking, y un
+  editor para administradores. La pestaña «Camino» la sustituyen los tracks.
 - Ranking y cifras de las máquinas (fase D). Los retos superados se guardan en el servidor; el
   progreso de este navegador pasa a la cuenta al iniciar sesión. Un reto en Medio lo comprueba el
   servidor en los equipos reales (que sea el reto tal como empieza, y los pings) antes de contar,

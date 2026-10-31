@@ -70,3 +70,21 @@ describe("exercises", () => {
     expect(rankOf(all)).toMatchObject({ rank: RANKS[RANKS.length - 1].name, progress: 1 });
   });
 });
+
+describe("learning: the starting point and the tracks", () => {
+  it("names only machines that exist, and lessons that can be answered", async () => {
+    const { EXERCISES, TIERS, TRACKS } = await import("@visual-tracert/model");
+    const ids = new Set(EXERCISES.map(item => item.id));
+    for(const tier of TIERS){
+      for(const id of tier.machines ?? []) expect(ids.has(id), id).toBe(true);
+      for(const lesson of tier.lessons ?? []) expect(lesson.question.options[lesson.question.answer], lesson.id).toBeDefined();
+    }
+    for(const track of TRACKS){
+      for(const id of track.machines) expect(ids.has(id), `${track.id}: ${id}`).toBe(true);
+      expect(track.upcoming || track.machines.length > 0, track.id).toBeTruthy();
+      // the CLI track: only machines with a medium difficulty
+      if(track.difficulty === "medium") for(const id of track.machines) expect(EXERCISES.find(item => item.id === id)!.cli, id).toBeDefined();
+    }
+    expect(new Set(TIERS.flatMap(tier => tier.lessons ?? []).map(lesson => lesson.id)).size).toBe(TIERS.flatMap(tier => tier.lessons ?? []).length);
+  });
+});

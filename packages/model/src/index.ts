@@ -12,4 +12,5 @@ export * from "./zones";
 export * from "./example";
 export * from "./templates";
 export * from "./exercises";
+export * from "./learn";
 export * from "./i18n";

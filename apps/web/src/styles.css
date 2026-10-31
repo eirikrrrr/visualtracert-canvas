@@ -153,7 +153,7 @@ kbd { padding: 1px 5px; border: 1px solid var(--line-strong); border-radius: 5px
 .icon { flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
 /* ---------- shell ---------- */
-.app { height: 100%; display: grid; grid-template-rows: 60px minmax(0, 1fr); }
+.app { height: 100%; display: grid; grid-template-rows: 60px minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); }
 .workspace { position: relative; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) var(--side-width, 380px); gap: 12px; padding: 0 12px 12px; }
 /* the side panel over the whole workspace: the canvas stays mounted, hidden */
 .workspace.side-full { grid-template-columns: 0 minmax(0, 1fr); gap: 0; }
@@ -879,61 +879,17 @@ body[data-motion="reduced"] *, body[data-motion="reduced"] *::before, body[data-
 .inspector .stats + h3, .inspector .lab-notes + .stats + h3 { margin-top: 18px; }
 
 /* ===========================================================================
-   Practice: the path of boxes, and the challenge card over the canvas
+   Practice: its sections, and the challenge card over the canvas
    =========================================================================== */
-.practice { min-height: 0; overflow-y: auto; padding: 0 12px 24px; }
-.practice-inner { max-width: 980px; margin: 0 auto; padding: 18px 8px 0; animation: fade-in var(--slow) var(--ease); }
-.practice-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: center; padding: 24px; margin-bottom: 26px; background: var(--surface); border: 1px solid var(--line); border-radius: 22px; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 4%, transparent), var(--shadow); }
-.practice-kicker, .challenge-kicker { font: 600 11px var(--heading); letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
-.practice-hero h1 { margin: 4px 0 8px; font: 600 28px/1.15 var(--heading); letter-spacing: -.02em; }
-.practice-hero p { margin: 0; max-width: 560px; }
-.practice-progress { display: grid; grid-template-columns: auto auto; gap: 8px 14px; align-items: center; justify-items: start; }
-.practice-progress > div { display: flex; flex-direction: column; }
-.practice-progress strong { font: 600 22px/1 var(--heading); }
-.practice-progress button, .practice-progress > .tag { grid-column: 1 / -1; justify-self: stretch; }
-.practice-ring { transform: rotate(-90deg); }
-.practice-ring circle { fill: none; stroke-width: 6; }
-.practice-ring-track { stroke: var(--surface-3); }
-.practice-ring-fill { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset var(--slow) var(--ease); }
-
-/* the path: a numbered rail, a box on each step */
-.roadmap { position: relative; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 18px; }
-.roadmap-step { position: relative; display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 16px; }
-.roadmap-step::before { content: ""; position: absolute; left: 19px; top: 40px; bottom: -18px; width: 2px; background: var(--line-strong); }
-.roadmap-step:last-child::before { display: none; }
-.roadmap-step.done::before { background: var(--accent); }
-.roadmap-node { position: relative; z-index: 1; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--surface); border: 2px solid var(--line-strong); font: 600 15px var(--heading); color: var(--ink-2); }
-.roadmap-step.done .roadmap-node { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-.roadmap-step.upcoming .roadmap-node { border-style: dashed; color: var(--ink-3); }
-.box-card { padding: 16px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; transition: border-color var(--base) var(--ease), box-shadow var(--base) var(--ease); }
-.box-card:hover { border-color: var(--line-strong); }
-.roadmap-step.upcoming .box-card { background: none; border-style: dashed; }
-.box-head { display: flex; align-items: flex-start; gap: 14px; }
-.box-icon { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); }
-.roadmap-step.upcoming .box-icon { background: var(--surface-2); color: var(--ink-3); }
-.box-title { flex: 1; min-width: 0; }
-.box-title h2 { margin: 0 0 2px; font-size: 17px; }
-.box-title p { margin: 0; }
-.box-count { font: 600 14px var(--heading); color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.box-note { margin: 10px 0 0 58px; color: var(--ink-3); }
-.box-bar { height: 4px; margin: 14px 0 10px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
-.box-bar i { display: block; height: 100%; border-radius: 4px; background: var(--accent); transition: width var(--slow) var(--ease); }
-.box-exercises { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
-.box-exercises li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
-.box-exercises li.solved { border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); }
-.box-exercises li.locked { opacity: .6; }
-.box-exercise-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.box-exercise-text > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.practice { min-height: 0; display: grid; grid-template-columns: 248px minmax(0, 1fr); gap: 12px; padding: 0 12px 12px; }
+.practice-main { min-height: 0; overflow-y: auto; border-radius: 18px; }
+.practice-inner { max-width: 1080px; margin: 0 auto; padding: 18px 12px 28px; animation: fade-in var(--slow) var(--ease); }
+.challenge-kicker { font: 600 11px var(--heading); letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
 .box-status { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .level { flex: none; min-width: 84px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; text-align: center; border: 1px solid var(--line-strong); color: var(--ink-2); }
 .level-1 { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
 .level-2 { color: var(--arp); border-color: color-mix(in srgb, var(--arp) 45%, transparent); }
 .level-3 { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
-@media (max-width: 720px) {
-  .practice-hero { grid-template-columns: 1fr; }
-  .box-exercises li { flex-wrap: wrap; }
-  .box-exercise-text > span { white-space: normal; }
-}
 
 /* the challenge card: fixed on the canvas's far left. The bars start beside it
    (--reserved-left) and still move anywhere, over it too */
@@ -1028,7 +984,6 @@ fieldset.locked input, fieldset.locked select, fieldset.locked textarea { opacit
 .challenge-head { align-items: center; gap: 10px; }
 .challenge-head-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
-.practice-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr); gap: 12px; margin-bottom: 22px; }
 .player-card, .featured { display: flex; align-items: center; gap: 14px; padding: 16px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 4%, transparent), var(--shadow); text-align: left; color: var(--ink); }
 .player-badge { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 14px; background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent), #7a3cff 45%)); color: var(--accent-ink); }
 .player-text, .featured > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
@@ -1038,9 +993,7 @@ fieldset.locked input, fieldset.locked select, fieldset.locked textarea { opacit
 .featured { transition: border-color var(--fast) var(--ease), transform var(--base) var(--ease); }
 button.featured:hover { border-color: var(--line-strong); transform: translateY(-1px); }
 .featured-tag { font: 600 11px var(--heading); letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
-.featured.done, .progress-card { flex-direction: column; align-items: stretch; justify-content: center; }
-.practice-bar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
-.practice-tabs { border-bottom: 0; padding: 0; }
+.featured.done { flex-direction: column; align-items: stretch; justify-content: center; }
 .difficulty.compact { display: flex; gap: 4px; margin: 0 0 8px; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; max-width: none; }
 .difficulty.compact button { flex-direction: row; padding: 6px 12px; border-color: transparent; background: none; }
 .difficulty.compact button.active { background: var(--surface-3); border-color: var(--line-strong); box-shadow: none; }
@@ -1074,9 +1027,6 @@ button.featured:hover { border-color: var(--line-strong); transform: translateY(
 .meter-1 i.on { background: var(--ok); }
 .meter-2 i.on { background: var(--arp); }
 .meter-3 i.on { background: var(--danger); }
-.box-exercises li { cursor: pointer; }
-.box-exercises li:hover { border-color: var(--line-strong); }
-.box-icon { background: color-mix(in srgb, var(--box, var(--accent)) 16%, transparent); color: var(--box, var(--accent)); }
 
 .machine-page { animation: fade-in var(--slow) var(--ease); }
 .machine-banner { position: relative; padding: 16px 22px 24px; margin-bottom: 4px; border-radius: 22px; border: 1px solid var(--line); background:
@@ -1175,3 +1125,138 @@ button.featured:hover { border-color: var(--line-strong); transform: translateY(
 .dash-student-head .dash-lab-text { flex: 1; }
 .dash-student-head[aria-expanded="true"] .icon { transform: rotate(180deg); }
 .dash-solves { margin-top: 8px; }
+
+/* --- Practice: the side menu and its sections ---------------------------------- */
+.practice-rail { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; }
+.practice-rail .player-card { padding: 12px; gap: 12px; box-shadow: none; background: var(--surface-2); }
+.practice-rail .player-badge { width: 42px; height: 42px; border-radius: 12px; }
+.practice-rail .player-text strong { font-size: 15px; }
+.rail-sections { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--line); }
+.rail-sections button { display: flex; align-items: center; gap: 11px; padding: 9px 12px; background: none; border: 1px solid transparent; border-radius: 10px; color: var(--ink-2); font-weight: 500; text-align: left; transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease); }
+.rail-sections button:hover { background: var(--surface-2); color: var(--ink); }
+.rail-sections button.active { background: var(--surface-2); border-color: var(--line-strong); color: var(--ink); }
+.rail-sections button.active .icon { color: var(--accent); }
+.season-mini { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--season) 45%, var(--line)); background: linear-gradient(135deg, color-mix(in srgb, var(--season) 22%, var(--surface)), var(--surface-2)); color: var(--ink); text-align: left; }
+.season-mini-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: color-mix(in srgb, var(--season) 30%, var(--surface)); color: var(--season); }
+.season-mini-text { display: flex; flex-direction: column; min-width: 0; }
+.season-mini-text > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.season-mini-theme { font: 700 10.5px var(--mono); padding: 2px 6px; border-radius: 6px; background: var(--season); color: #fff; }
+
+.section-head { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-bottom: 18px; }
+.section-icon { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: var(--accent-soft); color: var(--accent); }
+.section-text { flex: 1; min-width: 240px; }
+.section-text h1 { margin: 0; font: 600 26px/1.15 var(--heading); letter-spacing: -.02em; }
+.section-text p { margin: 4px 0 0; max-width: 680px; }
+.section-kicker { font: 600 11px var(--mono); letter-spacing: .04em; color: var(--accent); }
+.section-tools { display: flex; gap: 8px; align-items: center; }
+.next-machine { margin-bottom: 14px; width: 100%; }
+.next-machine:hover { border-color: var(--line-strong); }
+
+/* Starting Point */
+.start-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: center; padding: 28px; margin-bottom: 18px; border-radius: 22px; border: 1px solid var(--line);
+  background: radial-gradient(700px 260px at 0% 0%, var(--accent-soft), transparent 70%), var(--surface); }
+.start-hero h1 { margin: 6px 0 8px; font: 700 32px/1.1 var(--heading); letter-spacing: -.02em; }
+.start-hero p { margin: 0; max-width: 620px; line-height: 1.55; }
+.start-chips { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 16px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--ink-2); }
+.start-chips li { display: inline-flex; align-items: center; gap: 6px; }
+.start-chips .icon { color: var(--accent); }
+.start-art { position: relative; display: grid; grid-template-columns: auto auto; gap: 10px; padding: 18px; border-radius: 20px; background: var(--surface-2); color: var(--accent); }
+.start-art .icon:first-child { grid-column: 1 / -1; justify-self: center; }
+.tier-tabs { margin-bottom: 18px; border-bottom: 1px solid var(--line); overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.tier-tabs button { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.tier-tabs button .icon { color: var(--ok); }
+.tier-about { display: grid; grid-template-columns: 1.2fr 1fr; gap: 28px; margin-bottom: 14px; }
+.tier-about h3 { margin: 0 0 8px; text-transform: none; letter-spacing: 0; font: 600 15px var(--heading); color: var(--ink); }
+.tier-about p { margin: 0; line-height: 1.6; }
+.tier-skills { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; color: var(--ink-2); font-size: 13.5px; }
+.tier-progress { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; margin: 8px 0 16px; font-weight: 600; font-size: 13px; }
+.tier-progress .player-bar { margin: 0; height: 8px; }
+.tier-items { margin: 0 0 14px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.tier-item { width: 100%; display: flex; align-items: center; gap: 14px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; color: var(--ink); text-align: left; transition: border-color var(--fast) var(--ease); }
+.tier-item:hover { border-color: var(--line-strong); }
+.tier-item.done { border-color: color-mix(in srgb, var(--ok) 35%, var(--line)); }
+.tier-item-icon { flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px; background: var(--surface-2); color: var(--accent); }
+.tier-item.done .tier-item-icon { background: color-mix(in srgb, var(--ok) 16%, var(--surface)); color: var(--ok); }
+.tier-item-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tier-item > .icon:last-child { transform: rotate(-90deg); color: var(--ink-3); }
+.lesson { max-width: 760px; animation: fade-in var(--base) var(--ease); }
+.lesson-head { display: flex; align-items: center; gap: 14px; margin: 12px 0 14px; }
+.lesson-head h2 { margin: 0; font: 600 24px/1.2 var(--heading); }
+.lesson-body p { margin: 0 0 14px; font: 15.5px/1.7 var(--sans); color: var(--ink); max-width: 68ch; }
+.lesson-question { margin-top: 18px; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.lesson-question h3 { margin: 0 0 6px; }
+.lesson-question > p { margin: 0 0 12px; font-weight: 600; }
+.lesson-options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.lesson-options button { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; text-align: left; color: var(--ink); }
+.lesson-options button:hover:not(:disabled) { border-color: var(--line-strong); }
+.lesson-options button.right { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, var(--surface)); opacity: 1; }
+.lesson-options button.wrong { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, var(--surface)); }
+.lesson-letter { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line-strong); font: 600 12px var(--mono); }
+.reference-table td.mono { white-space: nowrap; color: var(--ink); }
+
+/* Tracks */
+.track-grid, .season-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+.track-card { display: flex; flex-direction: column; align-items: stretch; padding: 0; overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; color: var(--ink); text-align: left; transition: border-color var(--fast) var(--ease), transform var(--base) var(--ease); }
+.track-card:hover { border-color: color-mix(in srgb, var(--track) 55%, var(--line)); transform: translateY(-2px); }
+.track-art { position: relative; display: grid; place-items: center; height: 150px; color: var(--track);
+  background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--track) 22%, transparent), transparent 65%),
+    radial-gradient(color-mix(in srgb, var(--track) 30%, transparent) 1px, transparent 1.5px) 0 0 / 14px 14px, var(--surface-2); }
+.track-corner { position: absolute; top: 0; left: 0; display: grid; place-items: center; width: 34px; height: 34px; border-bottom-right-radius: 12px; background: var(--track); color: #fff; }
+.track-card.upcoming .track-art { filter: grayscale(1); opacity: .6; }
+.track-text { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px 14px; }
+.track-text strong { font: 600 15px/1.25 var(--heading); }
+.track-level { font: 600 11.5px var(--mono); text-align: center; }
+.track-foot { margin-top: 4px; color: var(--ink-3); }
+.track-text .player-bar { margin-top: 2px; }
+.track-banner, .season-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 22px; padding: 24px; margin: 10px 0 16px; border-radius: 22px; border: 1px solid color-mix(in srgb, var(--track, var(--season)) 40%, var(--line));
+  background: radial-gradient(600px 240px at 0% 0%, color-mix(in srgb, var(--track, var(--season)) 20%, transparent), transparent 70%), var(--surface); }
+.track-banner > div, .season-banner > div:not(.season-admin) { flex: 1; min-width: 240px; }
+.track-banner h1, .season-banner h1 { margin: 4px 0 6px; font: 700 28px/1.15 var(--heading); }
+.track-banner p, .season-banner p { margin: 0; max-width: 640px; line-height: 1.55; }
+.track-banner-icon, .season-banner-icon { flex: none; display: grid; place-items: center; width: 96px; height: 96px; border-radius: 24px; background: color-mix(in srgb, var(--track, var(--season)) 18%, var(--surface-2)); color: var(--track, var(--season)); }
+.track-mode { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+
+/* Seasons: tall cards, like posters */
+.season-grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+.season-card { display: flex; flex-direction: column; align-items: stretch; padding: 0; overflow: hidden; min-height: 380px; border-radius: 18px; border: 1px solid color-mix(in srgb, var(--season) 35%, var(--line)); background: var(--surface); color: var(--ink); text-align: left; transition: transform var(--base) var(--ease), box-shadow var(--base) var(--ease); }
+.season-card:hover { transform: translateY(-3px); box-shadow: 0 18px 40px color-mix(in srgb, var(--season) 22%, transparent); }
+.season-card.over { filter: saturate(.55); }
+.season-art { position: relative; flex: none; height: 230px; display: grid; place-items: center; color: #fff;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, #fff 18%, transparent), transparent 55%), linear-gradient(160deg, color-mix(in srgb, var(--season) 85%, #fff), color-mix(in srgb, var(--season) 70%, #000)); }
+.season-art .icon { filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .25)); }
+.season-theme { position: absolute; top: 12px; left: 12px; padding: 3px 8px; border-radius: 8px; background: rgba(0, 0, 0, .3); font: 700 12px var(--mono); letter-spacing: .04em; }
+.season-text { flex: 1; display: flex; flex-direction: column; gap: 5px; padding: 12px 14px 14px; }
+.season-foot { margin-top: auto !important; }
+.season-text strong { font: 600 16px/1.25 var(--heading); }
+.season-summary { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.season-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; color: var(--ink-3); }
+.season-phase { align-self: flex-start; padding: 2px 8px; border-radius: 999px; font: 600 11px var(--mono); border: 1px solid var(--line-strong); color: var(--ink-2); }
+.season-phase.running { border-color: color-mix(in srgb, var(--ok) 50%, var(--line)); color: var(--ok); }
+.season-phase.upcoming { border-color: color-mix(in srgb, var(--arp) 50%, var(--line)); color: var(--arp); }
+.season-admin { display: flex; gap: 6px; align-self: flex-start; }
+.season-inspiration { padding: 16px 18px; margin-bottom: 8px; border-left: 3px solid var(--season); border-radius: 0 14px 14px 0; background: var(--surface); }
+.season-inspiration h3 { margin-top: 0; }
+.season-inspiration p { margin: 0; line-height: 1.65; white-space: pre-line; }
+.season-editor { max-width: 820px; padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+.season-editor h2 { margin: 0 0 14px; font: 600 20px var(--heading); }
+.season-editor .field > span { font-size: 12px; color: var(--ink-3); }
+.season-editor textarea { width: 100%; padding: 8px 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-s); font: inherit; color: inherit; resize: vertical; }
+.season-editor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
+.season-editor input[type="color"] { height: 36px; padding: 2px 4px; }
+.season-icons { display: flex; flex-wrap: wrap; gap: 4px; }
+.season-icons button { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-2); }
+.season-icons button.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.season-machines { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 6px 14px; margin: 6px 0 14px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
+.season-machines legend { padding: 0 6px; font-size: 12px; color: var(--ink-3); }
+.season-machines label { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; }
+
+@media (max-width: 900px) {
+  .practice { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .practice-rail { flex-direction: row; align-items: center; overflow-x: auto; padding: 8px; }
+  .practice-rail .player-card { flex: none; min-width: 200px; }
+  .practice-rail .season-mini { flex: none; min-width: 200px; }
+  .rail-sections { flex-direction: row; margin: 0; padding: 0 0 0 8px; border-top: 0; border-left: 1px solid var(--line); }
+  .rail-sections button { white-space: nowrap; }
+  .tier-about, .start-hero, .season-editor-grid { grid-template-columns: minmax(0, 1fr); }
+  .start-art { display: none; }
+}

@@ -276,30 +276,56 @@ Los atajos no actúan mientras se escribe en un campo, en el documento o en una 
 ## Practicar
 
 Una página propia en lugar del lienzo (`practice/PracticeHub.tsx`), al estilo de un laboratorio
-de hacking: cada reto es una **máquina**.
+de hacking: cada reto es una **máquina**. Como la app no tiene barra lateral, Practicar trae la
+suya (248 px, en una tarjeta `--surface`):
+- arriba, **el jugador** (rango, nivel, XP y la barra al siguiente rango) y, si hay una en curso,
+  **la season** con su color, su tema en una etiqueta y tu puesto en ella («Sin clasificar» si aún
+  no);
+- debajo, cinco secciones: **Starting Point**, **Máquinas**, **Tracks**, **Seasons** y
+  **Ranking**, con el icono de la activa en `--accent`.
+
+Por debajo de 900 px, el menú es una fila desplazable sobre el contenido. Cada sección empieza
+con su cabecera (`SectionHead`): un icono en `--accent-soft`, el título en `--heading` y qué es.
+
+- **Starting Point** (`StartingPoint.tsx`, contenido en `learn.ts` del modelo): una portada con
+  un halo de `--accent-soft`, «Aprende las bases de las redes» y tres rasgos. Debajo, cuatro
+  niveles en pestañas: Nivel 0 · Fundamentos, Nivel 1 · Conceptos, Nivel 2 · Referencias y
+  Nivel 3 · Máquinas (✓ en `--ok` cuando están completos). Cada nivel tiene:
+  - en dos columnas, «Sobre el nivel» y «Lo que aprenderás»;
+  - la barra de progreso con su porcentaje;
+  - sus elementos como filas: lecciones (lectura y una pregunta de tres opciones, «Hecha» al
+    acertar; la lectura en 15,5 px con un máximo de 68 caracteres por línea), hojas de
+    referencia (una tabla con la primera columna en `--mono`) o la tabla de máquinas.
+- **Tracks** (`Tracks.tsx`): caminos guiados por las máquinas, en tarjetas con el icono grande
+  sobre su color y una trama de puntos, la esquina con el icono de track, el nivel en
+  `--mono` y su color, el título, cuántas superaste y la barra. Los próximos van en gris. Su
+  página: la cabecera con su color, el objetivo, la dificultad para la que está pensado (con un
+  aviso para cambiarla si tienes otra elegida) y sus máquinas en orden.
+- **Seasons** (`Seasons.tsx`): tarjetas verticales como carteles (230 px de dibujo con un
+  degradado de su color, su icono en blanco y su tema arriba a la izquierda), su estado (en
+  curso en `--ok`, próxima en `--arp`, terminada en gris y desaturada), nombre, resumen, fechas
+  y máquinas. Su página: la cabecera, «En qué se basan sus máquinas» con un borde de su color,
+  sus máquinas y su ranking. Un administrador las crea y edita en un formulario (nombre, tema,
+  fechas, color, icono, resumen, inspiración y máquinas).
 
 - **Cada máquina** tiene un nombre para recordarla («Hola, Vecino», «El Infiltrado»), una
   historia corta y un **avatar** (`MachineAvatar.tsx`): un disco con el color de su tema
   (`BOX_COLOR`), el icono de su equipo protagonista y un anillo del color de su nivel (Básico
   `--ok`, Intermedio `--arp`, Avanzado `--danger`), discontinuo hasta superarla y lleno después.
-- **Arriba, tres tarjetas:** el jugador (su rango, nivel, XP y la barra hacia el siguiente rango),
-  la siguiente máquina del camino y el progreso en la dificultad elegida.
-- **Dos pestañas** y el selector de dificultad (Fácil / Medio):
-  - **Máquinas:** una tabla con avatar, nombre, nivel · tema, un medidor de dificultad de diez
-    barras (más y más rojas cuanto más difícil), los modos, el tiempo, los XP y tu estado (mejor
-    tiempo si está superada). Búsqueda y filtros por estado, dificultad y tema; una fila abre su
-    página.
-  - **Camino:** las cajas por tema en un raíl numerado, como antes.
+- **Máquinas:** el selector de dificultad (Fácil / Medio), la siguiente máquina del camino y una
+  tabla con avatar, nombre, nivel · tema, un medidor de dificultad de diez barras (más y más
+  rojas cuanto más difícil), los modos, el tiempo, los XP, cuántos la resolvieron y tu estado
+  (mejor tiempo si está superada). Búsqueda y filtros por estado, dificultad y tema; una fila
+  abre su página. La misma tabla aparece en los tracks, las seasons y el último nivel de
+  Starting Point.
 - **La página de una máquina:** una cabecera con un degradado del color de su tema, el avatar
   grande, su nombre y sus datos (recompensa, tiempo, dificultad, tu mejor tiempo), y tres
   pestañas: **Jugar** (el modo, «Iniciar máquina» o por qué no se puede, y sus tareas, con
   candado hasta superarla), **Información** (la historia en una cita, qué harás, el tema y los
   equipos del laboratorio) y **Solución** (bloqueada hasta superarla, en cualquier modo).
 - **XP y rangos:** 10, 20 o 40 XP según el nivel, el doble en Medio; Novato, Aprendiz, Técnico,
-  Ingeniero y Arquitecto. No se muestran datos de otros usuarios: el progreso aún vive en el
-  navegador (pasará a la cuenta en la fase B).
-- **Dentro de una caja**, cada nivel se desbloquea al superar el anterior. Las cajas próximas
-  (OSPF, BGP, NAT) van al final del camino, con el borde discontinuo y el motivo escrito.
+  Ingeniero y Arquitecto.
+- **Dentro de un tema**, cada nivel se desbloquea al superar el anterior.
 
 Al empezar un reto se abre como laboratorio con la **tarjeta del reto** (`ChallengeCard.tsx`),
 fija a la izquierda del todo del lienzo (340 px). Mientras está (`--reserved-left`,
@@ -316,7 +342,7 @@ Cada intento tiene su tiempo (Fácil: 5, 8 o 12 minutos según el nivel; Medio: 
 Bajo el título, junto a la dificultad, una píldora monoespaciada con la cuenta atrás, que en su
 último minuto pasa a `--danger` y late. Superado, muestra el tiempo empleado en `--ok`; agotado,
 «Tiempo agotado» y un aviso en `--danger-soft` con «Reintentar» (el reto de cero, con un tiempo
-nuevo). El mejor tiempo de cada reto aparece en el camino.
+nuevo). El mejor tiempo de cada reto aparece en la tabla de máquinas.
 
 La tarjeta muestra:
 
@@ -407,7 +433,7 @@ Wireshark, como `Echo (ping) request` o `Who has … ? Tell …`.
 
 ### Ranking y cifras
 
-La pestaña **Ranking**: un podio con los tres primeros (oro, plata y bronce, el primero más alto
+La sección **Ranking**: un podio con los tres primeros (oro, plata y bronce, el primero más alto
 y en el centro) y una tabla con puesto, jugador (iniciales), rango y nivel, XP, máquinas,
 verificadas (superadas en Medio y comprobadas por el servidor) y la última. La fila del usuario se
 resalta y, si no está entre los 100, se añade al final. Un selector cambia a la de una season.
