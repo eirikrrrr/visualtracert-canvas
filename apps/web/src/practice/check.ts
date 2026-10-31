@@ -1,11 +1,10 @@
 // Whether a goal of an exercise is met, asked to the lab itself. Easy: the
 // simulation runs the ping, the DHCP request, the name lookup or the web page
-// it asks for, or the lab says what it has (a port's VLAN). Medium: the real
-// devices of the emulation run the ping, with the addresses they have now.
+// it asks for, or the lab says what it has (a port's VLAN). Medium is checked
+// by the server, on the emulation's real devices (apps/emulator/src/verify.ts).
 // So any correct way of solving the exercise passes, not one answer.
 import type { Check, Goal, Topology } from "@visual-tracert/model";
 import type { T } from "../i18n";
-import { emulator } from "../emulation/api";
 import { simulate } from "../sim/engine";
 
 export interface GoalResult {
@@ -62,38 +61,3 @@ export function checkGoal(topology: Topology, check: Check, t: T): GoalResult {
 }
 
 export const checkGoals = (topology: Topology, goals: Goal[], t: T) => goals.map(goal => checkGoal(topology, goal.check, t));
-
-// --- medium difficulty: on the real devices of the emulation ----------------
-
-/** the addresses a running device has now (set from its CLI, not the document's) */
-async function liveAddresses(lab: string, device: string): Promise<string[]> {
-  const { output } = await emulator.run(lab, device, "addresses");
-  return [...output.matchAll(/inet (\d+\.\d+\.\d+\.\d+)\/\d+/g)].map(match => match[1]).filter(ip => !ip.startsWith("127."));
-}
-
-/** the last lines of a ping: how many went and came back */
-const summary = (output: string) => output.trim().split("\n").filter(line => /packets|received|loss|unreachable/i.test(line)).slice(-1)[0] ?? output.trim().split("\n").slice(-1)[0] ?? "";
-
-/** A goal checked on the lab's real devices: a real ping from the device's CLI. */
-export async function checkGoalLive(lab: string, topology: Topology, check: Check, t: T): Promise<GoalResult> {
-  if(check.kind !== "ping" && check.kind !== "isolated") return { ok: false, detail: t("Este objetivo no se comprueba en modo Medio.") };
-  try{
-    const device = deviceOf(topology, check.to);
-    const to = device ? (await liveAddresses(lab, check.to))[0] : check.to;
-    if(!to) return { ok: false, detail: t("{device} no tiene dirección.", { device: device?.name ?? check.to }) };
-    // its own address would answer by itself: two devices with the same address
-    if((await liveAddresses(lab, check.from)).includes(to)){
-      return { ok: false, detail: t("{from} y {to} tienen la misma dirección ({ip}): hay un conflicto de IP.", { from: deviceOf(topology, check.from)?.name ?? check.from, to: device?.name ?? to, ip: to }) };
-    }
-    const run = await emulator.run(lab, check.from, "ping", to);
-    const reached = run.exitCode === 0;
-    const line = summary(run.output);
-    if(check.kind === "ping") return { ok: reached, detail: `${run.command}: ${line}` };
-    return reached ? { ok: false, detail: t("Todavía llega: {message}", { message: line }) } : { ok: true, detail: t("No llega, como debe.") };
-  }catch(error){
-    return { ok: false, detail: (error as Error).message };
-  }
-}
-
-export const checkGoalsLive = (lab: string, topology: Topology, goals: Goal[], t: T) =>
-  Promise.all(goals.map(goal => checkGoalLive(lab, topology, goal.check, t)));

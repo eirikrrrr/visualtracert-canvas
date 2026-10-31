@@ -35,7 +35,7 @@ export interface Invite {
 export type ErrorCode =
   | "bad-request" | "bad-username" | "bad-name" | "bad-password" | "username-taken"
   | "already-set-up" | "invalid-setup-code" | "invalid-invite" | "invalid-credentials" | "disabled" | "too-many-attempts"
-  | "wrong-password" | "not-found" | "last-admin" | "unauthorized" | "forbidden";
+  | "wrong-password" | "not-found" | "last-admin" | "unauthorized" | "forbidden" | "emulator-unavailable" | "not-verified";
 
 export class AccountError extends Error {
   constructor(readonly code: ErrorCode, readonly status = 400) {

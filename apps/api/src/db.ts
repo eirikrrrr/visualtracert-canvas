@@ -40,6 +40,38 @@ const MIGRATIONS = [
     created_at INTEGER NOT NULL
   );
   `,
+  // 2: the exercises solved (the ranking, the machines' figures) and the seasons
+  `
+  CREATE TABLE solves (
+    user_id INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    exercise TEXT NOT NULL,
+    difficulty TEXT NOT NULL CHECK (difficulty IN ('easy', 'medium')),
+    -- the first time: who got there first
+    solved_at INTEGER NOT NULL,
+    -- the best time, in ms
+    time_ms INTEGER,
+    -- checked on the server (medium, on the lab's devices), not the page's word
+    verified INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, exercise, difficulty)
+  );
+  CREATE INDEX solves_exercise ON solves (exercise, difficulty, solved_at);
+  CREATE TABLE seasons (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    -- what it is about: a protocol (BGP, OSPF…), a topic
+    theme TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
+    -- what its machines are based on
+    inspiration TEXT NOT NULL DEFAULT '',
+    color TEXT NOT NULL DEFAULT '#4f8cff',
+    icon TEXT NOT NULL DEFAULT 'router',
+    starts_at INTEGER NOT NULL,
+    ends_at INTEGER NOT NULL,
+    -- the ids of its exercises, as JSON
+    machines TEXT NOT NULL DEFAULT '[]',
+    created_at INTEGER NOT NULL
+  );
+  `,
 ];
 
 /** opens (or creates) the database at that path (":memory:" for tests), migrated */

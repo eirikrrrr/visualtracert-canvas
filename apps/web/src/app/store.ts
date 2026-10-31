@@ -45,7 +45,7 @@ export const CHALLENGE_SPACE = CHALLENGE_WIDTH + 28;
 export type Tab = "simulation" | "document";
 
 /** the sections of the user's dashboard */
-export type DashboardSection = "profile" | "account" | "users" | "preferences" | "labs" | "server" | "shortcuts";
+export type DashboardSection = "profile" | "account" | "users" | "students" | "preferences" | "labs" | "server" | "shortcuts";
 export type Theme = "azul" | "marron" | "editorial" | "morado";
 
 export const THEMES: { id: Theme; label: string; light: boolean; swatch: [string, string, string] }[] = [

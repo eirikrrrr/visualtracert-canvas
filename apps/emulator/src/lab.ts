@@ -63,6 +63,7 @@ export interface Owner { id: string; name: string }
 /** what a lab's containers carry besides the lab: its time limit, its owner */
 export interface Meta {
   expires?: number;
+  started?: number;
   owner?: Owner;
   /** false: its owner has no quota (an admin) */
   limited?: boolean;
@@ -71,8 +72,13 @@ export interface Meta {
 const metaOf = (containers: ContainerSummary[]): Meta => {
   const labels = containers[0]?.Labels ?? {};
   const expires = Number(containers.find(item => item.Labels[LABELS.expires])?.Labels[LABELS.expires]) || undefined;
-  return { expires, ...(labels[LABELS.owner] ? { owner: { id: labels[LABELS.owner], name: labels[LABELS.ownerName] ?? "" } } : {}) };
+  const started = Number(labels[LABELS.started]) || undefined;
+  return { expires, started, ...(labels[LABELS.owner] ? { owner: { id: labels[LABELS.owner], name: labels[LABELS.ownerName] ?? "" } } : {}) };
 };
+
+/** when a lab was deployed: its label, or its oldest container */
+export const startedOf = (containers: ContainerSummary[]): number =>
+  metaOf(containers).started ?? Math.min(...containers.map(container => Number(container.Created) * 1000 || Date.now()));
 
 /** a lab's owner (undefined: nobody's, or it has no containers) */
 export async function ownerOf(lab: string): Promise<Owner | undefined> {
@@ -157,10 +163,11 @@ export async function runningLabs(owner?: string): Promise<RunningLab[]> {
   const labs = new Map<string, RunningLab>();
   for(const container of await docker.list(owner ? { [LABELS.owner]: owner } : { [LABELS.lab]: null })){
     const lab = container.Labels[LABELS.lab];
-    const entry = labs.get(lab) ?? { lab, containers: 0, running: 0, since: Infinity, ...metaOf([container]) };
+    const { started, ...meta } = metaOf([container]);
+    const entry = labs.get(lab) ?? { lab, containers: 0, running: 0, since: started ?? Infinity, ...meta };
     entry.containers += 1;
     if(container.State === "running") entry.running += 1;
-    entry.since = Math.min(entry.since, Number(container.Created) * 1000 || Date.now());
+    if(!started) entry.since = Math.min(entry.since, Number(container.Created) * 1000 || Date.now());
     labs.set(lab, entry);
   }
   return [...labs.values()].sort((p, q) => p.lab.localeCompare(q.lab));
@@ -206,6 +213,7 @@ async function startNode(lab: string, plan: Plan, node: NodePlan, meta: Meta): P
     Labels: {
       [LABELS.lab]: lab, [LABELS.device]: node.device, [LABELS.fingerprint]: plan.fingerprint, [LABELS.image]: node.imageId,
       ...(meta.expires ? { [LABELS.expires]: String(meta.expires) } : {}),
+      ...(meta.started ? { [LABELS.started]: String(meta.started) } : {}),
       ...(meta.owner ? { [LABELS.owner]: meta.owner.id, [LABELS.ownerName]: meta.owner.name } : {}),
     },
     HostConfig: {
@@ -249,6 +257,7 @@ export function deploy(lab: string, topology: Topology, t: T = spanish, meta: Me
   return serial(lab, async () => {
     const plan = await planOf(lab, topology, t);
     if(meta.owner && meta.limited !== false) await checkQuota(lab, meta.owner, plan.nodes.length, t, true);
+    meta = { ...meta, started: Date.now() };
     await removeAll(lab);
     for(const image of new Set(plan.nodes.map(node => node.image))) await ensureImage(image);
     const pids = new Map<string, number>();

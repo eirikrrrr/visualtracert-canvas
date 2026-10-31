@@ -2,7 +2,8 @@
 // left, with what to do, its time left, its goals (checked on demand: in the
 // simulation, or on the real devices in medium difficulty) and hints one at a
 // time. Solved: the time it took, the reference solution and the next
-// exercise of the path, its containers closed. Out of time: its containers
+// exercise of the path, its containers closed. A medium one is checked by the
+// server, on the devices: so it counts for the ranking. Out of time: its containers
 // closed, and a new attempt to start. It folds to its title (the time stays).
 import { BOXES, DIFFICULTY_LABEL, exerciseById, LEVEL_LABEL, nextExercise, solvedKey } from "@visual-tracert/model";
 import { useEffect, useState } from "react";
@@ -10,9 +11,10 @@ import { useStore } from "../app/store";
 import { Icon } from "../editor/icons";
 import { useEmulation } from "../emulation/store";
 import { useT } from "../i18n";
-import { checkGoals, checkGoalsLive, type GoalResult } from "./check";
+import { checkGoals, type GoalResult } from "./check";
 import { MachineAvatar } from "./MachineAvatar";
 import { clock, finishAttempt, startExercise, stopExerciseLabs, useProgress } from "./progress";
+import { practiceApi, type Solve } from "./server";
 
 /** the time now, once a second while it is wanted */
 function useNow(active: boolean): number {
@@ -56,11 +58,22 @@ export function ChallengeCard() {
   const next = solved ? nextExercise(done, linked.difficulty) : undefined;
   const check = async () => {
     setChecking(true);
-    const list = medium ? await checkGoalsLive(labId, topology, exercise.goals, t) : checkGoals(topology, exercise.goals, t);
+    let list: GoalResult[];
+    let server: Solve | undefined;
+    if(medium){
+      // the server checks it on the devices (and counts it for the ranking)
+      try{
+        const verdict = await practiceApi.checkMedium(exercise.id, labId);
+        list = verdict.results ?? exercise.goals.map(() => ({ ok: verdict.ok, detail: "" }));
+        server = verdict.solve;
+      }catch(error){
+        list = exercise.goals.map(() => ({ ok: false, detail: (error as Error).message }));
+      }
+    }else list = checkGoals(topology, exercise.goals, t);
     setResults({ topology, list });
     setChecking(false);
     // solved: its time kept and, from the CLI, its containers closed
-    if(list.every(result => result.ok)) finishAttempt(labId, solvedKey(exercise.id, linked.difficulty));
+    if(list.every(result => result.ok)) finishAttempt(labId, solvedKey(exercise.id, linked.difficulty), server);
   };
 
   const timer = finished

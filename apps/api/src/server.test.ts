@@ -3,14 +3,21 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Accounts } from "./accounts";
 import { openDatabase } from "./db";
 import { hashPassword, verifyPassword } from "./passwords";
-import { adminOnly, COOKIE, startServer } from "./server";
+import { Practice } from "./practice";
+import { adminOnly, COOKIE, startServer, VerifyRefused, type Verdict } from "./server";
 
 const SETUP = "C0DE1234";
 let base = "";
+/** the emulator, pretended: lab "solved" passes, "broken" fails a goal, "gone" is refused */
+const fakeVerify = async (lab: string): Promise<Verdict> => {
+  if(lab === "gone") throw new VerifyRefused("El laboratorio no está desplegado.");
+  return { ok: lab === "solved", results: [{ ok: lab === "solved", detail: "ping" }], startedAt: Date.now() - 90_000 };
+};
 let server: ReturnType<typeof startServer>;
 
 beforeAll(async () => {
-  server = startServer(new Accounts(openDatabase(":memory:")), 0, { setupCode: SETUP });
+  const db = openDatabase(":memory:");
+  server = startServer(new Accounts(db), new Practice(db), 0, { setupCode: SETUP, verify: fakeVerify });
   await new Promise(resolve => server.once("listening", resolve));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
@@ -42,8 +49,11 @@ describe("passwords", () => {
   });
 });
 
+/** the first account's browser: the tests share it (its sign-in gets blocked on purpose) */
+const firstAdmin = browser();
+
 describe("accounts API", () => {
-  const admin = browser();
+  const admin = firstAdmin;
   const student = browser();
   let invite = "";
 
@@ -166,5 +176,66 @@ describe("sessions", () => {
     expect(accounts.session(token)?.username).toBe("solo");
     now += 31 * 24 * 3600e3;
     expect(accounts.session(token)).toBeUndefined();
+  });
+});
+
+describe("practice: solves, ranking, machines and seasons", () => {
+  const admin = firstAdmin;
+  const ana = browser();
+  const bob = browser();
+
+  it("records solves: easy as told, medium only once the emulator checks it", async () => {
+    for(const [who, username] of [[ana, "ana2"], [bob, "bob2"]] as const){
+      const invite = (await admin.call("POST", "/auth/invites", { role: "student" })).data.code;
+      await who.call("POST", "/auth/register", { invite, username, name: username.toUpperCase(), password: "another-password" });
+    }
+    expect((await ana.call("POST", "/auth/solves", { exercise: "first-network", difficulty: "easy", timeMs: 50_000 })).data.solve)
+      .toMatchObject({ exercise: "first-network", difficulty: "easy", timeMs: 50_000, verified: false });
+    expect((await ana.call("POST", "/auth/solves", { exercise: "nope", difficulty: "easy" })).status).toBe(400);
+    // a medium solve the devices do not show yet, and one they do
+    expect((await ana.call("POST", "/auth/solves", { exercise: "first-network", difficulty: "medium", lab: "broken" })).data).toMatchObject({ ok: false });
+    expect((await ana.call("POST", "/auth/solves", { exercise: "first-network", difficulty: "medium", lab: "gone" }))).toMatchObject({ status: 409, data: { error: "not-verified" } });
+    const medium = await ana.call("POST", "/auth/solves", { exercise: "first-network", difficulty: "medium", lab: "solved", timeMs: 1 });
+    expect(medium.data.solve.verified).toBe(true);
+    // its time is the server's, from when the lab was deployed
+    expect(medium.data.solve.timeMs).toBeGreaterThanOrEqual(90_000);
+    // a slower time does not replace the best
+    await ana.call("POST", "/auth/solves", { exercise: "first-network", difficulty: "easy", timeMs: 80_000 });
+    expect((await ana.call("GET", "/auth/solves")).data.find((solve: { difficulty: string }) => solve.difficulty === "easy").timeMs).toBe(50_000);
+  });
+
+  it("ranks by XP and tells who solved each machine first", async () => {
+    await bob.call("POST", "/auth/solves/import", { solves: [
+      { exercise: "first-network", difficulty: "easy", solvedAt: 1000, timeMs: 30_000 },
+      { exercise: "subnet-mask", difficulty: "easy" },
+      { exercise: "bad", difficulty: "easy" },
+    ] });
+    const ranking = (await ana.call("GET", "/auth/rankings")).data;
+    // ana: 10 + 20 (medium) = 30; bob: 10 + 20 = 30 too, but he reached it later (his last solve is now)
+    expect(ranking.entries.map((entry: { username: string; xp: number }) => [entry.username, entry.xp])).toEqual([["ana2", 30], ["bob2", 30]]);
+    expect(ranking.me).toMatchObject({ username: "ana2", position: 1, verified: 1, rank: "Novato" });
+    const figures = (await ana.call("GET", "/auth/figures")).data;
+    expect(figures["first-network"].easy).toMatchObject({ solves: 2, first: { username: "bob2" } });
+    expect(figures["first-network"].medium).toMatchObject({ solves: 1, first: { username: "ana2" } });
+  });
+
+  it("lets an admin make seasons, each with its own ranking", async () => {
+    const season = { name: "Temporada 1", theme: "IP", inspiration: "Direcciones y máscaras", startsAt: Date.now() - 1000, endsAt: Date.now() + 3600e3, machines: ["first-network"] };
+    expect((await ana.call("POST", "/auth/seasons", season)).status).toBe(403);
+    expect((await admin.call("POST", "/auth/seasons", { ...season, machines: ["nope"] })).status).toBe(400);
+    const made = (await admin.call("POST", "/auth/seasons", season)).data;
+    expect(made).toMatchObject({ name: "Temporada 1", theme: "IP", machines: ["first-network"], color: "#4f8cff" });
+    // only ana solved its machine within its dates
+    const ranking = (await ana.call("GET", `/auth/rankings?season=${made.id}`)).data;
+    expect(ranking.entries.map((entry: { username: string }) => entry.username)).toEqual(["ana2"]);
+    expect((await admin.call("PATCH", `/auth/seasons/${made.id}`, { theme: "BGP" })).data.theme).toBe("BGP");
+    expect((await ana.call("GET", "/auth/seasons")).data).toHaveLength(1);
+    expect((await admin.call("DELETE", `/auth/seasons/${made.id}`)).status).toBe(204);
+  });
+
+  it("shows everyone's progress to teachers and admins only", async () => {
+    expect((await ana.call("GET", "/auth/progress")).status).toBe(403);
+    const progress = (await admin.call("GET", "/auth/progress")).data;
+    expect(progress.find((user: { username: string }) => user.username === "ana2")).toMatchObject({ xp: 30 });
   });
 });

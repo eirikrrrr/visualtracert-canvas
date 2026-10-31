@@ -4,7 +4,7 @@
 // page never sees it; it asks /auth/status who it is. The emulator answers
 // 401 once the session is over: back to the sign-in.
 import { create } from "zustand";
-import { t, tx } from "../i18n";
+import { t, tx, useLang } from "../i18n";
 import { useProfile } from "./profile";
 
 export type Role = "student" | "teacher" | "admin";
@@ -50,11 +50,13 @@ const MESSAGES: Record<string, string> = {
   "last-admin": tx("Debe quedar al menos un administrador activo."),
   "unauthorized": tx("Tu sesión terminó: vuelve a iniciar sesión."),
   "forbidden": tx("No tienes permiso para hacer esto."),
+  "emulator-unavailable": tx("No se puede conectar con el emulador."),
 };
 
 export class AuthError extends Error {
-  constructor(readonly code: string) {
-    super(MESSAGES[code] ? t(MESSAGES[code]) : t("El servicio de cuentas no está disponible ({status}).", { status: code }));
+  /** message: the server's own words (the emulator's, already in the user's language) */
+  constructor(readonly code: string, message?: string) {
+    super(message ?? (MESSAGES[code] ? t(MESSAGES[code]) : t("El servicio de cuentas no está disponible ({status}).", { status: code })));
   }
 }
 
@@ -64,7 +66,7 @@ export async function authCall<R>(method: string, path: string, body?: unknown):
     res = await fetch(`/auth${path}`, {
       method,
       credentials: "same-origin",
-      headers: body !== undefined ? { "Content-Type": "application/json" } : {},
+      headers: { "Accept-Language": useLang.getState().lang, ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   }catch(_){
@@ -74,7 +76,7 @@ export async function authCall<R>(method: string, path: string, body?: unknown):
   const data = text ? (() => { try{ return JSON.parse(text); }catch(_){ return null; } })() : null;
   if(!res.ok){
     if(res.status === 401 && path !== "/login") useAuth.getState().expired();
-    throw new AuthError(data?.error ?? String(res.status));
+    throw new AuthError(data?.error ?? String(res.status), typeof data?.message === "string" ? data.message : undefined);
   }
   return data as R;
 }

@@ -89,6 +89,7 @@ flowchart TB
 | Dato | Dónde | Notas |
 |---|---|---|
 | Cuentas, sesiones e invitaciones | `/data/visual-tracert.db` (volumen `api-data`) | SQLite en modo WAL; contraseñas con scrypt y solo el SHA-256 de cada sesión |
+| Retos superados, seasons | La misma base | Dan el ranking y las cifras de cada máquina; los de Medio, comprobados por el emulador |
 | Laboratorios | `localStorage` del navegador | Un documento JSON por laboratorio (`visual-tracert.lab.*`) |
 | Perfil local y preferencias | `localStorage` | Nombre, foto, «sobre ti», tema, idioma, velocidad, animaciones |
 | Disposición de paneles y barras | `localStorage` | Ancho del panel lateral, posición de las barras, registro |
@@ -96,8 +97,15 @@ flowchart TB
 | Imágenes | Docker del servidor | Descargadas, construidas (perfiles) o construidas desde `vrnetlab/` |
 | Estado de un laboratorio | Etiquetas de sus contenedores | `visual-tracert.lab`, `.device`, `.fingerprint`, `.image`: sobrevive a un reinicio del emulador |
 
-Las cuentas viven en el servidor; los laboratorios, el progreso de Practicar, la foto y las
-preferencias siguen en el navegador hasta que pasen a la base de datos (fase B).
+Las cuentas y los retos superados viven en el servidor (el navegador guarda una copia del
+progreso, de la cuenta con que inició sesión); los laboratorios, la foto y las preferencias
+siguen en el navegador hasta que pasen a la base de datos (fase B).
+
+Un reto de Medio cuenta para el ranking solo si el servidor lo comprueba: la web pide a
+`/auth/solves`, el servicio de cuentas pide al emulador `POST /api/labs/:lab/verify` (con el
+usuario en `X-User-*`), y el emulador comprueba que el laboratorio es el reto tal como empieza y
+hace los pings en los equipos. Los de Fácil se resuelven en la simulación del navegador: se
+apuntan tal como llegan.
 
 ## La web por dentro
 

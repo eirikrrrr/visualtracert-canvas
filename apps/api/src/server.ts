@@ -14,6 +14,17 @@
 //   GET    /auth/invites              (admin) the invitations still usable
 //   POST   /auth/invites              (admin) { role?, uses?, days?, note? }
 //   DELETE /auth/invites/:code        (admin)
+//   GET    /auth/solves               the exercises the user solved
+//   POST   /auth/solves               { exercise, difficulty, timeMs?, lab? }: one solved. Medium: checked
+//                                     first by the emulator on the lab's devices ({ ok, results, solve? })
+//   POST   /auth/solves/import        { solves }: what this browser had solved before (not verified)
+//   GET    /auth/rankings?season=     the ranking (everyone's, or a season's)
+//   GET    /auth/figures              each machine: how many solved it, and who first
+//   GET    /auth/progress             (teacher, admin) everyone's progress
+//   GET    /auth/seasons              the seasons
+//   POST   /auth/seasons              (admin) { name, theme, summary?, inspiration?, color?, icon?, startsAt, endsAt, machines }
+//   PATCH  /auth/seasons/:id          (admin)
+//   DELETE /auth/seasons/:id          (admin)
 //   GET    /auth/check                nginx asks it before every /api request (auth_request):
 //                                     204 with X-User-* headers, 401 without a session, 403 if not allowed
 // The session is a cookie (HttpOnly, SameSite=Strict; Secure behind HTTPS).
@@ -22,6 +33,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { version } from "../../../package.json";
 import { AccountError, Accounts, type ErrorCode, type User } from "./accounts";
+import type { Practice } from "./practice";
 
 export const COOKIE = "vt_session";
 const MAX_BODY = 16 * 1024;
@@ -100,8 +112,39 @@ export interface ServerOptions {
   secureCookies?: "auto" | "always" | "never";
   /** what the first account must give: whoever reaches the page first cannot make themselves admin */
   setupCode?: string;
+  /** asks the emulator to check an exercise (medium) on a lab's devices, as the user */
+  verify?: (lab: string, exercise: string, user: User, lang: string) => Promise<Verdict>;
   now?: () => number;
 }
+
+/** the emulator's answer when it checks an exercise on a lab's devices */
+export interface Verdict {
+  ok: boolean;
+  results: { ok: boolean; detail: string }[];
+  startedAt: number;
+}
+
+/** the emulator checks it (EMULATOR_URL), told who asks as nginx would tell it */
+export function emulatorVerifier(base: string) {
+  return async (lab: string, exercise: string, user: User, lang: string): Promise<Verdict> => {
+    let res: Response;
+    try{
+      res = await fetch(`${base}/api/labs/${encodeURIComponent(lab)}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept-Language": lang, "X-User-Id": String(user.id), "X-User-Name": user.username, "X-User-Role": user.role },
+        body: JSON.stringify({ exercise }),
+      });
+    }catch(_){
+      throw new HttpError("emulator-unavailable", 502);
+    }
+    const data = await res.json().catch(() => null) as (Verdict & { error?: string }) | null;
+    if(!res.ok || !data) throw new VerifyRefused(data?.error ?? String(res.status));
+    return data;
+  };
+}
+
+/** the emulator would not check it (not deployed, not the exercise as it starts…): its words */
+export class VerifyRefused extends Error {}
 
 /** what of the emulator only an admin may do: change the server's images and profiles */
 export function adminOnly(method: string, uri: string): boolean {
@@ -110,7 +153,7 @@ export function adminOnly(method: string, uri: string): boolean {
   return /^\/api\/(images|profiles)(\/|$)/.test(path);
 }
 
-export function createHandler(accounts: Accounts, options: ServerOptions = {}) {
+export function createHandler(accounts: Accounts, practice: Practice, options: ServerOptions = {}) {
   const now = options.now ?? Date.now;
   const attempts = new Attempts(now);
   const prune = setInterval(() => { attempts.prune(); accounts.pruneSessions(); }, 60 * 60 * 1000);
@@ -132,6 +175,11 @@ export function createHandler(accounts: Accounts, options: ServerOptions = {}) {
   const admin = (req: IncomingMessage): User => {
     const user = signedIn(req);
     if(user.role !== "admin" || user.mustChange) throw new HttpError("forbidden", 403);
+    return user;
+  };
+  const staff = (req: IncomingMessage): User => {
+    const user = signedIn(req);
+    if((user.role !== "admin" && user.role !== "teacher") || user.mustChange) throw new HttpError("forbidden", 403);
     return user;
   };
   const addressOf = (req: IncomingMessage) => (req.headers["x-real-ip"] as string | undefined) ?? req.socket.remoteAddress ?? "?";
@@ -223,6 +271,37 @@ export function createHandler(accounts: Accounts, options: ServerOptions = {}) {
       const inviteMatch = path.match(/^\/auth\/invites\/([A-Z0-9-]{1,20})$/);
       if(inviteMatch && method === "DELETE"){ admin(req); accounts.deleteInvite(inviteMatch[1]); send(res, 204); return; }
 
+      if(path === "/auth/solves" && method === "GET"){ send(res, 200, practice.solves(signedIn(req).id)); return; }
+      if(path === "/auth/solves" && method === "POST"){
+        const user = signedIn(req);
+        const body = await bodyOf(req);
+        if(body.difficulty !== "medium"){ send(res, 200, { ok: true, solve: practice.record(user.id, body, false) }); return; }
+        // medium: the emulator checks it on the lab's devices, and measures its time
+        if(typeof body.lab !== "string" || typeof body.exercise !== "string" || !options.verify) throw new HttpError("bad-request");
+        let verdict: Verdict;
+        try{ verdict = await options.verify(body.lab, body.exercise, user, String(req.headers["accept-language"] ?? "es")); }
+        catch(error){ if(error instanceof VerifyRefused){ send(res, 409, { error: "not-verified", message: error.message }); return; } throw error; }
+        if(!verdict.ok){ send(res, 200, { ok: false, results: verdict.results }); return; }
+        const solve = practice.record(user.id, { exercise: body.exercise, difficulty: "medium", timeMs: now() - verdict.startedAt }, true);
+        send(res, 200, { ok: true, results: verdict.results, solve });
+        return;
+      }
+      if(path === "/auth/solves/import" && method === "POST"){ const user = signedIn(req); send(res, 200, practice.import(user.id, (await bodyOf(req)).solves)); return; }
+      if(path === "/auth/rankings" && method === "GET"){
+        const user = signedIn(req);
+        const season = url.searchParams.get("season");
+        const entries = practice.ranking(season ? Number(season) || -1 : undefined);
+        send(res, 200, { entries: entries.slice(0, 100), me: entries.find(entry => entry.id === user.id) ?? null, total: entries.length });
+        return;
+      }
+      if(path === "/auth/figures" && method === "GET"){ signedIn(req); send(res, 200, practice.figures()); return; }
+      if(path === "/auth/progress" && method === "GET"){ staff(req); send(res, 200, practice.progress()); return; }
+      if(path === "/auth/seasons" && method === "GET"){ signedIn(req); send(res, 200, practice.seasons()); return; }
+      if(path === "/auth/seasons" && method === "POST"){ admin(req); send(res, 201, practice.createSeason(await bodyOf(req))); return; }
+      const seasonMatch = path.match(/^\/auth\/seasons\/(\d+)$/);
+      if(seasonMatch && method === "PATCH"){ admin(req); send(res, 200, practice.updateSeason(Number(seasonMatch[1]), await bodyOf(req))); return; }
+      if(seasonMatch && method === "DELETE"){ admin(req); practice.deleteSeason(Number(seasonMatch[1])); send(res, 204); return; }
+
       throw new HttpError("not-found", 404);
     }catch(error){
       if(error instanceof AccountError){ send(res, error.status, { error: error.code satisfies ErrorCode }); return; }
@@ -232,8 +311,8 @@ export function createHandler(accounts: Accounts, options: ServerOptions = {}) {
   };
 }
 
-export function startServer(accounts: Accounts, port: number, options: ServerOptions = {}) {
-  const server = createServer(createHandler(accounts, options));
+export function startServer(accounts: Accounts, practice: Practice, port: number, options: ServerOptions = {}) {
+  const server = createServer(createHandler(accounts, practice, options));
   server.listen(port, () => console.log(`visual-tracert api ${version} on :${port}`));
   return server;
 }

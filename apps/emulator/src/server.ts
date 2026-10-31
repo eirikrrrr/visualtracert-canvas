@@ -6,6 +6,8 @@
 //                                   (ms since the epoch): stopped by itself then
 //   DELETE /api/labs/:lab           remove it
 //   GET    /api/labs/:lab/addresses the addresses its running devices have now, by device
+//   POST   /api/labs/:lab/verify    { exercise }: that exercise (medium) checked on the lab's devices,
+//                                   for its owner: { ok, results, startedAt }
 //   POST   /api/labs/:lab/run       { device, command, target? } on a device
 //   POST   /api/labs/:lab/start     { devices, document }: those devices, if stopped; the rest left running
 //   POST   /api/labs/:lab/restart   { devices, document }: those devices again
@@ -45,6 +47,7 @@ import { CAPTURE_LIMIT, CaptureError, startCapture } from "./capture";
 import { docker, DockerError } from "./docker";
 import { buildProfile, loadProfiles, profileStatus, removeProfile, saveProfile } from "./profiles";
 import { ALLOW_PRIVILEGED, COMMANDS, deploy, destroy, execute, imageStatus, liveAddresses, openShell, ownerOf, QUOTA, QuotaError, relaunch, runningLabs, status, stopDevices, type Command, type Owner, type Size } from "./lab";
+import { verifyExercise, VerifyError } from "./verify";
 import { ensureImage } from "./vrnetlab";
 
 const MAX_BODY = 2 * 1024 * 1024;
@@ -180,12 +183,22 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     send(res, 200, await runningLabs(isAdmin(caller) ? undefined : caller!.id));
     return;
   }
-  const match = url.pathname.match(/^\/api\/labs\/([^/]+)(\/run|\/start|\/restart|\/stop|\/addresses)?$/);
+  const match = url.pathname.match(/^\/api\/labs\/([^/]+)(\/run|\/start|\/restart|\/stop|\/addresses|\/verify)?$/);
   if(!match) throw new HttpError(404, t("No existe esa ruta del emulador."));
   const lab = decodeURIComponent(match[1]);
   if(!LAB_ID.test(lab)) throw new HttpError(400, t("El identificador del laboratorio no es válido."));
   const owner = await reach(lab, caller, t);
 
+  // an exercise checked on its devices, for its owner (the accounts service asks)
+  if(match[2] === "/verify"){
+    if(method !== "POST") throw new HttpError(405, "POST");
+    if(caller && owner?.id !== caller.id) throw new HttpError(404, t("No existe ese laboratorio."));
+    const body = (await bodyOf(req)) as { exercise?: unknown };
+    if(typeof body.exercise !== "string") throw new HttpError(400, t("Falta el reto."));
+    try{ send(res, 200, await verifyExercise(lab, body.exercise, t)); }
+    catch(error){ if(error instanceof VerifyError) throw new HttpError(409, error.message); throw error; }
+    return;
+  }
   if(match[2] === "/addresses"){
     if(method !== "GET") throw new HttpError(405, "GET");
     send(res, 200, await liveAddresses(lab));

@@ -405,6 +405,15 @@ Wireshark, como `Echo (ping) request` o `Who has … ? Tell …`.
 - **Movimiento reducido:** con `prefers-reduced-motion` o la preferencia del panel de usuario,
   las animaciones y transiciones se reducen al mínimo.
 
+### Ranking y cifras
+
+La pestaña **Ranking**: un podio con los tres primeros (oro, plata y bronce, el primero más alto
+y en el centro) y una tabla con puesto, jugador (iniciales), rango y nivel, XP, máquinas,
+verificadas (superadas en Medio y comprobadas por el servidor) y la última. La fila del usuario se
+resalta y, si no está entre los 100, se añade al final. Un selector cambia a la de una season.
+En la tabla de máquinas, **Resuelta** (`#n`, en `--ok`) dice cuántos la superaron en esa
+dificultad, con quién fue el primero en su título; la página de la máquina lo muestra entero.
+
 ## Cuentas
 
 Antes de la app, una tarjeta centrada (420 px) sobre `--bg` con un halo de `--accent-soft`: la
@@ -417,6 +426,9 @@ pantallas:
 - **Crea la cuenta de administrador:** la primera vez, con el código de instalación del registro
   del servicio (`docker compose logs api`), para que nadie se adelante;
 - **Elige tu contraseña:** tras una contraseña provisional de un administrador, antes de seguir.
+
+Para profesores y administradores, **Alumnos**: cada cuenta con su XP y sus máquinas, que se
+despliega en sus retos (dificultad, «Verificada», tiempo y fecha).
 
 En el panel de usuario, **Cuenta** (usuario, rol, cambiar la contraseña, cerrar sesión) y, para un
 administrador, **Usuarios**: el formulario de invitación (rol, usos, días, una nota), las

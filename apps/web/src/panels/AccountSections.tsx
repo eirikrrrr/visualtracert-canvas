@@ -1,13 +1,16 @@
 // The dashboard's sections of the account: the user's own (who they are,
-// their password, signing out) and, for an admin, everyone's: the users (role,
-// enabled, a provisional password, removed) and the invitations to sign up.
-import { LANGS } from "@visual-tracert/model";
+// their password, signing out); for a teacher or an admin, the students'
+// progress; and for an admin, everyone's accounts: the users (role, enabled,
+// a provisional password, removed) and the invitations to sign up.
+import { DIFFICULTY_LABEL, exerciseById, LANGS } from "@visual-tracert/model";
 import { useCallback, useEffect, useState } from "react";
 import { admin, inviteLink, ROLE_LABEL, useAuth, type Invite, type Role, type User } from "../app/auth";
 import { ChangePasswordForm } from "../app/AuthScreen";
 import { useStore } from "../app/store";
 import { Icon } from "../editor/icons";
 import { useLang, useT } from "../i18n";
+import { clock } from "../practice/progress";
+import { practiceApi, type StudentProgress } from "../practice/server";
 
 const ROLES: Role[] = ["student", "teacher", "admin"];
 
@@ -178,6 +181,64 @@ export function UsersSection() {
       {users === null ? <p className="muted small">{t("Cargando…")}</p> : (
         <ul className="dash-labs dash-users">
           {users.map(user => <UserRow key={user.id} user={user} me={me} reload={reload} />)}
+        </ul>
+      )}
+    </>
+  );
+}
+
+/** everyone's progress, for a teacher: XP, machines solved (which, how, how fast) */
+export function StudentsSection() {
+  const t = useT();
+  const date = useDate();
+  const [list, setList] = useState<StudentProgress[] | null>(null);
+  const [open, setOpen] = useState<number | null>(null);
+  const [query, setQuery] = useState("");
+  useEffect(() => { practiceApi.progress().then(setList).catch(error => { useStore.getState().notify((error as Error).message, "error"); setList([]); }); }, []);
+  const words = query.trim().toLowerCase();
+  const shown = (list ?? []).filter(user => !words || `${user.name} ${user.username}`.toLowerCase().includes(words)).sort((p, q) => q.xp - p.xp);
+  return (
+    <>
+      <p className="muted small">{t("El progreso de cada cuenta en Practicar. «Verificada»: superada en Medio y comprobada por el servidor en los equipos reales.")}</p>
+      <label className="machine-search dash-search">
+        <Icon name="search" size={16} />
+        <input type="search" value={query} placeholder={t("Buscar por nombre o usuario…")} aria-label={t("Buscar")} onChange={event => setQuery(event.target.value)} />
+      </label>
+      {list === null ? <p className="muted small">{t("Cargando…")}</p> : (
+        <ul className="dash-labs dash-students">
+          {shown.map(user => {
+            const last = Math.max(0, ...user.solves.map(solve => solve.solvedAt));
+            return (
+              <li key={user.id} className={open === user.id ? "current" : ""}>
+                <button type="button" className="dash-student-head" aria-expanded={open === user.id} onClick={() => setOpen(open === user.id ? null : user.id)}>
+                  <div className="dash-lab-text">
+                    <strong>{user.name}</strong>
+                    <span className="muted small"><span className="mono">{user.username}</span> · {t(ROLE_LABEL[user.role])}{last ? ` · ${t("última entrada {date}", { date: date(last) })}` : ""}</span>
+                  </div>
+                  <span className="mono small xp-cell">{user.xp} XP</span>
+                  <span className="tag">{t("{n} máquinas", { n: user.solves.length })}</span>
+                  <Icon name="chevron" size={15} />
+                </button>
+                {open === user.id && (user.solves.length ? (
+                  <table className="dash-keys dash-solves">
+                    <tbody>
+                      {user.solves.map(solve => {
+                        const exercise = exerciseById(solve.exercise);
+                        return (
+                          <tr key={`${solve.exercise}:${solve.difficulty}`}>
+                            <td><strong>{exercise ? t(exercise.codename) : solve.exercise}</strong> <span className="muted small">{exercise ? t(exercise.title) : ""}</span></td>
+                            <td>{t(DIFFICULTY_LABEL[solve.difficulty])}{solve.verified && <> · <span className="solved-cell"><Icon name="check" size={12} />{t("Verificada")}</span></>}</td>
+                            <td className="mono small">{solve.timeMs ? clock(solve.timeMs) : "—"}</td>
+                            <td className="muted small">{date(solve.solvedAt)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                ) : <p className="muted small">{t("Aún no ha superado ninguna máquina.")}</p>)}
+              </li>
+            );
+          })}
         </ul>
       )}
     </>

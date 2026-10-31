@@ -1147,3 +1147,31 @@ button.featured:hover { border-color: var(--line-strong); transform: translateY(
   .dash-invite-note { grid-column: 1 / -1; }
   .dash-users li, .dash-invites li { flex-wrap: wrap; }
 }
+
+/* --- Ranking ------------------------------------------------------------------ */
+.rankings { display: flex; flex-direction: column; gap: 14px; }
+.podium { display: grid; grid-template-columns: 1fr 1.15fr 1fr; align-items: end; gap: 12px; margin: 4px 0 0; padding: 0; list-style: none; }
+.podium li { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 18px 12px 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); text-align: center; }
+.podium li strong { font-family: var(--heading); }
+.podium-first { order: 2; padding-top: 26px !important; border-color: color-mix(in srgb, #d4a72c 55%, var(--line)) !important; background: linear-gradient(180deg, color-mix(in srgb, #d4a72c 14%, var(--surface)), var(--surface)) !important; }
+.podium-second { order: 1; }
+.podium-third { order: 3; }
+.podium li.me { box-shadow: 0 0 0 2px var(--accent-soft); }
+.podium-place { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; font: 700 13px var(--mono); background: var(--surface-3); color: var(--ink); }
+.podium-first .podium-place { background: #d4a72c; color: #1d1600; }
+.podium-second .podium-place { background: #b9c0c9; color: #15181c; }
+.podium-third .podium-place { background: #c58a5a; color: #1d1006; }
+.podium-xp { font-weight: 600; color: var(--accent); }
+.rank-avatar { flex: none; display: grid; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--accent) 22%, var(--surface-2)); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); color: var(--ink); font-weight: 700; font-family: var(--heading); }
+.rank-table tr.me td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.rank-position { width: 44px; font-weight: 700; }
+.solves-cell { display: inline-flex; gap: 2px; color: var(--ok); }
+@media (max-width: 640px) { .podium { grid-template-columns: 1fr; } .podium li { order: initial !important; } }
+
+/* --- Students (teachers) -------------------------------------------------------- */
+.dash-search { max-width: 360px; margin: 6px 0 12px; }
+.dash-students li { flex-direction: column; align-items: stretch; }
+.dash-student-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 0; background: none; border: 0; text-align: left; }
+.dash-student-head .dash-lab-text { flex: 1; }
+.dash-student-head[aria-expanded="true"] .icon { transform: rotate(180deg); }
+.dash-solves { margin-top: 8px; }

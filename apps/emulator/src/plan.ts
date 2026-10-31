@@ -22,6 +22,8 @@ export const LABELS = {
   image: "visual-tracert.image",
   /** when the lab is stopped by itself (an exercise's time limit), in ms since the epoch */
   expires: "visual-tracert.expires",
+  /** when the lab was deployed (kept by the devices made anew), in ms since the epoch */
+  started: "visual-tracert.started",
   /** the account that deployed it (its id, and its username): only it, or an admin, reaches it */
   owner: "visual-tracert.owner",
   ownerName: "visual-tracert.owner-name",

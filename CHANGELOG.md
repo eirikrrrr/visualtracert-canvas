@@ -7,6 +7,13 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 ## [Sin publicar]
 
 ### Añadido
+- Ranking y cifras de las máquinas (fase D). Los retos superados se guardan en el servidor; el
+  progreso de este navegador pasa a la cuenta al iniciar sesión. Un reto en Medio lo comprueba el
+  servidor en los equipos reales (que sea el reto tal como empieza, y los pings) antes de contar,
+  con el tiempo medido desde el despliegue. Pestaña Ranking con podio y tabla (global o por
+  season), «Resuelta» en cada máquina con quién fue el primero, y en el panel, «Alumnos» para
+  profesores y administradores. Las seasons (máquinas alrededor de un tema, entre dos fechas)
+  existen en la API para los administradores.
 - Cada laboratorio del emulador tiene dueño (fase C): solo quien lo desplegó, o un administrador,
   lo ve, lo toca y abre sus CLI y capturas. Límite por cuenta de laboratorios y equipos
   encendidos a la vez (3 y 24 por omisión, `MAX_LABS_PER_USER` y `MAX_CONTAINERS_PER_USER`; sin

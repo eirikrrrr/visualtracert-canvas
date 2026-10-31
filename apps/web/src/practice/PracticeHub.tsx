@@ -9,12 +9,14 @@ import {
   BOXES, BOX_COLOR, DIFFICULTY_LABEL, EXERCISES, exercisesOf, hasDifficulty, isUnlocked, LEVEL_LABEL, nextExercise, playableExercises,
   rankOf, solvedKey, TIME_LIMIT, xpOf, type Box, type Difficulty, type Exercise, type ExerciseLevel,
 } from "@visual-tracert/model";
-import { useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { create } from "zustand";
 import { Icon } from "../editor/icons";
 import { tx, useT } from "../i18n";
 import { MachineAvatar } from "./MachineAvatar";
 import { clock, resumeExercise, startExercise, useProgress } from "./progress";
+import { Rankings } from "./Rankings";
+import { useShared } from "./server";
 
 const DIFFICULTIES: { id: Difficulty; hint: string; icon: string }[] = [
   { id: "easy", hint: tx("Desde la interfaz: propiedades y documento; se comprueba en la simulación."), icon: "select" },
@@ -22,7 +24,7 @@ const DIFFICULTIES: { id: Difficulty; hint: string; icon: string }[] = [
 ];
 
 /** where practice is: its view, and the machine open (kept while the app runs) */
-const useView = create<{ tab: "machines" | "path"; machine: string | null }>(() => ({ tab: "machines", machine: null }));
+const useView = create<{ tab: "machines" | "path" | "ranking"; machine: string | null }>(() => ({ tab: "machines", machine: null }));
 
 /** a machine's difficulty as bars: more and redder the harder */
 function Meter({ level }: { level: ExerciseLevel }) {
@@ -111,6 +113,19 @@ function PlayButton({ exercise, size = "small" }: { exercise: Exercise; size?: "
 
 // --- the machines: a table to search and filter -----------------------------
 
+/** how many solved a machine (in the chosen difficulty), and who first */
+function Solves({ exercise }: { exercise: Exercise }) {
+  const t = useT();
+  const difficulty = useProgress(state => state.difficulty);
+  const figures = useShared(state => state.figures[exercise.id]?.[difficulty]);
+  if(!figures) return <span className="muted">0</span>;
+  return (
+    <span className="solves-cell" title={figures.first ? t("Primera vez: {name}", { name: figures.first.name }) : undefined}>
+      <span aria-hidden="true">#</span>{figures.solves}
+    </span>
+  );
+}
+
 type Shown = "all" | "todo" | "solved";
 
 function MachineRow({ exercise }: { exercise: Exercise }) {
@@ -138,6 +153,7 @@ function MachineRow({ exercise }: { exercise: Exercise }) {
       </td>
       <td className="mono small">{TIME_LIMIT[state.difficulty][exercise.level]} min</td>
       <td className="mono small xp-cell">{state.available ? `+${xpOf(exercise, state.difficulty)} XP` : "—"}</td>
+      <td className="mono small"><Solves exercise={exercise} /></td>
       <td>
         {state.solved
           ? <span className="solved-cell"><Icon name="check" size={14} />{state.best !== undefined ? clock(state.best) : t("Superada")}</span>
@@ -190,7 +206,7 @@ function MachinesView() {
         <table className="machine-table">
           <thead>
             <tr>
-              <th>{t("Máquina")}</th><th>{t("Dificultad")}</th><th>{t("Modos")}</th><th>{t("Tiempo")}</th><th>XP</th><th>{t("Tu estado")}</th><th />
+              <th>{t("Máquina")}</th><th>{t("Dificultad")}</th><th>{t("Modos")}</th><th>{t("Tiempo")}</th><th>XP</th><th>{t("Resuelta")}</th><th>{t("Tu estado")}</th><th />
             </tr>
           </thead>
           <tbody>
@@ -260,6 +276,7 @@ function MachinePage({ exercise }: { exercise: Exercise }) {
   const [tab, setTab] = useState<"play" | "info" | "solution">("play");
   const box = BOXES.find(item => item.id === exercise.box)!;
   const lab = useMemo(() => exercise.build(t), [exercise, t]);
+  const first = useShared(item => item.figures[exercise.id]?.[state.difficulty]?.first);
   const tabs = [
     { id: "play" as const, label: tx("Jugar") },
     { id: "info" as const, label: tx("Información") },
@@ -281,6 +298,8 @@ function MachinePage({ exercise }: { exercise: Exercise }) {
             <div><dt>{t("Tiempo")}</dt><dd>{TIME_LIMIT[state.difficulty][exercise.level]} min</dd></div>
             <div><dt>{t("Dificultad")}</dt><dd><Meter level={exercise.level} /></dd></div>
             <div><dt>{t("Tu mejor tiempo")}</dt><dd>{state.best !== undefined ? clock(state.best) : "—"}</dd></div>
+            <div><dt>{t("Resuelta por")}</dt><dd><Solves exercise={exercise} /></dd></div>
+            <div><dt>{t("Primera vez")}</dt><dd className="small">{first ? first.name : "—"}</dd></div>
           </dl>
         </div>
       </header>
@@ -373,6 +392,7 @@ export function PracticeHub() {
   const solved = all.filter(item => done[solvedKey(item.id, difficulty)]).length;
   const next = nextExercise(done, difficulty);
   const open = machine ? EXERCISES.find(item => item.id === machine) : undefined;
+  useEffect(() => { void useShared.getState().refreshFigures(); }, []);
   if(open) return <main className="practice"><div className="practice-inner"><MachinePage exercise={open} /></div></main>;
   return (
     <main className="practice">
@@ -397,15 +417,15 @@ export function PracticeHub() {
         </header>
         <div className="practice-bar">
           <div className="tabs practice-tabs" role="tablist" aria-label={t("Practicar")}>
-            {(["machines", "path"] as const).map(item => (
+            {(["machines", "path", "ranking"] as const).map(item => (
               <button key={item} type="button" role="tab" aria-selected={tab === item} className={tab === item ? "active" : ""} onClick={() => useView.setState({ tab: item })}>
-                {item === "machines" ? t("Máquinas") : t("Camino")}
+                {item === "machines" ? t("Máquinas") : item === "path" ? t("Camino") : t("Ranking")}
               </button>
             ))}
           </div>
           <DifficultyPicker compact />
         </div>
-        {tab === "machines" ? <MachinesView /> : (
+        {tab === "machines" ? <MachinesView /> : tab === "ranking" ? <Rankings /> : (
           <ol className="roadmap">
             {BOXES.map((box, i) => <BoxStep key={box.id} box={box} step={i + 1} difficulty={difficulty} />)}
           </ol>

@@ -112,6 +112,18 @@ que desplegar de nuevo.
 
 Detiene esos equipos.
 
+#### `POST /api/labs/:lab/verify`
+
+```json
+{ "exercise": "first-network" }
+```
+
+Comprueba un reto de modo Medio en los equipos del laboratorio, solo para su dueño. El
+laboratorio debe ser el reto tal como empieza (su huella de red: en Medio la interfaz está
+bloqueada, así que solo cambió lo hecho en la CLI). Cada objetivo es un ping real. Responde
+`{ "ok": true, "results": [{ "ok": true, "detail": "ping -c 4 …" }], "startedAt": 1793482060000 }`,
+o `409` con el motivo (no desplegado, no es ese reto). Lo usa el servicio de cuentas.
+
 #### `POST /api/labs/:lab/run`
 
 Un comando de una lista cerrada en un equipo:
@@ -224,6 +236,14 @@ que cambia algo debe venir como `application/json` y desde el mismo sitio (`Orig
 | `GET /auth/invites` | admin | Las invitaciones que aún sirven |
 | `POST /auth/invites` | admin | `{ role?, uses?, days?, note? }` (alumno, 1 uso y 7 días por omisión; `days: 0`, sin caducidad) |
 | `DELETE /auth/invites/:code` | admin | La anula |
+| `GET /auth/solves` | con sesión | Tus retos superados: `{ exercise, difficulty, solvedAt, timeMs, verified }` |
+| `POST /auth/solves` | con sesión | `{ exercise, difficulty, timeMs?, lab? }`. Fácil: se apunta tal cual (`verified: false`). Medio: el servicio pide al emulador que compruebe el reto en los equipos de `lab` (`POST /api/labs/:lab/verify`) y solo lo apunta si pasa, con el tiempo medido desde el despliegue (`verified: true`). Responde `{ ok, results, solve? }`, o `409 not-verified` con el motivo del emulador |
+| `POST /auth/solves/import` | con sesión | `{ solves: [...] }`: lo que un navegador había superado antes de las cuentas (sin verificar) |
+| `GET /auth/rankings?season=` | con sesión | `{ entries, me, total }`: los 100 primeros por XP (y quién llegó antes), y tu puesto. Con `season`, solo sus máquinas superadas entre sus fechas |
+| `GET /auth/figures` | con sesión | Cada máquina, por dificultad: `{ solves, first: { username, name, at } }` |
+| `GET /auth/progress` | profesor, admin | El progreso de cada cuenta: XP y retos superados |
+| `GET /auth/seasons` | con sesión | Las seasons: `{ id, name, theme, summary, inspiration, color, icon, startsAt, endsAt, machines }` |
+| `POST /auth/seasons` · `PATCH /auth/seasons/:id` · `DELETE /auth/seasons/:id` | admin | Crea, cambia o borra una season. `machines`: ids de retos que existen |
 | `GET /auth/check` | nginx | `204` con `X-User-Id`, `X-User-Name` y `X-User-Role`; `401` o `403` |
 
 Un usuario:
@@ -240,4 +260,5 @@ confundan; el enlace `/?invite=K7QF-9XRM-2PDA` abre el registro con el código e
 
 Códigos de error: `bad-request`, `bad-username`, `bad-name`, `bad-password`, `username-taken`,
 `already-set-up`, `invalid-setup-code`, `invalid-invite`, `invalid-credentials`, `disabled`,
-`too-many-attempts`, `wrong-password`, `not-found`, `last-admin`, `unauthorized`, `forbidden`.
+`too-many-attempts`, `wrong-password`, `not-found`, `last-admin`, `unauthorized`, `forbidden`,
+`emulator-unavailable`, `not-verified`.

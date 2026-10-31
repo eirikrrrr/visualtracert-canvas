@@ -9,12 +9,14 @@
 // one stops the containers of every exercise's lab still running; solving it
 // closes its own; and when its time is up, unsolved, it is closed too (here,
 // and by the emulator itself, which stops a lab past its expiry).
-import { exerciseById, TIME_LIMIT, type Difficulty, type Solved } from "@visual-tracert/model";
+import { exerciseById, solvedKey, TIME_LIMIT, type Difficulty, type Solved } from "@visual-tracert/model";
 import { create } from "zustand";
+import { useAuth } from "../app/auth";
 import { useStore, type Mode } from "../app/store";
 import { emulator } from "../emulation/api";
 import { useEmulation } from "../emulation/store";
 import { t } from "../i18n";
+import { practiceApi, useShared, type Solve } from "./server";
 
 const KEY = "visual-tracert.practice";
 
@@ -32,6 +34,8 @@ export interface LabExercise {
 }
 
 interface Saved {
+  /** the account this progress is of (absent: from before accounts) */
+  user?: number;
   /** solvedKey → when it was solved */
   done: Solved;
   /** solvedKey → its best time, in ms */
@@ -47,7 +51,7 @@ function load(): Saved {
       // the first version kept only the exercise's id (easy)
       const labs = Object.fromEntries(Object.entries(saved.labs as Record<string, string | LabExercise>)
         .map(([lab, value]) => [lab, typeof value === "string" ? { exercise: value, difficulty: "easy" as const } : value]));
-      return { done: saved.done, times: saved.times ?? {}, labs, difficulty: saved.difficulty === "medium" ? "medium" : "easy" };
+      return { user: typeof saved.user === "number" ? saved.user : undefined, done: saved.done, times: saved.times ?? {}, labs, difficulty: saved.difficulty === "medium" ? "medium" : "easy" };
     }
   }catch(_){ /* none */ }
   return { done: {}, times: {}, labs: {}, difficulty: "easy" };
@@ -61,11 +65,13 @@ interface ProgressState extends Saved {
   /** forgets attempts (their labs were thrown away) */
   unlink: (labs: string[]) => void;
   setDifficulty: (difficulty: Difficulty) => void;
+  /** the account's progress, from the server */
+  adopt: (user: number, solves: Solve[], fresh: boolean) => void;
 }
 
 export const useProgress = create<ProgressState>((set, get) => {
   const save = (change: Partial<Saved>) => {
-    const next = { done: get().done, times: get().times, labs: get().labs, difficulty: get().difficulty, ...change };
+    const next = { user: get().user, done: get().done, times: get().times, labs: get().labs, difficulty: get().difficulty, ...change };
     try{ localStorage.setItem(KEY, JSON.stringify(next)); }catch(_){ /* full or blocked */ }
     set(next);
   };
@@ -89,6 +95,16 @@ export const useProgress = create<ProgressState>((set, get) => {
     link: (lab, exercise) => save({ labs: { ...get().labs, [lab]: exercise } }),
     unlink: labs => save({ labs: Object.fromEntries(Object.entries(get().labs).filter(([lab]) => !labs.includes(lab))) }),
     setDifficulty: difficulty => save({ difficulty }),
+    adopt: (user, solves, fresh) => {
+      const done: Solved = fresh ? {} : { ...get().done };
+      const times: Record<string, number> = fresh ? {} : { ...get().times };
+      for(const solve of solves){
+        const key = solvedKey(solve.exercise, solve.difficulty);
+        done[key] = Math.min(done[key] ?? Infinity, solve.solvedAt);
+        if(solve.timeMs !== null) times[key] = Math.min(times[key] ?? Infinity, solve.timeMs);
+      }
+      save({ user, done, times, ...(fresh ? { labs: {} } : {}) });
+    },
   };
 });
 
@@ -164,12 +180,41 @@ async function stopLab(lab: string): Promise<void> {
   if(lab === useStore.getState().labId) void useEmulation.getState().refresh(lab);
 }
 
-/** an attempt solved: its time kept and, from the CLI, its containers closed */
-export function finishAttempt(lab: string, key: string): void {
+/** an attempt solved: its time kept and, from the CLI, its containers closed.
+ * Easy: told to the server (a medium one, the server checked and kept already) */
+export function finishAttempt(lab: string, key: string, server?: Solve): void {
   const attempt = useProgress.getState().labs[lab];
   useProgress.getState().markSolved(lab, key);
+  if(server) useProgress.getState().adopt(useProgress.getState().user ?? 0, [server], false);
   if(attempt?.difficulty === "medium") void stopLab(lab);
+  else if(attempt){
+    const time = useProgress.getState().labs[lab]?.solvedIn;
+    // not sent now (offline): it goes with the next sign-in
+    practiceApi.solveEasy(attempt.exercise, time).then(() => useShared.getState().refreshFigures()).catch(() => undefined);
+  }
 }
+
+// signed in: the account's progress. What this browser solved before accounts
+// (or as this account) and the server lacks goes to it; another account's
+// progress in this browser is put aside (its solves are on the server)
+async function adoptAccount(user: number): Promise<void> {
+  const local = useProgress.getState();
+  const fresh = local.user !== undefined && local.user !== user;
+  try{
+    let solves = await practiceApi.solves();
+    if(!fresh){
+      const have = new Set(solves.map(solve => solvedKey(solve.exercise, solve.difficulty)));
+      const missing = Object.entries(local.done).filter(([key]) => !have.has(key)).map(([key, solvedAt]) => {
+        const [exercise, difficulty = "easy"] = key.split(":");
+        return { exercise, difficulty: difficulty as Difficulty, solvedAt, ...(local.times[key] ? { timeMs: local.times[key] } : {}) };
+      });
+      if(missing.length) solves = await practiceApi.import(missing);
+    }
+    useProgress.getState().adopt(user, solves, fresh);
+  }catch(_){ /* the server does not answer: this browser's progress, until the next time */ }
+}
+useAuth.subscribe((state, previous) => { if(state.user && state.user.id !== previous.user?.id) void adoptAccount(state.user.id); });
+if(useAuth.getState().user) void adoptAccount(useAuth.getState().user!.id);
 
 // the attempts whose time is up, unsolved: over, their containers closed (the
 // emulator closes them too, even with no page open)
