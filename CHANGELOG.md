@@ -6,6 +6,8 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 
 ## [Sin publicar]
 
+## [0.3.0] - 2026-10-31
+
 ### Añadido
 - Emulación (primera etapa): el modo «Emulación» despliega el laboratorio como contenedores reales
   (Alpine) unidos por cables veth. Los routers enrutan con sus rutas estáticas y los switches separan
@@ -97,6 +99,7 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 - Primera versión: editor visual de topologías, documento YAML/JSON sincronizado en los dos sentidos,
   panel de propiedades y simulación de ping (ARP, ICMP, switches con VLAN y rutas estáticas) paso a paso.
 
-[Sin publicar]: https://github.com/eirikrrrr/visual-tracert/compare/v0.2.0...HEAD
+[Sin publicar]: https://github.com/eirikrrrr/visual-tracert/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/eirikrrrr/visual-tracert/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/eirikrrrr/visual-tracert/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/eirikrrrr/visual-tracert/releases/tag/v0.1.0
