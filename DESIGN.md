@@ -25,41 +25,47 @@ con un comentario de cabecera para cada uno.
 ## Estructura de la pantalla
 
 ```
-┌──────────────────────── barra superior ────────────────────────┐
-│ logo · versión · laboratorio · Emulación/Simulación · idioma · tema │
-├──────────────────────────────────────────┬─────────────────────┤
-│ ┌─┐                                      │ Propiedades │ Doc… │
-│ │h│  lienzo (React Flow)                 │                     │
-│ │e│   topologías = rectángulos           │  panel lateral      │
-│ │r│   dispositivos = baldosas            │  (acoplado, flotante│
-│ │r│   cables con sus interfaces          │   o pantalla        │
-│ └─┘                                      │   completa)         │
-│        ventanas de dispositivos ⧉        │                     │
-│   ┌─ barra inferior ─────────────────┐   │                     │
-│   │ ⋮⋮ Añadir · Marketplace · Nueva   │   │                     │
-│   │    topología · Registro           │   │                     │
-├───┴───────────────────────────────────┴──┤                     │
-│ registro de paquetes (acoplado, flotante u oculto)             │
-└────────────────────────────────────────────────────────────────┘
+┌──────────────────────────── barra superior ────────────────────────────┐
+│ logo · versión · Emulación/Simulación · laboratorio ⓘ · idioma · tema · ◉ │
+├────────────────────────────────────────────────┬───────────────────────┤
+│ ┌─┐                          ┌─ inspector ───┐ │ Emulación │ Documento │
+│ │h│  lienzo (React Flow)     │ propiedades   │ │                       │
+│ │e│   topologías             │ de lo         │ │  panel lateral        │
+│ │r│   dispositivos           │ seleccionado  │ │  (acoplado, flotante  │
+│ │r│   cables                 └───────────────┘ │   o pantalla          │
+│ └─┘                                            │   completa)           │
+│         ventanas de dispositivos ⧉             │                       │
+│   ┌─ barra inferior ─────────────────┐ ┌────┐  │                       │
+│   │ ⋮⋮ Añadir · Marketplace · Nueva   │ │mini│  │                       │
+│   │    topología · Registro           │ │mapa│  │                       │
+├───┴───────────────────────────────────┴─┴────┴─┤                       │
+│ registro de paquetes (acoplado, flotante u oculto)                     │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Barra superior** (`TopBar.tsx`): marca y versión (`v{__APP_VERSION__}`), menú de
-  laboratorios, selector de modo **Emulación / Simulación**, idioma y tema.
+- **Barra superior** (`TopBar.tsx`): marca y versión (`v{__APP_VERSION__}`), selector de modo
+  **Emulación / Simulación**, el laboratorio (su nombre, ⓘ para ver sus datos en el inspector y
+  el menú de laboratorios), idioma, tema y el avatar, que abre el panel de usuario.
 - **Barra de herramientas** (`Toolbar.tsx`, izquierda): seleccionar (V), ping (P),
   captura (C), eliminar (Supr), zoom, encuadrar (F), deshacer y rehacer.
 - **Barra inferior** (`Palette.tsx`): «Añadir dispositivo» (A), «Marketplace»,
   «Nueva topología» y «Registro» (L).
 - **Ambas barras se mueven** arrastrando su asa (⋮⋮); un doble clic en el asa las devuelve a su
   sitio. La posición se guarda en el navegador (`visual-tracert.positions`).
-- **Panel lateral** (`App.tsx`): pestañas Propiedades, Documento y Simulación (Emulación en ese
-  modo). Se redimensiona por su borde izquierdo, se desacopla como ventana flotante o se abre a
+- **Inspector** (`Inspector.tsx`): una tarjeta sobre el lienzo, arriba a la derecha, con las
+  propiedades de lo seleccionado (dispositivo, cable o topología). Sin selección no está. ⓘ en
+  la barra superior lo abre con los datos del laboratorio (notas, cifras, topologías), y se abre
+  solo así al abrir una plantilla. Esc o ✕ lo cierran.
+- **Panel lateral** (`App.tsx`): dos pestañas, Emulación (Simulación en ese modo) y Documento.
+  Se redimensiona por su borde izquierdo, se desacopla como ventana flotante o se abre a
   pantalla completa (Esc vuelve).
 - **Registro de paquetes** (`LogPanel.tsx`): acoplado abajo, flotante u oculto.
 - **Ventanas de dispositivo** (`DeviceWindow.tsx`, doble clic en un dispositivo): flotan sobre el
   lienzo, se mueven por su cabecera y se redimensionan por la esquina. Pueden abrirse varias.
   Cada una puede sacarse a una **ventana del navegador aparte** (`Popup.tsx`): React la dibuja
   allí con un portal, compartiendo el estado, y se le copian los estilos y el tema.
-- **Diálogos modales** (`<dialog>` nativo): la galería de plantillas y el Marketplace. Esc o un
+- **Diálogos modales** (`<dialog>` nativo): la galería de plantillas, el Marketplace y el panel
+  de usuario (`Dashboard.tsx`). Esc o un
   clic fuera los cierran; mientras están abiertos, los atajos del lienzo no actúan.
 - **Avisos** (toasts): abajo en el centro del lienzo; los de error duran más (6 s frente a 3,5 s).
 
@@ -74,13 +80,14 @@ navegador. El tema se aplica con `body[data-theme]`.
 
 | Tema | Base | Acento | Claro |
 |---|---|---|---|
-| Azul (por defecto) | negros y grises neutros | `#3d7eff` | no |
+| Azul (por defecto) | negro medianoche y grises fríos | `#4f8cff` | no |
 | Marrón | negros cálidos | `#c8834b` | no |
 | Editorial | papel `#f5f3ee` y blanco | `#b3261e` | sí |
 | Morado | negros violáceos | `#9b6dff` | no |
 
-En los temas oscuros los grises son puros (sin tinte). Monaco (el editor del documento) construye
-su tema a partir de estos mismos tokens, y React Flow cambia a su modo claro con Editorial.
+Cada tema oscuro tiñe sus grises con su carácter: fríos en Azul, cálidos en Marrón, violáceos en
+Morado. Monaco (el editor del documento) construye su tema a partir de estos mismos tokens, y
+React Flow cambia a su modo claro con Editorial.
 
 ### Tokens
 
@@ -95,6 +102,7 @@ su tema a partir de estos mismos tokens, y React Flow cambia a su modo claro con
 | Protocolos | `--arp`, `--icmp`, `--tcp`, `--http`, `--dns`, `--dhcp`, `--packet` | paquete animado, registro, filtros y captura |
 | Forma | `--radius` (16 px), `--radius-s` (10 px), `--shadow` | esquinas y elevación |
 | Letra | `--sans`, `--heading`, `--mono` | ver Tipografía |
+| Movimiento | `--ease`, `--fast` (0,12 s), `--base` (0,2 s), `--slow` (0,32 s) | ver Movimiento |
 
 Reglas:
 - **No hay colores sueltos** en los componentes: se usan tokens. Las excepciones son los colores
@@ -121,14 +129,18 @@ Reglas:
 
 ## Tipografía
 
-- `--sans`: Poppins, Inter o la del sistema. Interfaz general, 13–14 px.
-- `--heading`: igual que `--sans`, salvo en Editorial (Source Serif 4, serif). Títulos y nombres
-  de dispositivos (15 px, 600).
-- `--mono`: JetBrains Mono, Cascadia Code o la monoespaciada del sistema. IPs, MACs, ids,
-  interfaces, comandos, documento, consola y captura (11–13 px).
+| Token | Fuente | Uso |
+|---|---|---|
+| `--sans` | **Inter** (variable) | interfaz general, 13–14 px, con la «a» de un piso (`cv11`) |
+| `--heading` | **Space Grotesk** (variable); **Source Serif 4** en Editorial | títulos, nombres de dispositivos (15 px, 600) y títulos de sección |
+| `--mono` | **JetBrains Mono** (variable) | IPs, MACs, ids, interfaces, comandos, documento, consola y captura (11–13 px) |
 
-Las fuentes no se empaquetan: si no están instaladas se usa la siguiente de la lista. La app
-funciona sin Internet.
+- **Las fuentes vienen con la app** (paquetes `@fontsource-variable/*`, importados en
+  `main.tsx`): no se pide nada a un servicio de fuentes, así que funciona igual en una red local
+  sin Internet. El navegador descarga cada una solo cuando la página la usa.
+- **Títulos de sección** (`h3`): `--heading`, 12 px, mayúsculas con algo de espaciado, en
+  `--ink-3`. Separan las secciones de los paneles sin añadir peso.
+- **Cifras:** donde se alinean (tablas, estadísticas, direcciones), con figuras tabulares.
 
 Textos de ayuda y pistas: 12–12,5 px en `--ink-3`. Las etiquetas de los campos van encima del
 campo, a 12 px.
@@ -146,11 +158,32 @@ campo, a 12 px.
     llevan una insignia de iniciales en un cuadrado de color. No se inventan logos de marcas.
 - La procedencia de cada logo se enlaza desde la tarjeta de la imagen.
 
+## Movimiento
+
+Una sola curva (`--ease`, que arranca rápido y frena suave) y tres duraciones para toda la app:
+
+- **Entradas:** los diálogos suben y crecen un poco (`dialog-in`) sobre un fondo que aparece
+  (`fade-in`); los menús bajan desde su botón (`menu-in`); el inspector entra desde la derecha
+  (`slide-in`) y su contenido aparece de nuevo con cada selección.
+- **Respuesta:** los botones cambian de color y se hunden un 4 % al pulsarlos; la línea de la
+  pestaña activa crece desde el centro; los dispositivos suben 1 px al pasar el ratón.
+- **Estado:** el punto de «en marcha» late despacio.
+- **Menos movimiento:** con `prefers-reduced-motion` o la preferencia «Reducir las animaciones»
+  del panel de usuario (`body[data-motion="reduced"]`), animaciones y transiciones se reducen
+  al mínimo.
+
 ## Componentes
 
-- **Botones:** `primary` (acento, una acción principal por bloque), `ghost` (secundario, borde
-  fino), `danger` (destructivo, rojo) y `icon-button` (solo icono, 34 px, siempre con `title` y
-  `aria-label`). `small` reduce cualquiera.
+- **Botones:** `primary` (acento con un degradado suave y un halo de su color, una acción
+  principal por bloque), `ghost` (secundario, borde fino), `danger` (destructivo, rojo) e
+  `icon-button` (solo icono, 34 px, siempre con `title` y `aria-label`). `small` reduce
+  cualquiera.
+- **Superficies elevadas** (panel lateral, inspector, diálogos, menús, ventanas): una línea de
+  luz en el borde superior (`inset 0 1px 0`) además de la sombra.
+- **Panel de usuario** (`Dashboard.tsx`): navegación a la izquierda (el usuario y cinco
+  secciones: Perfil, Preferencias, Laboratorios, Servidor, Atajos y ayuda) y la sección a la
+  derecha. Las preferencias se eligen con tarjetas: el idioma por su código y el tema con una
+  vista previa de sus colores. Por debajo de 720 px la navegación pasa arriba.
 - **Campos** (`Field.tsx`): etiqueta encima; se aplican con Enter o al salir del campo (un paso
   de deshacer por edición, no por tecla); Esc vuelve al valor anterior. El error se muestra
   debajo en rojo y el valor no se aplica.
@@ -197,7 +230,9 @@ campo, a 12 px.
 | Añadir dispositivo | A, o «Añadir dispositivo»: buscar y luego clic, Enter o arrastrar. Los grupos están cerrados hasta abrirlos; al buscar se abren los que tienen resultados |
 | Cablear | Arrastrar desde el borde de un dispositivo a otro (se usan los primeros puertos libres) |
 | Mover | Arrastrar dispositivos; una topología, por su cabecera. Soltar un dispositivo dentro de otra topología lo pasa a ella |
-| Propiedades | Clic (panel lateral) o doble clic (ventana del dispositivo, con CLI y Captura) |
+| Propiedades | Clic (inspector) o doble clic (ventana del dispositivo, con CLI y Captura) |
+| Datos del laboratorio | ⓘ junto a su nombre (inspector) |
+| Panel de usuario | Clic en el avatar |
 | Ping | P, clic en el origen y luego en el destino. En Emulación es un ping real |
 | Captura | C, clic en un cable (su interfaz) o en un dispositivo (todas). También desde las propiedades del cable |
 | Eliminar | Supr o Retroceso. Una topología se elimina con sus dispositivos |
@@ -205,7 +240,7 @@ campo, a 12 px.
 | Encuadrar | F |
 | Registro | L |
 | Recorrer la simulación | ← → |
-| Salir de una herramienta o de la pantalla completa | Esc |
+| Cerrar el inspector, salir de una herramienta o de la pantalla completa | Esc |
 
 Los atajos no actúan mientras se escribe en un campo, en el documento o en una terminal.
 
@@ -293,13 +328,14 @@ Wireshark, como `Echo (ping) request` o `Who has … ? Tell …`.
   usan `role="alert"` y los estados, `role="status"`.
 - **Contraste:** los colores de texto cumplen contraste sobre su superficie en los cuatro temas.
   El color nunca es la única señal: el estado y el protocolo también van escritos.
-- **Movimiento reducido:** con `prefers-reduced-motion`, las animaciones y transiciones se
-  reducen al mínimo.
+- **Movimiento reducido:** con `prefers-reduced-motion` o la preferencia del panel de usuario,
+  las animaciones y transiciones se reducen al mínimo.
 
 ## Qué guarda el navegador
 
 `localStorage`, con el prefijo `visual-tracert.`:
 - los laboratorios (cada uno como documento JSON);
+- el perfil local (nombre, foto, «sobre ti» y la preferencia de animaciones);
 - el tema, el idioma y la velocidad;
 - la disposición del panel lateral y del registro;
 - la posición de las barras.

@@ -102,7 +102,7 @@ La interfaz deberá tener una estética moderna, profesional y minimalista, con 
 El espacio de trabajo deberá incluir:
 - Canvas interactivo para diseñar topologías.
 - Panel lateral de dispositivos.
-- Panel contextual de propiedades y configuración.
+- Inspector contextual de propiedades y configuración.
 - Consolas y terminales integradas.
 - Visualización de conexiones y estados.
 - Inspección del tráfico de red.
@@ -126,6 +126,24 @@ El objetivo es crear una plataforma independiente que combine la accesibilidad e
 No se pretende realizar una copia de implementaciones propietarias existentes, sino desarrollar un producto original, con arquitectura propia, recursos gráficos propios y una experiencia de usuario superior.
 
 El resultado deseado es una plataforma de laboratorio de redes accesible desde cualquier navegador, que permita aprender, diseñar, experimentar, configurar y desplegar infraestructuras de red tanto simuladas como reales.
+## Lo que ya funciona
+
+- **Editor visual:** lienzo con dispositivos, cables y topologías (rectángulos de color), un
+  inspector flotante con las propiedades de lo seleccionado y el documento YAML/JSON editable a
+  la vez, con 12 plantillas de laboratorio.
+- **Emulación** (el modo con el que se abre): cada equipo es un contenedor real y cada cable un
+  par veth; se inicia, detiene o reinicia por equipo, por topología o entero. CLI real en el
+  navegador, captura de tráfico tipo Wireshark y comandos (ping, traza, rutas).
+- **Imágenes:** Alpine, Ubuntu, Debian, BusyBox, NGINX, netshoot, FRRouting, Nokia SR Linux y
+  MikroTik RouterOS (máquina virtual, al estilo de vrnetlab), más perfiles de imagen propios.
+- **Simulación:** el recorrido de cada paquete (ARP, ICMP, DHCP, DNS, TCP/HTTP), paso a paso.
+- **Panel de usuario:** perfil local, preferencias (idioma, tema, animaciones), laboratorios,
+  estado del servidor y atajos.
+- **Interfaz:** cuatro temas, español, inglés y portugués, y tipografía incluida con la app.
+
+La documentación técnica está en [docs/](docs/README.md): la arquitectura, el emulador por dentro
+(con diagramas), el formato del documento y la API.
+
 ## Estructura del repositorio
 
 Un monorepo con workspaces de npm:
@@ -134,9 +152,11 @@ Un monorepo con workspaces de npm:
 apps/
   web/            editor visual y simulación de paquetes en el navegador (Vite + React)
   emulator/       emulación: cada equipo, un contenedor; cada cable, un par veth (API en /api)
+    vrnetlab/     las imágenes de máquinas virtuales (RouterOS) que el emulador construye
 packages/
   model/          lo que comparten las apps: tipos de la topología, documento YAML/JSON,
-                  catálogo de dispositivos, plantillas de laboratorio y traducciones
+                  catálogo de dispositivos e imágenes, plantillas de laboratorio y traducciones
+docs/             documentación técnica: arquitectura, emulador, documento y API
 ```
 
 - `npm install` en la raíz instala y enlaza todo.
