@@ -17,8 +17,9 @@ export const vmDevices = () => ["/dev/net/tun", ...(existsSync("/dev/kvm") ? ["/
   .map(path => ({ PathOnHost: path, PathInContainer: path, CgroupPermissions: "rwm" }));
 
 // the image says which context it was built from: a newer emulator (a
-// changed launcher) builds it again, though its tag is the same
-const HASH = "visual-tracert.vrnetlab-hash";
+// changed launcher) builds it again, though its tag is the same; and its
+// containers say it too (they carry its labels), so an older one is known
+export const HASH = "visual-tracert.vrnetlab-hash";
 
 async function contextOf(dir: string): Promise<Record<string, string>> {
   const root = join(DIR, dir);
@@ -26,12 +27,20 @@ async function contextOf(dir: string): Promise<Record<string, string>> {
   return Object.fromEntries(await Promise.all(entries.map(async ({ name }) => [name, await readFile(join(root, name), "utf8")] as const)));
 }
 
+const hashes = new Map<string, Promise<string>>();
+
+/** the hash of the context a machine's image is built from now */
+export function contextHash(dir: string): Promise<string> {
+  if(!hashes.has(dir)) hashes.set(dir, contextOf(dir).then(files => fnv1a(JSON.stringify(files))));
+  return hashes.get(dir)!;
+}
+
 /** an image ready to run: built here (a machine), or pulled */
 export async function ensureImage(ref: string): Promise<void> {
   const own = Object.values(IMAGES).find(info => info.ref === ref && info.vrnetlab);
   if(!own) return docker.ensureImage(ref);
   const files = await contextOf(own.vrnetlab!);
-  const hash = fnv1a(JSON.stringify(files));
+  const hash = await contextHash(own.vrnetlab!);
   const image = await docker.image(ref) as { Config?: { Labels?: Record<string, string> } } | null;
   if(image?.Config?.Labels?.[HASH] === hash) return;
   const built = await docker.build(ref, tar(files), { [HASH]: hash });

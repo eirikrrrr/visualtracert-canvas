@@ -7,6 +7,8 @@ export interface DeviceState {
   device: string;
   container: string;
   state: string;
+  /** it runs an older build of its image: deploying again updates it */
+  outdated?: boolean;
 }
 
 export interface LabState {

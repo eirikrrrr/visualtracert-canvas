@@ -12,6 +12,11 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
   uno; las dos etiquetas, en los grises del tema.
 - La CLI de cada sistema sugiere sus propios comandos (RouterOS, FRR, SR Linux) en lugar de los de
   Linux.
+- Aviso de equipos que corren una versión anterior de su imagen (una máquina virtual tras
+  actualizar el emulador): en el panel de Emulación y en la ventana del dispositivo, con «vuelve a
+  desplegar».
+- La consola serie de RouterOS muestra sus credenciales (admin / admin), y su CLI por SSH explica
+  qué hacer si no puede entrar, en lugar de cerrarse sin decir nada.
 
 ### Cambiado
 - Documento versión 4: cada dispositivo separa sus puertos, como hardware

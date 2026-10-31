@@ -186,6 +186,7 @@ function DeviceCli({ device, capture }: { device: Device; capture?: string }) {
         {" "}{image.hint ? t(image.hint) : t("Prueba: ip addr, ip route, ping, traceroute.")}
       </p>
       {lab?.fingerprint !== fingerprint && <p className="emu-note">{t("La topología cambió desde el despliegue: vuelve a desplegar para aplicar los cambios.")}</p>}
+      {lab?.devices.some(item => item.device === device.id && item.outdated) && <p className="emu-note">{t("Este equipo corre una versión anterior de su imagen: vuelve a desplegar para actualizarlo.")}</p>}
       {image.shells.length > 1 && (
         <div className="shell-pick">
           <label htmlFor={shellId} className="muted small">{t("CLI")}</label>

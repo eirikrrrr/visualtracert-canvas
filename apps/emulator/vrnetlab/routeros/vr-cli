@@ -14,4 +14,13 @@ done
 # +t: no terminal detection (its size comes with the session), +c: no colours
 user=admin+t tty=-t
 [ $# -gt 0 ] && user=admin+ct tty=-T
-exec sshpass -p "${VR_PASSWORD:-admin}" ssh -q "$tty" -p 2022 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "$user@127.0.0.1" "$@"
+sshpass -p "${VR_PASSWORD:-admin}" ssh -q "$tty" -p 2022 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=15 "$user@127.0.0.1" "$@"
+code=$?
+# 255: no session at all (its SSH does not answer), said instead of closing in silence
+if [ "$code" -eq 255 ]; then
+  echo
+  echo 'No se pudo entrar en RouterOS por SSH. Prueba la consola serie (usuario admin, contraseña admin)'
+  echo 'o vuelve a desplegar el laboratorio.'
+  sleep 1
+fi
+exit "$code"

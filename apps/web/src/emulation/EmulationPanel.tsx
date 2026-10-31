@@ -80,6 +80,9 @@ export function EmulationPanel() {
       </section>
 
       {changed && <p className="emu-note">{t("La topología cambió desde el despliegue: vuelve a desplegar para aplicar los cambios.")}</p>}
+      {deployed && lab!.devices.some(item => item.outdated) && (
+        <p className="emu-note">{t("Corren una versión anterior de su imagen: vuelve a desplegar para actualizarlos ({devices}).", { devices: lab!.devices.filter(item => item.outdated).map(item => nameOf(item.device)).join(", ") })}</p>
+      )}
       {error && <div className="outcome fail" role="alert">{error}</div>}
 
       {deployed && warnings.length > 0 && (

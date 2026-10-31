@@ -1,5 +1,6 @@
 #!/bin/sh
 # RouterOS's serial console: what it shows from boot, one session at a time.
 # Ctrl+] leaves it.
-echo 'Consola serie de RouterOS (Ctrl+] para salir; pulsa Enter si no ves nada).'
+echo 'Consola serie de RouterOS: usuario admin, contraseña admin.'
+echo 'Ctrl+] para salir; pulsa Enter si no ves nada.'
 exec socat -,raw,echo=0,escape=0x1d UNIX-CONNECT:/run/vr/console.sock

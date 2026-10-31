@@ -964,4 +964,6 @@ export const en: Record<string, string> = {
   "\"{id}\": config.interfaces debe ser un objeto: nombre del puerto → {ip, dhcp, vlan, relay}.": "\"{id}\": config.interfaces must be an object: port name → {ip, dhcp, vlan, relay}.",
   "\"{id}\": config.interfaces: \"{name}\" no es ningún puerto suyo (interfaces).": "\"{id}\": config.interfaces: \"{name}\" isn't one of its ports (interfaces).",
   "\"{id}\" {name}: su configuración debe ser un objeto (ip, dhcp, vlan, relay).": "\"{id}\" {name}: its configuration must be an object (ip, dhcp, vlan, relay).",
+  "Corren una versión anterior de su imagen: vuelve a desplegar para actualizarlos ({devices}).": "They run an older build of their image: deploy again to update them ({devices}).",
+  "Este equipo corre una versión anterior de su imagen: vuelve a desplegar para actualizarlo.": "This device runs an older build of its image: deploy again to update it.",
 };

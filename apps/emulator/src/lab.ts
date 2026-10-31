@@ -9,7 +9,7 @@ import { IMAGES, isIp, spanish, type ImageId, type ImageInfo, type T, type Topol
 import { docker, DockerError, type ContainerSummary } from "./docker";
 import { LABELS, planLab, type ProfileCatalog } from "./plan";
 import { loadProfiles, profileStatus } from "./profiles";
-import { ensureImage, vmDevices } from "./vrnetlab";
+import { contextHash, ensureImage, HASH, vmDevices } from "./vrnetlab";
 
 const run = promisify(execFile);
 /** a host command (ip, nsenter): its error says what failed */
@@ -44,6 +44,8 @@ export interface DeviceState {
   device: string;
   container: string;
   state: string;
+  /** it runs an older build of its image (a machine's): deploying again updates it */
+  outdated: boolean;
 }
 
 export interface LabState {
@@ -55,16 +57,21 @@ export interface LabState {
 
 const containersOf = (lab: string) => docker.list({ [LABELS.lab]: lab });
 
-function stateOf(lab: string, containers: ContainerSummary[]): LabState {
+async function stateOf(lab: string, containers: ContainerSummary[]): Promise<LabState> {
+  const devices = await Promise.all(containers.map(async container => {
+    const own = IMAGES[container.Labels[LABELS.image] as ImageId]?.vrnetlab;
+    return {
+      device: container.Labels[LABELS.device],
+      container: container.Names[0]?.replace(/^\//, "") ?? container.Id.slice(0, 12),
+      state: container.State,
+      outdated: Boolean(own) && container.Labels[HASH] !== await contextHash(own!),
+    };
+  }));
   return {
     lab,
     deployed: containers.length > 0,
     fingerprint: containers[0]?.Labels[LABELS.fingerprint] ?? null,
-    devices: containers.map(container => ({
-      device: container.Labels[LABELS.device],
-      container: container.Names[0]?.replace(/^\//, "") ?? container.Id.slice(0, 12),
-      state: container.State,
-    })).sort((p, q) => p.device.localeCompare(q.device)),
+    devices: devices.sort((p, q) => p.device.localeCompare(q.device)),
   };
 }
 
