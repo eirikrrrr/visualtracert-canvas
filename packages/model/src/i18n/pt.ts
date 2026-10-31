@@ -966,4 +966,5 @@ export const pt: Record<string, string> = {
   "\"{id}\" {name}: su configuración debe ser un objeto (ip, dhcp, vlan, relay).": "\"{id}\" {name}: sua configuração deve ser um objeto (ip, dhcp, vlan, relay).",
   "Corren una versión anterior de su imagen: vuelve a desplegar para actualizarlos ({devices}).": "Rodam uma versão anterior da imagem: implante de novo para atualizá-los ({devices}).",
   "Este equipo corre una versión anterior de su imagen: vuelve a desplegar para actualizarlo.": "Este equipamento roda uma versão anterior da imagem: implante de novo para atualizá-lo.",
+  "Alpine con LLDP (lldpd)": "Alpine com LLDP (lldpd)",
 };

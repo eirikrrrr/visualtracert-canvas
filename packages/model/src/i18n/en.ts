@@ -966,4 +966,5 @@ export const en: Record<string, string> = {
   "\"{id}\" {name}: su configuración debe ser un objeto (ip, dhcp, vlan, relay).": "\"{id}\" {name}: its configuration must be an object (ip, dhcp, vlan, relay).",
   "Corren una versión anterior de su imagen: vuelve a desplegar para actualizarlos ({devices}).": "They run an older build of their image: deploy again to update them ({devices}).",
   "Este equipo corre una versión anterior de su imagen: vuelve a desplegar para actualizarlo.": "This device runs an older build of its image: deploy again to update it.",
+  "Alpine con LLDP (lldpd)": "Alpine with LLDP (lldpd)",
 };

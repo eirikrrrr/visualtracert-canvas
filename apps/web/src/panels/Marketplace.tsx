@@ -22,6 +22,8 @@ const PRESETS: { label: string; id: string; draft: ProfileDraft }[] = [
   { label: tx("Debian con herramientas de red"), id: "debian-red", draft: { name: "Debian red", base: "debian", packages: "iproute2 iputils-ping traceroute dnsutils curl", setup: "", startup: "" } },
   { label: tx("FRR con OSPF y BGP"), id: "frr-ospf-bgp", draft: { name: "FRR OSPF + BGP", base: "frr", packages: "", setup: "sed -i 's/^ospfd=no/ospfd=yes/; s/^bgpd=no/bgpd=yes/' /etc/frr/daemons", startup: "" } },
   { label: tx("Alpine con tcpdump"), id: "alpine-tcpdump", draft: { name: "Alpine tcpdump", base: "alpine", packages: "tcpdump", setup: "", startup: "" } },
+  // announces itself by LLDP: seen in a router's neighbours (RouterOS's /ip neighbor)
+  { label: tx("Alpine con LLDP (lldpd)"), id: "alpine-lldp", draft: { name: "Alpine LLDP", base: "alpine", packages: "lldpd", setup: "", startup: "lldpd" } },
 ];
 
 const EMPTY: ProfileDraft = { name: "", base: "alpine", packages: "", setup: "", startup: "" };

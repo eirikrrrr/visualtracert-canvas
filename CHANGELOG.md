@@ -15,6 +15,8 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 - Aviso de equipos que corren una versión anterior de su imagen (una máquina virtual tras
   actualizar el emulador): en el panel de Emulación y en la ventana del dispositivo, con «vuelve a
   desplegar».
+- Punto de partida «Alpine con LLDP (lldpd)» en los perfiles: el equipo se anuncia por LLDP y
+  aparece en los vecinos de un router (`/ip neighbor` en RouterOS).
 - La consola serie de RouterOS muestra sus credenciales (admin / admin), y su CLI por SSH explica
   qué hacer si no puede entrar, en lugar de cerrarse sin decir nada.
 
