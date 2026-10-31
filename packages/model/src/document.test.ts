@@ -25,6 +25,54 @@ describe("document", () => {
     expect(serialize(old.topology!, "yaml")).toMatch(/topology:\n  - id: topology-1\n    name: Viejo/);
   });
 
+  it("writes the ports as hardware and the configuration apart, in config", () => {
+    const text = serialize(exampleTopology(), "yaml");
+    expect(text).toMatch(/^version: 4$/m);
+    expect(text).toMatch(/        interfaces:\n          - \{ name: eth0, mac: 02:00:00:00:00:01 \}\n/);
+    expect(text).toMatch(/        config:\n          interfaces:\n            eth0: \{ ip: 203\.0\.113\.1\/30 \}\n/);
+    expect(text).toContain("            - { prefix: 192.168.0.0/16, via: 203.0.113.2 }");
+    // no configuration inside a port, nor at the device
+    expect(text).not.toMatch(/mac: [0-9a-f:]+, ip:/);
+    expect(text).not.toMatch(/^        (gateway|routes|services):/m);
+  });
+
+  it("reads version 3: the configuration inside the ports and at the device", () => {
+    const text = [
+      "version: 3",
+      "topology:",
+      "  - id: lan",
+      "    devices:",
+      "      - id: pc",
+      "        type: pc",
+      "        gateway: 192.168.1.1",
+      "        interfaces:",
+      "          - { name: eth0, mac: 02:00:00:00:00:01, ip: 192.168.1.10/24 }",
+    ].join("\n");
+    const device = parse(text, "yaml").topology!.devices[0];
+    expect(device).toMatchObject({ gateway: "192.168.1.1", interfaces: [{ name: "eth0", ip: "192.168.1.10", prefix: 24 }] });
+    expect(serialize(parse(text, "yaml").topology!, "yaml")).toContain("            eth0: { ip: 192.168.1.10/24 }");
+  });
+
+  it("checks config: its ports must be the device's, with their line", () => {
+    const text = [
+      "topology:",
+      "  - id: lan",
+      "    devices:",
+      "      - id: pc",
+      "        type: pc",
+      "        interfaces:",
+      "          - { name: eth0 }",
+      "        config:",
+      "          interfaces:",
+      "            eth9: { ip: 10.0.0.1/24 }",
+      "            eth0: { ip: 10.0.0.300/24 }",
+      "          gateway: nope",
+    ].join("\n");
+    const { problems } = parse(text, "yaml");
+    expect(problems.map(item => item.line)).toEqual([10, 11, 12]);
+    expect(problems[0].message).toContain("eth9");
+  });
+
   it("reads version 2: colours, notes and positions inside, options at the root", () => {
     const text = [
       "version: 2",

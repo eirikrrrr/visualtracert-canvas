@@ -252,9 +252,11 @@ Wireshark, como `Echo (ping) request` o `Who has … ? Tell …`.
 
 - **Editor:** Monaco, con resaltado YAML/JSON, plegado de secciones, búsqueda, marcas de error en
   la línea (con su mensaje al pasar el ratón) y resaltado de corchetes.
-- **Formato (versión 3):** separa la configuración (`topology`, `links`) del dibujo (`canvas`:
-  `decorations`, `topologies` y `positions`). Las posiciones se escriben una por línea
-  (`pc-1: { x: 60, y: 300 }`).
+- **Formato (versión 4):** separa tres cosas. Lo que es cada equipo: su tipo y sus puertos como
+  hardware (`interfaces: [{ name, mac }]`). Cómo se configura: `config`, con `interfaces` por nombre
+  de puerto, `gateway`, `dns`, `routes` y `services`. Y cómo se dibuja: `canvas`, con
+  `decorations`, `topologies` y `positions`. Para que se lea de un vistazo, cada posición, puerto,
+  configuración de puerto, ruta y registro DNS va en una línea (`eth0: { ip: 10.0.0.1/24 }`).
 - **Valores de `status`:** se escriben como `up`, `down` o `hybrid`. Al leer también se aceptan
   on/off, true/false y, de versiones anteriores, start/stop.
 

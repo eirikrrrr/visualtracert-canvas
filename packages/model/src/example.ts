@@ -7,7 +7,7 @@ import type { Topology } from "./types";
 const mac = (n: number) => `02:00:00:00:00:${n.toString(16).padStart(2, "0")}`;
 
 export const exampleTopology = (t: T = spanish): Topology => ({
-  version: 3,
+  version: 4,
   name: t("Oficina con salida a Internet"),
   zones: [
     { id: "internet", name: "Internet", status: "up", color: "#0fa5b5", text: t("El proveedor y un servidor DNS y web público.") },

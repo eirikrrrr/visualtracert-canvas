@@ -14,6 +14,11 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
   Linux.
 
 ### Cambiado
+- Documento versión 4: cada dispositivo separa sus puertos, como hardware
+  (`interfaces: [{ name, mac }]`), de su configuración, en `config`: `interfaces` por nombre de
+  puerto (ip, dhcp, vlan, relay), `gateway`, `dns`, `routes` y `services`. Los puertos, sus
+  configuraciones, las rutas y los registros DNS se escriben uno por línea. Los documentos de las
+  versiones 1 a 3 se siguen leyendo.
 - Los contenedores de los laboratorios son temporales (`--rm`): al detenerse desaparecen con lo que
   tuvieran escrito, y al borrar un laboratorio se borran también sus volúmenes. La configuración
   vive en el documento y se aplica en cada despliegue.

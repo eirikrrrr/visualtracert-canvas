@@ -2,11 +2,15 @@
 // whole structure and reports problems with a line when it can, so an
 // invalid document never replaces the topology on the canvas.
 //
-// Version 3 keeps what the network is apart from how it is drawn:
-//   topology: [{ id, name, status, devices: [...] }]   the configuration
+// Version 4 keeps three things apart: what each device is (its type and its
+// ports, as hardware), how it is configured (its `config`) and how it is drawn:
+//   topology: [{ id, name, status, devices: [{ id, type, name,
+//     interfaces: [{ name, mac }],
+//     config: { interfaces: { port: { ip, dhcp, vlan, relay } }, gateway, dns, routes, services } }] }]
 //   links: [...]
 //   canvas: { decorations, topologies: { id: { color, text } }, positions: { id: { x, y } } }
-// Version 2 (colours, notes and positions inside the topologies and devices,
+// Version 3 (the configuration inside the ports and at the device), version 2
+// (colours, notes and positions inside the topologies and devices,
 // `options.decorations`) and version 1 (`devices` at the root, a single
 // topology) are still read.
 import { Document, isMap, isSeq, LineCounter, parseDocument } from "yaml";
@@ -24,6 +28,24 @@ export interface DocProblem {
   line?: number;
 }
 
+/** A device's configuration as the document writes it; none when it has none. */
+function configPlain(device: Device) {
+  const ports = device.interfaces.map(iface => [iface.name, {
+    ...(iface.dhcp ? { dhcp: true } : {}),
+    ...(iface.ip ? { ip: `${iface.ip}/${iface.prefix ?? 24}` } : {}),
+    ...(iface.vlan && iface.vlan !== 1 ? { vlan: iface.vlan } : {}),
+    ...(iface.relay ? { relay: iface.relay } : {}),
+  }] as const).filter(([, port]) => Object.keys(port).length);
+  const config = {
+    ...(ports.length ? { interfaces: Object.fromEntries(ports) } : {}),
+    ...(device.gateway ? { gateway: device.gateway } : {}),
+    ...(device.dns ? { dns: device.dns } : {}),
+    ...(device.routes && device.routes.length ? { routes: device.routes } : {}),
+    ...(hasServices(device.services) ? { services: device.services } : {}),
+  };
+  return Object.keys(config).length ? { config } : {};
+}
+
 /** The document form: no empty optional fields, a stable key order. */
 function devicePlain(device: Device) {
   return {
@@ -33,18 +55,8 @@ function devicePlain(device: Device) {
     ...(device.status ? { status: device.status } : {}),
     ...(device.profile ? { profile: device.profile } : {}),
     ...(device.description ? { description: device.description } : {}),
-    ...(device.gateway ? { gateway: device.gateway } : {}),
-    ...(device.dns ? { dns: device.dns } : {}),
-    interfaces: device.interfaces.map(iface => ({
-      name: iface.name,
-      mac: iface.mac,
-      ...(iface.dhcp ? { dhcp: true } : {}),
-      ...(iface.ip ? { ip: `${iface.ip}/${iface.prefix ?? 24}` } : {}),
-      ...(iface.vlan && iface.vlan !== 1 ? { vlan: iface.vlan } : {}),
-      ...(iface.relay ? { relay: iface.relay } : {}),
-    })),
-    ...(device.routes && device.routes.length ? { routes: device.routes } : {}),
-    ...(hasServices(device.services) ? { services: device.services } : {}),
+    interfaces: device.interfaces.map(iface => ({ name: iface.name, mac: iface.mac })),
+    ...configPlain(device),
   };
 }
 
@@ -56,7 +68,7 @@ function toPlain(topology: Topology) {
     ...(!devicesOf(topology, zone.id).length && zone.position ? { position: zone.position } : {}),
   }] as const).filter(([, style]) => Object.keys(style).length);
   return {
-    version: 3,
+    version: 4,
     name: topology.name,
     ...(topology.description ? { description: topology.description } : {}),
     topology: zones.map(zone => ({
@@ -84,10 +96,27 @@ const hasServices = (services: Services | undefined): services is Services =>
 export function serialize(topology: Topology, format: DocFormat): string {
   const plain = toPlain(topology);
   if(format === "json") return JSON.stringify(plain, null, 2) + "\n";
-  // a position per line: { x: 60, y: 300 }
+  // one line for each position ({ x: 60, y: 300 }), port ({ name: eth0, mac: … }),
+  // port's configuration (eth0: { ip: 10.0.0.1/24 }), route and DNS record
   const doc = new Document(plain);
+  const flow = (node: unknown) => { if(isMap(node)) node.flow = true; };
   const positions = doc.getIn(["canvas", "positions"]);
-  if(isMap(positions)) for(const pair of positions.items) if(isMap(pair.value)) pair.value.flow = true;
+  if(isMap(positions)) for(const pair of positions.items) flow(pair.value);
+  const zones = doc.get("topology");
+  for(const zone of isSeq(zones) ? zones.items : []){
+    const devices = isMap(zone) ? zone.get("devices") : undefined;
+    for(const device of isSeq(devices) ? devices.items : []){
+      if(!isMap(device)) continue;
+      const ports = device.get("interfaces");
+      if(isSeq(ports)) ports.items.forEach(flow);
+      const configured = device.getIn(["config", "interfaces"]);
+      if(isMap(configured)) for(const pair of configured.items) flow(pair.value);
+      for(const path of [["config", "routes"], ["config", "services", "dns"]]){
+        const list = device.getIn(path);
+        if(isSeq(list)) list.items.forEach(flow);
+      }
+    }
+  }
   return doc.toString({ indent: 2, lineWidth: 0 });
 }
 
@@ -185,6 +214,7 @@ export function parse(text: string, format: DocFormat, t: T = spanish): ParseRes
   const problems: DocProblem[] = [];
   const problem = (message: string, path: (string | number)[]) => problems.push({ message, line: lineOf(path) });
 
+  const isObject = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
   const root = (data ?? {}) as Record<string, unknown>;
   if(typeof root !== "object" || Array.isArray(root)) return { topology: null, problems: [{ message: t("El documento debe ser un objeto con topology y links.") }] };
   const rawLinks = Array.isArray(root.links) ? root.links : [];
@@ -202,6 +232,27 @@ export function parse(text: string, format: DocFormat, t: T = spanish): ParseRes
     const type = String(item.type ?? "") as DeviceType;
     if(!CATALOG[type]) problem(t("\"{id}\": el tipo \"{type}\" no existe. Tipos: {types}.", { id, type: String(item.type), types: Object.keys(CATALOG).join(", ") }), at("type"));
     const position = (item.position ?? {}) as Record<string, unknown>;
+    // a port's configuration: its address (or DHCP), access VLAN and DHCP relay
+    const configurePort = (out: Interface, raw: Record<string, unknown>, path: Path) => {
+      const name = out.name;
+      if(raw.ip !== undefined && raw.ip !== null && raw.ip !== ""){
+        const [ip, length] = String(raw.ip).split("/");
+        const prefix = length === undefined ? 24 : Number(length);
+        if(!isIp(ip) || !Number.isInteger(prefix) || prefix < 1 || prefix > 32) problem(t("\"{id}\" {name}: \"{ip}\" no es una dirección válida (ej. 192.168.1.10/24).", { id, name, ip: String(raw.ip) }), path("ip"));
+        else{ out.ip = ip; out.prefix = prefix; }
+      }
+      if(raw.vlan !== undefined){
+        const vlan = Number(raw.vlan);
+        if(!Number.isInteger(vlan) || vlan < 1 || vlan > 4094) problem(t("\"{id}\" {name}: la VLAN debe estar entre 1 y 4094.", { id, name }), path("vlan"));
+        else out.vlan = vlan;
+      }
+      if(raw.dhcp === true) out.dhcp = true;
+      else if(raw.dhcp !== undefined && raw.dhcp !== false) problem(t("\"{id}\" {name}: dhcp es true o false.", { id, name }), path("dhcp"));
+      if(raw.relay !== undefined && raw.relay !== ""){
+        if(!isIp(raw.relay)) problem(t("\"{id}\" {name}: el relay DHCP \"{relay}\" no es una dirección IPv4.", { id, name, relay: String(raw.relay) }), path("relay"));
+        else out.relay = String(raw.relay);
+      }
+    };
     const interfaces: Interface[] = [];
     const ifaceNames = new Set<string>();
     (Array.isArray(item.interfaces) ? item.interfaces : []).forEach((rawIface, j) => {
@@ -213,39 +264,43 @@ export function parse(text: string, format: DocFormat, t: T = spanish): ParseRes
       const mac = iface.mac === undefined ? randomMac() : String(iface.mac).toLowerCase();
       if(!isMac(mac)) problem(t("\"{id}\" {name}: la MAC \"{mac}\" no es válida.", { id, name, mac: String(iface.mac) }), at("interfaces", j, "mac"));
       const out: Interface = { name, mac };
-      if(iface.ip !== undefined && iface.ip !== null && iface.ip !== ""){
-        const [ip, length] = String(iface.ip).split("/");
-        const prefix = length === undefined ? 24 : Number(length);
-        if(!isIp(ip) || !Number.isInteger(prefix) || prefix < 1 || prefix > 32) problem(t("\"{id}\" {name}: \"{ip}\" no es una dirección válida (ej. 192.168.1.10/24).", { id, name, ip: String(iface.ip) }), at("interfaces", j, "ip"));
-        else{ out.ip = ip; out.prefix = prefix; }
-      }
-      if(iface.vlan !== undefined){
-        const vlan = Number(iface.vlan);
-        if(!Number.isInteger(vlan) || vlan < 1 || vlan > 4094) problem(t("\"{id}\" {name}: la VLAN debe estar entre 1 y 4094.", { id, name }), at("interfaces", j, "vlan"));
-        else out.vlan = vlan;
-      }
-      if(iface.dhcp === true) out.dhcp = true;
-      else if(iface.dhcp !== undefined && iface.dhcp !== false) problem(t("\"{id}\" {name}: dhcp es true o false.", { id, name }), at("interfaces", j, "dhcp"));
-      if(iface.relay !== undefined && iface.relay !== ""){
-        if(!isIp(iface.relay)) problem(t("\"{id}\" {name}: el relay DHCP \"{relay}\" no es una dirección IPv4.", { id, name, relay: String(iface.relay) }), at("interfaces", j, "relay"));
-        else out.relay = String(iface.relay);
-      }
+      // version 3: its configuration here
+      configurePort(out, iface, (...rest) => at("interfaces", j, ...rest));
       interfaces.push(out);
     });
+    // its configuration: config (version 4), or at the device (version 3)
+    if(item.config !== undefined && !isObject(item.config)) problem(t("\"{id}\": config debe ser un objeto (interfaces, gateway, dns, routes, services).", { id }), at("config"));
+    const config = isObject(item.config) ? item.config : {};
+    const ports = config.interfaces;
+    if(ports !== undefined && !isObject(ports)) problem(t("\"{id}\": config.interfaces debe ser un objeto: nombre del puerto → {ip, dhcp, vlan, relay}.", { id }), at("config", "interfaces"));
+    for(const [name, value] of Object.entries(isObject(ports) ? ports : {})){
+      const path: Path = (...rest) => at("config", "interfaces", name, ...rest);
+      const port = interfaces.find(iface => iface.name === name);
+      if(!port) problem(t("\"{id}\": config.interfaces: \"{name}\" no es ningún puerto suyo (interfaces).", { id, name }), path());
+      else if(!isObject(value)) problem(t("\"{id}\" {name}: su configuración debe ser un objeto (ip, dhcp, vlan, relay).", { id, name }), path());
+      else configurePort(port, value, path);
+    }
+    const field = (key: string): [unknown, Path] => config[key] !== undefined
+      ? [config[key], (...rest) => at("config", key, ...rest)]
+      : [item[key], (...rest) => at(key, ...rest)];
+    const [rawRoutes, routesAt] = field("routes");
     const routes: Route[] = [];
-    (Array.isArray(item.routes) ? item.routes : []).forEach((rawRoute, j) => {
+    (Array.isArray(rawRoutes) ? rawRoutes : []).forEach((rawRoute, j) => {
       const route = (rawRoute ?? {}) as Record<string, unknown>;
       const prefix = String(route.prefix ?? "");
       const via = String(route.via ?? "");
-      if(!parseCidr(prefix)) problem(t("\"{id}\": la ruta {n} tiene un destino inválido \"{prefix}\" (ej. 10.0.2.0/24).", { id, n: j + 1, prefix }), at("routes", j, "prefix"));
-      else if(!isIp(via)) problem(t("\"{id}\": la ruta {n} tiene un siguiente salto inválido \"{via}\".", { id, n: j + 1, via }), at("routes", j, "via"));
+      if(!parseCidr(prefix)) problem(t("\"{id}\": la ruta {n} tiene un destino inválido \"{prefix}\" (ej. 10.0.2.0/24).", { id, n: j + 1, prefix }), routesAt(j, "prefix"));
+      else if(!isIp(via)) problem(t("\"{id}\": la ruta {n} tiene un siguiente salto inválido \"{via}\".", { id, n: j + 1, via }), routesAt(j, "via"));
       else routes.push({ prefix, via });
     });
-    const gateway = item.gateway === undefined || item.gateway === "" ? undefined : String(item.gateway);
-    if(gateway && !isIp(gateway)) problem(t("\"{id}\": la puerta de enlace \"{gateway}\" no es válida.", { id, gateway }), at("gateway"));
-    const dns = item.dns === undefined || item.dns === "" ? undefined : String(item.dns);
-    if(dns && !isIp(dns)) problem(t("\"{id}\": el servidor DNS \"{dns}\" no es válido.", { id, dns }), at("dns"));
-    const services = parseServices(item.services, id, (message, ...rest) => problem(message, at("services", ...rest)), t);
+    const [rawGateway, gatewayAt] = field("gateway");
+    const gateway = rawGateway === undefined || rawGateway === "" ? undefined : String(rawGateway);
+    if(gateway && !isIp(gateway)) problem(t("\"{id}\": la puerta de enlace \"{gateway}\" no es válida.", { id, gateway }), gatewayAt());
+    const [rawDns, dnsAt] = field("dns");
+    const dns = rawDns === undefined || rawDns === "" ? undefined : String(rawDns);
+    if(dns && !isIp(dns)) problem(t("\"{id}\": el servidor DNS \"{dns}\" no es válido.", { id, dns }), dnsAt());
+    const [rawServices, servicesAt] = field("services");
+    const services = parseServices(rawServices, id, (message, ...rest) => problem(message, servicesAt(...rest)), t);
     const status = item.status === undefined || item.status === "" ? undefined : readStatus(item.status, false);
     if(item.status !== undefined && item.status !== "" && !status) problem(t("\"{id}\": status es up o down (también on/off o true/false).", { id }), at("status"));
     const profile = item.profile === undefined || item.profile === "" ? undefined : String(item.profile);
@@ -301,8 +356,7 @@ export function parse(text: string, format: DocFormat, t: T = spanish): ParseRes
   if(root.devices !== undefined && !Array.isArray(root.devices)) problem(t("devices debe ser una lista."), ["devices"]);
   (Array.isArray(root.devices) ? root.devices : []).forEach((raw, index) => parseDevice(raw, (...rest) => ["devices", index, ...rest], index, undefined));
 
-  // how it is drawn: canvas (version 3), or options (version 2)
-  const isObject = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+  // how it is drawn: canvas (versions 3 and 4), or options (version 2)
   const options = root.options as Record<string, unknown> | undefined;
   if(options !== undefined && !isObject(options)) problem(t("options debe ser un objeto (decorations)."), ["options"]);
   const canvas = root.canvas;
@@ -366,7 +420,7 @@ export function parse(text: string, format: DocFormat, t: T = spanish): ParseRes
   if(problems.length) return { topology: null, problems };
   return {
     topology: {
-      version: 3, name: String(root.name ?? t("Laboratorio sin título")),
+      version: 4, name: String(root.name ?? t("Laboratorio sin título")),
       ...(root.description ? { description: String(root.description) } : {}),
       ...(decorations === false ? { options: { decorations: false } } : {}),
       ...(zones.length ? { zones } : {}),

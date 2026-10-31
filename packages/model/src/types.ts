@@ -130,7 +130,7 @@ export interface LabOptions {
 }
 
 export interface Topology {
-  version: 3;
+  version: 4;
   name: string;
   /** what the lab is about and what to try in it */
   description?: string;

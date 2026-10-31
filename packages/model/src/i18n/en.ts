@@ -960,4 +960,8 @@ export const en: Record<string, string> = {
   "sh del contenedor (Alpine)": "container's sh (Alpine)",
   "Prueba: /ip address print, /ip route print, /ping 10.0.0.1, /tool traceroute 10.0.0.1.": "Try: /ip address print, /ip route print, /ping 10.0.0.1, /tool traceroute 10.0.0.1.",
   "Contenedor": "Container",
+  "\"{id}\": config debe ser un objeto (interfaces, gateway, dns, routes, services).": "\"{id}\": config must be an object (interfaces, gateway, dns, routes, services).",
+  "\"{id}\": config.interfaces debe ser un objeto: nombre del puerto → {ip, dhcp, vlan, relay}.": "\"{id}\": config.interfaces must be an object: port name → {ip, dhcp, vlan, relay}.",
+  "\"{id}\": config.interfaces: \"{name}\" no es ningún puerto suyo (interfaces).": "\"{id}\": config.interfaces: \"{name}\" isn't one of its ports (interfaces).",
+  "\"{id}\" {name}: su configuración debe ser un objeto (ip, dhcp, vlan, relay).": "\"{id}\" {name}: its configuration must be an object (ip, dhcp, vlan, relay).",
 };

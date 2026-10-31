@@ -25,6 +25,49 @@ Estos documentos describirán:
 
 La modificación de una topología desde el editor visual deberá poder reflejarse en su documento de definición y viceversa.
 
+El documento actual (versión 4) separa lo que es cada equipo (su tipo y sus puertos), cómo se
+configura (`config`) y cómo se dibuja (`canvas`):
+
+```yaml
+version: 4
+name: Dos redes y un router
+topology:
+  - id: oficina
+    name: Oficina
+    status: up
+    devices:
+      - id: r1
+        type: frr
+        name: R1
+        interfaces:
+          - { name: eth0, mac: 02:00:00:00:00:01 }
+          - { name: eth1, mac: 02:00:00:00:00:02 }
+        config:
+          interfaces:
+            eth0: { ip: 192.168.1.1/24 }
+            eth1: { ip: 10.0.0.1/30 }
+          routes:
+            - { prefix: 0.0.0.0/0, via: 10.0.0.2 }
+      - id: pc-1
+        type: pc
+        name: PC 1
+        interfaces:
+          - { name: eth0, mac: 02:00:00:00:00:03 }
+        config:
+          interfaces:
+            eth0: { ip: 192.168.1.10/24 }
+          gateway: 192.168.1.1
+links:
+  - { id: l1, a: "r1:eth0", b: "pc-1:eth0" }
+canvas:
+  positions:
+    r1: { x: 300, y: 200 }
+    pc-1: { x: 80, y: 200 }
+```
+
+`config` no depende del fabricante: la emulación la aplica a Linux, FRR, SR Linux o RouterOS. Los
+documentos de versiones anteriores se siguen leyendo.
+
 ## Dispositivos y tecnologías
 
 La plataforma deberá contemplar diferentes tipos de dispositivos de red:
