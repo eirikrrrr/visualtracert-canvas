@@ -73,6 +73,13 @@ describe("planLab", () => {
     expect(plan.warnings.join(" ")).toMatch(/No se inician.*ISP/);
   });
 
+  it("starts by hand a device its topology does not start, with its cables", () => {
+    const hybrid = updateZone(exampleTopology(), "internet", zone => ({ ...zone, status: "hybrid" }));
+    const plan = planLab("lab", hybrid, undefined, undefined, { include: ["isp"] });
+    expect(plan.nodes.map(item => item.device)).toContain("isp");
+    expect(plan.links.some(link => link.a.device === "isp" || link.b.device === "isp")).toBe(true);
+  });
+
   it("runs each image as it needs, and a device's profile once it is built", () => {
     const topology = updateDevice(updateDevice(open("lan-basica"), "pc-1", device => ({ ...device, type: "frr", profile: "frr-ospf" })), "pc-2", device => ({ ...device, profile: "ubuntu-red" }));
     const profile = (id: string, base: "frr" | "ubuntu") => ({ id, name: id, base, packages: [], setup: [], startup: ["echo hola"] });

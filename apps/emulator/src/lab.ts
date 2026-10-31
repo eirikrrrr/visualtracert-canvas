@@ -79,11 +79,13 @@ export async function status(lab: string): Promise<LabState> {
   return stateOf(lab, await containersOf(lab));
 }
 
+/** a container gone; a temporary one may be going already, on its own */
+const removeOne = (id: string) => docker.remove(id).catch(error => {
+  if(!(error instanceof DockerError && (error.status === 404 || error.status === 409))) throw error;
+});
+
 async function removeAll(lab: string): Promise<void> {
-  await Promise.all((await containersOf(lab)).map(container => docker.remove(container.Id).catch(error => {
-    // a temporary one may be going already, on its own
-    if(!(error instanceof DockerError && (error.status === 404 || error.status === 409))) throw error;
-  })));
+  await Promise.all((await containersOf(lab)).map(container => removeOne(container.Id)));
 }
 
 export function destroy(lab: string): Promise<LabState> {
@@ -94,10 +96,10 @@ export function destroy(lab: string): Promise<LabState> {
 }
 
 // the plan of a lab: the profiles it can use, and what this server allows
-async function planOf(lab: string, topology: Topology, t: T): Promise<Plan> {
+async function planOf(lab: string, topology: Topology, t: T, include: string[] = []): Promise<Plan> {
   const profiles: ProfileCatalog = new Map(await Promise.all((await loadProfiles()).map(async profile =>
     [profile.id, { profile, ready: (await profileStatus(profile)).state === "built" }] as const)));
-  return planLab(lab, topology, t, profiles, { allowPrivileged: ALLOW_PRIVILEGED });
+  return planLab(lab, topology, t, profiles, { allowPrivileged: ALLOW_PRIVILEGED, include });
 }
 
 /** a device's container, created and started: its process, as the host sees it */
@@ -126,6 +128,9 @@ async function cable(link: LinkPlan, pids: Map<string, number>): Promise<void> {
   await host(["ip", "link", "set", link.a.temp, "netns", String(pids.get(link.a.device))]);
   await host(["ip", "link", "set", link.b.temp, "netns", String(pids.get(link.b.device))]);
 }
+
+// a route through a device that is stopped has no way out yet: it does not stop the rest
+const lenient = (lines: string[]) => lines.map(line => `${line} || true`);
 
 const inside = (pid: number | undefined, lines: string[]) => host(["nsenter", "-t", String(pid), "-n", "sh", "-ec", lines.join("\n")]);
 
@@ -158,36 +163,45 @@ export function deploy(lab: string, topology: Topology, t: T = spanish): Promise
   });
 }
 
-/** Restarts some devices of a deployed lab, the rest left running: their
- * containers made anew, their cables too, and at the other end of each one
- * the port configured again (its address, its bridge, its routes). The lab
- * must be as it was deployed: a changed topology is deployed again instead. */
-export function restart(lab: string, topology: Topology, devices: string[], t: T = spanish): Promise<LabState & { warnings: string[] }> {
+/** Starts or restarts some devices of a lab, the rest left running: their
+ * containers made anew (started: only those not running), their cables to the
+ * devices running, and at the other end of each one the port configured again
+ * (its address, its bridge, its routes). A device starts this way even when its
+ * topology does not start it. What runs must be the topology as it was
+ * deployed: a changed one is applied by restarting the whole lab. */
+export function relaunch(lab: string, topology: Topology, devices: string[], restart: boolean, t: T = spanish): Promise<LabState & { warnings: string[] }> {
   return serial(lab, async () => {
-    const plan = await planOf(lab, topology, t);
     const containers = await containersOf(lab);
-    if(!containers.length) throw new Error(t("El laboratorio no está desplegado."));
-    if(containers[0].Labels[LABELS.fingerprint] !== plan.fingerprint) throw new Error(t("La topología cambió desde el despliegue: vuelve a desplegar en lugar de reiniciar."));
-    const chosen = plan.nodes.filter(node => devices.includes(node.device));
-    if(!chosen.length) throw new Error(t("Ninguno de esos equipos se inicia en este laboratorio."));
+    const running = containers.filter(item => item.State === "running").map(item => item.Labels[LABELS.device]);
+    // the plan of what runs and of these: their cables are between them
+    const plan = await planOf(lab, topology, t, [...new Set([...running, ...devices])]);
+    if(containers.length && containers[0].Labels[LABELS.fingerprint] !== plan.fingerprint) throw new Error(t("La topología cambió desde el despliegue: reinicia todo el laboratorio para aplicarla."));
+    const chosen = plan.nodes.filter(node => devices.includes(node.device) && (restart || !running.includes(node.device)));
+    if(!chosen.length){
+      if(plan.nodes.some(node => devices.includes(node.device))) return { ...(await status(lab)), warnings: plan.warnings };
+      throw new Error(t("Ninguno de esos equipos se puede iniciar en este laboratorio."));
+    }
     const names = new Set(chosen.map(node => node.device));
     for(const image of new Set(chosen.map(node => node.image))) await ensureImage(image);
 
     // gone, with their cables (both ends: a veth goes with its namespace)
-    await Promise.all(containers.filter(container => names.has(container.Labels[LABELS.device])).map(container => docker.remove(container.Id).catch(error => {
-      if(!(error instanceof DockerError && (error.status === 404 || error.status === 409))) throw error;
-    })));
+    await Promise.all(containers.filter(container => names.has(container.Labels[LABELS.device])).map(container => removeOne(container.Id)));
     const pids = new Map<string, number>();
     for(const container of containers.filter(item => !names.has(item.Labels[LABELS.device]) && item.State === "running")){
       pids.set(container.Labels[LABELS.device], await docker.pid(container.Id));
     }
-    // their cables; only to devices running (one stopped on its own is not)
+    // their cables; only to devices running
     const links = plan.links.filter(link => names.has(link.a.device) || names.has(link.b.device));
     try{
       await Promise.all(chosen.map(async node => pids.set(node.device, await startNode(lab, plan, node))));
       const wired = links.filter(link => pids.has(link.a.device) && pids.has(link.b.device));
       for(const link of wired) await cable(link, pids);
-      await Promise.all(chosen.map(node => inside(pids.get(node.device), node.script)));
+      // their own script, on the ports they have (a cable to a stopped device is not there)
+      await Promise.all(chosen.map(node => {
+        const present = new Set(wired.flatMap(link => [link.a, link.b]).filter(end => end.device === node.device).map(end => end.ifname));
+        const ports = Object.entries(node.ports).filter(([ifname]) => present.has(ifname)).flatMap(([, lines]) => lines);
+        return inside(pids.get(node.device), [...node.base, ...ports, ...lenient(node.tail)]);
+      }));
       // at the other end: the port again (once its old end is gone), then the tail
       const others = new Map<string, string[]>();
       for(const end of wired.flatMap(link => [link.a, link.b]).filter(end => !names.has(end.device))){
@@ -201,15 +215,25 @@ export function restart(lab: string, topology: Topology, devices: string[], t: T
             ...node.ports[ifname] ?? [],
             ...node.retap?.[ifname] ?? [],
           ]),
-          ...node.tail,
+          ...lenient(node.tail),
         ]);
       }));
       await Promise.all(chosen.map(node => startup(lab, node)));
     }catch(error){
       await Promise.all(links.map(link => host(["ip", "link", "del", link.a.temp]).catch(() => undefined)));
-      throw new Error(t("No se pudo reiniciar: {error}", { error: (error as Error).message }));
+      throw new Error(t("No se pudo iniciar: {error}", { error: (error as Error).message }));
     }
     return { ...(await status(lab)), warnings: plan.warnings };
+  });
+}
+
+/** Stops some devices, the rest left running: their containers go (and with
+ * them, the ends of their cables in the devices still running). */
+export function stopDevices(lab: string, devices: string[]): Promise<LabState> {
+  return serial(lab, async () => {
+    const containers = (await containersOf(lab)).filter(container => devices.includes(container.Labels[LABELS.device]));
+    await Promise.all(containers.map(container => removeOne(container.Id)));
+    return status(lab);
   });
 }
 

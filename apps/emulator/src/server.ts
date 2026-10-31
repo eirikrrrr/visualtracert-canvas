@@ -1,10 +1,12 @@
 // The emulator's HTTP API, behind the web's nginx at /api:
-//   GET    /api/health              is it up, and can it reach Docker
+//   GET    /api/health              is it up, can it reach Docker, has it KVM, are privileged containers allowed
 //   GET    /api/labs/:lab           what of the lab is running
 //   PUT    /api/labs/:lab           deploy it: the topology document (JSON)
 //   DELETE /api/labs/:lab           remove it
 //   POST   /api/labs/:lab/run       { device, command, target? } on a device
-//   POST   /api/labs/:lab/restart   { devices, document }: those devices again, the rest left running
+//   POST   /api/labs/:lab/start     { devices, document }: those devices, if stopped; the rest left running
+//   POST   /api/labs/:lab/restart   { devices, document }: those devices again
+//   POST   /api/labs/:lab/stop      { devices }: those devices stopped
 //   GET    /api/images              every image of the catalog, and what Docker has of each
 //   GET    /api/images/:image       one of them
 //   POST   /api/images/:image/pull  download it (Marketplace); build it, a virtual machine
@@ -23,6 +25,7 @@
 // Messages come in the language the request asks for (Accept-Language, or
 // ?lang= on the WebSocket). The topology comes as the editor's JSON document
 // and is checked by the same parser as the editor.
+import { existsSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
@@ -31,7 +34,7 @@ import { version } from "../../../package.json";
 import { CAPTURE_LIMIT, CaptureError, startCapture } from "./capture";
 import { docker, DockerError } from "./docker";
 import { buildProfile, loadProfiles, profileStatus, removeProfile, saveProfile } from "./profiles";
-import { COMMANDS, deploy, destroy, execute, imageStatus, openShell, restart, status, type Command, type Size } from "./lab";
+import { ALLOW_PRIVILEGED, COMMANDS, deploy, destroy, execute, imageStatus, openShell, relaunch, status, stopDevices, type Command, type Size } from "./lab";
 import { ensureImage } from "./vrnetlab";
 
 const MAX_BODY = 2 * 1024 * 1024;
@@ -77,7 +80,8 @@ async function route(req: IncomingMessage, res: ServerResponse) {
   const method = req.method ?? "GET";
 
   if(url.pathname === "/api/health" && method === "GET"){
-    send(res, 200, { ok: true, version, docker: await docker.ping() });
+    // and what it can run: virtual machines at full speed (KVM), privileged containers
+    send(res, 200, { ok: true, version, docker: await docker.ping(), kvm: existsSync("/dev/kvm"), privileged: ALLOW_PRIVILEGED });
     return;
   }
 
@@ -140,18 +144,20 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     throw new HttpError(405, method);
   }
 
-  const match = url.pathname.match(/^\/api\/labs\/([^/]+)(\/run|\/restart)?$/);
+  const match = url.pathname.match(/^\/api\/labs\/([^/]+)(\/run|\/start|\/restart|\/stop)?$/);
   if(!match) throw new HttpError(404, t("No existe esa ruta del emulador."));
   const lab = decodeURIComponent(match[1]);
   if(!LAB_ID.test(lab)) throw new HttpError(400, t("El identificador del laboratorio no es válido."));
 
-  if(match[2] === "/restart"){
+  if(match[2] === "/start" || match[2] === "/restart" || match[2] === "/stop"){
     if(method !== "POST") throw new HttpError(405, "POST");
     const body = (await bodyOf(req)) as { devices?: unknown; document?: unknown };
-    if(!Array.isArray(body.devices) || !body.devices.length || !body.devices.every(item => typeof item === "string")) throw new HttpError(400, t("Falta qué equipos reiniciar."));
+    if(!Array.isArray(body.devices) || !body.devices.length || !body.devices.every(item => typeof item === "string")) throw new HttpError(400, t("Falta qué equipos."));
+    const devices = body.devices as string[];
+    if(match[2] === "/stop"){ send(res, 200, await stopDevices(lab, devices)); return; }
     const parsed = parse(JSON.stringify(body.document ?? {}), "json", t);
     if(!parsed.topology) throw new HttpError(400, parsed.problems.map(problem => problem.message).join(" "));
-    send(res, 200, await restart(lab, parsed.topology, body.devices as string[], t));
+    send(res, 200, await relaunch(lab, parsed.topology, devices, match[2] === "/restart", t));
     return;
   }
   if(match[2]){

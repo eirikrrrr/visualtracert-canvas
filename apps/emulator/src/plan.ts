@@ -50,6 +50,8 @@ export interface NodePlan {
   /** shell lines run inside the device's network namespace, in order: its
    * base, each port's lines and its tail */
   script: string[];
+  /** what is done once, before its ports (the loopback, a switch's bridge) */
+  base: string[];
   /** each cabled port's lines (by its Linux name): done again when its cable
    * is, after the device at its other end restarts */
   ports: Record<string, string[]>;
@@ -106,15 +108,18 @@ export function ifnameOf(name: string, taken: Set<string>): string {
 /** the profiles a lab can use, and whether each one's image is built as it says */
 export type ProfileCatalog = Map<string, { profile: ImageProfile; ready: boolean }>;
 
-/** what the server allows: privileged containers (a network OS that needs it) */
+/** what the server allows (privileged containers, for a network OS that needs
+ * it), and the devices started by hand though their topology does not start them */
 export interface PlanOptions {
   allowPrivileged?: boolean;
+  include?: string[];
 }
 
 export function planLab(lab: string, topology: Topology, t: T = spanish, profiles: ProfileCatalog = new Map(), options: PlanOptions = {}): Plan {
   // a privileged image runs only where the server allows it
-  const refused = topology.devices.filter(device => isStarted(topology, device) && imageOf(device.type).privileged && !options.allowPrivileged);
-  const started = topology.devices.filter(device => isStarted(topology, device) && !refused.includes(device));
+  const starts = (device: Device) => isStarted(topology, device) || Boolean(options.include?.includes(device.id));
+  const refused = topology.devices.filter(device => starts(device) && imageOf(device.type).privileged && !options.allowPrivileged);
+  const started = topology.devices.filter(device => starts(device) && !refused.includes(device));
   const devices = new Map(started.map(device => [device.id, device]));
   const warnings: string[] = [];
   const idle = topology.devices.filter(device => !devices.has(device.id));
@@ -164,7 +169,7 @@ export function planLab(lab: string, topology: Topology, t: T = spanish, profile
     const profile = chosen?.ready ? chosen.profile : undefined;
     const image = profile ? IMAGES[profile.base] : imageOf(device.type);
     return {
-      device: device.id, name: device.name, role, script, ports: port, tail,
+      device: device.id, name: device.name, role, script, base, ports: port, tail,
       ...(own.config === "routeros" ? { retap: Object.fromEntries(ports.map(({ end }) => [end.ifname, retap(end.ifname, device.interfaces.findIndex(iface => iface.name === end.iface))])) } : {}),
       container: containerName(lab, device.id),
       image: profile ? profileTag(profile.id) : image.ref,

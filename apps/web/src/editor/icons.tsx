@@ -87,6 +87,7 @@ const paths: Record<string, string[]> = {
   first: ["M7 5v14", "M18 6l-8 6 8 6z"],
   prev: ["M15 6l-6 6 6 6"],
   play: ["M8 5.5v13l10-6.5z"],
+  stop: ["M7 7h10v10H7z"],
   pause: ["M8 5h3v14H8zM13 5h3v14h-3z"],
   next: ["M9 6l6 6-6 6"],
   last: ["M17 5v14", "M6 6l8 6-8 6z"],

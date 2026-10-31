@@ -20,7 +20,7 @@ code=$?
 if [ "$code" -eq 255 ]; then
   echo
   echo 'No se pudo entrar en RouterOS por SSH. Prueba la consola serie (usuario admin, contraseña admin)'
-  echo 'o vuelve a desplegar el laboratorio.'
+  echo 'o reinicia el equipo desde el panel de Emulación.'
   sleep 1
 fi
 exit "$code"

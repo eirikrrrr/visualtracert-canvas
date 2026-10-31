@@ -261,7 +261,8 @@ export const useStore = create<State>((set, get) => ({
   selection: null,
   tool: "select",
   pingFrom: null,
-  mode: "simulation",
+  // the app opens emulating: real containers (the simulation, one click away)
+  mode: "emulation",
   speed: loadSpeed(),
   tab: "properties",
   theme: loadTheme(),

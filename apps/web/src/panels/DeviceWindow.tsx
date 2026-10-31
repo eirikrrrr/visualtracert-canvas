@@ -147,30 +147,26 @@ function DeviceCli({ device, capture }: { device: Device; capture?: string }) {
       </div>
     );
   }
-  // its topology does not start it: no container, no CLI
-  if(!isStarted(topology, device)){
-    const zone = zoneOf(topology, device);
-    return (
-      <div className="dw-note">
-        <p>{zone?.status === "hybrid"
-          ? t("{device} no se inicia: su topología «{zone}» es híbrida y solo inicia los dispositivos con status: up.", { device: device.name, zone: zone.name })
-          : t("{device} no se inicia: su topología «{zone}» está detenida (status: down).", { device: device.name, zone: zone?.name ?? "" })}</p>
-        <button type="button" className="ghost" onClick={() => useStore.getState().select({ kind: "device", id: device.id })}>
-          {t("Ver sus propiedades")}
-        </button>
-      </div>
-    );
-  }
+  // not running: it is started here, alone (even if its topology does not start
+  // it), unless the topology changed since the lab was deployed
   if(!running){
+    const zone = zoneOf(topology, device);
+    const changed = deployed && lab?.fingerprint !== fingerprint;
     return (
       <div className="dw-note">
         {reachable === false && <div className="outcome fail" role="alert">{t("No se puede conectar con el emulador.")}</div>}
-        <p>{deployed ? t("{device} no está en marcha: vuelve a desplegar el laboratorio.", { device: device.name }) : t("Despliega el laboratorio para abrir la CLI de {device}.", { device: device.name })}</p>
+        <p>{t("{device} está detenido: inícialo para abrir su CLI.", { device: device.name })}</p>
+        {!isStarted(topology, device) && (
+          <p className="muted small">{zone?.status === "hybrid"
+            ? t("Su topología «{zone}» es híbrida y solo inicia los dispositivos con status: up; «Iniciar» lo arranca igualmente.", { zone: zone.name })
+            : t("Su topología «{zone}» está detenida (status: down); «Iniciar» lo arranca igualmente.", { zone: zone?.name ?? "" })}</p>
+        )}
+        {changed && <p className="emu-note">{t("La topología cambió desde el despliegue: «Reiniciar todo» la aplica.")}</p>}
         {error && <div className="outcome fail" role="alert">{error}</div>}
-        <button type="button" className="primary" disabled={busy !== null || reachable === false}
-          onClick={() => useEmulation.getState().deploy(labId, useStore.getState().topology)}>
-          <Icon name="emulation" size={16} />
-          {busy === "deploy" ? t("Desplegando…") : deployed ? t("Volver a desplegar") : t("Desplegar")}
+        <button type="button" className="primary" disabled={busy !== null || reachable === false || changed}
+          onClick={() => useEmulation.getState().devices("start", labId, useStore.getState().topology, [device.id])}>
+          <Icon name="play" size={16} />
+          {busy === "start" ? t("Iniciando…") : t("Iniciar {name}", { name: device.name })}
         </button>
       </div>
     );
@@ -185,8 +181,8 @@ function DeviceCli({ device, capture }: { device: Device; capture?: string }) {
           : t("Su CLI: {shell}.", { shell: image.shell })}
         {" "}{image.hint ? t(image.hint) : t("Prueba: ip addr, ip route, ping, traceroute.")}
       </p>
-      {lab?.fingerprint !== fingerprint && <p className="emu-note">{t("La topología cambió desde el despliegue: vuelve a desplegar para aplicar los cambios.")}</p>}
-      {lab?.devices.some(item => item.device === device.id && item.outdated) && <p className="emu-note">{t("Este equipo corre una versión anterior de su imagen: vuelve a desplegar para actualizarlo.")}</p>}
+      {lab?.fingerprint !== fingerprint && <p className="emu-note">{t("La topología cambió desde el despliegue: «Reiniciar todo» la aplica.")}</p>}
+      {lab?.devices.some(item => item.device === device.id && item.outdated) && <p className="emu-note">{t("Este equipo corre una versión anterior de su imagen: reinícialo para actualizarlo.")}</p>}
       {image.shells.length > 1 && (
         <div className="shell-pick">
           <label htmlFor={shellId} className="muted small">{t("CLI")}</label>

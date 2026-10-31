@@ -7,11 +7,12 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 ## [Sin publicar]
 
 ### Añadido
-- Reiniciar un equipo, una topología o todo el laboratorio sin detener el resto, desde el panel de
-  Emulación: sus contenedores y cables se hacen de nuevo y los equipos vecinos recuperan la
-  configuración de esos puertos (dirección, puente, rutas; el puerto de un RouterOS vuelve a su
-  tarjeta virtual). Los contenedores se agrupan por topología, en grupos desplegables. Solo con la
-  topología tal como se desplegó; si cambió, hay que volver a desplegar.
+- Iniciar, detener y reiniciar cada equipo, cada topología o todo el laboratorio, sin tocar el
+  resto, desde el panel de Emulación: los contenedores y cables se hacen de nuevo y los equipos
+  vecinos recuperan la configuración de esos puertos (dirección, puente, rutas; el puerto de un
+  RouterOS vuelve a su tarjeta virtual). Un equipo se puede iniciar aunque su topología no lo
+  inicie. Los contenedores se agrupan por topología, en grupos desplegables. Si la topología cambió
+  desde el despliegue, «Reiniciar todo» la aplica.
 - En el lienzo, cada dispositivo muestra bajo su nombre la imagen con la que corre
   (`alpine:3.20`, `frr:10.2.1`, `routeros:7.23.8`) y, debajo, su perfil (`perfil · nombre`) si usa
   uno; las dos etiquetas, en los grises del tema.
@@ -26,7 +27,11 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
   qué hacer si no puede entrar, en lugar de cerrarse sin decir nada.
 
 ### Cambiado
-- El selector de modo muestra Emulación antes que Simulación.
+- La app se abre siempre en modo Emulación, y el selector lo muestra antes que Simulación.
+- El panel de Emulación va por secciones con título (Entorno, Contenedores, Comandos, Consola).
+  «Desplegar» y «Detener» dejan su sitio a la información del entorno: estado del laboratorio,
+  equipos en marcha, topologías y cables, versión del emulador y Docker, KVM y contenedores
+  privilegiados. Desplegar es «Iniciar todo».
 - Documento versión 4: cada dispositivo separa sus puertos, como hardware
   (`interfaces: [{ name, mac }]`), de su configuración, en `config`: `interfaces` por nombre de
   puerto (ip, dhcp, vlan, relay), `gateway`, `dns`, `routes` y `services`. Los puertos, sus

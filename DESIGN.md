@@ -214,16 +214,21 @@ Los atajos no actúan mientras se escribe en un campo, en el documento o en una 
 - **Simulación:** todo ocurre en el navegador. La pestaña del panel se llama Simulación; las
   acciones (ping, traza, DHCP, DNS, web) se reproducen paso a paso con velocidad elegible
   (tiempo real, 0,5×, 1×, 2×, 4×).
-- **Emulación:** la pestaña pasa a llamarse Emulación. Se despliega el laboratorio como
+- **Emulación:** es el modo con el que se abre la app. La pestaña pasa a llamarse Emulación. Se despliega el laboratorio como
   contenedores. Las ventanas de dispositivo ofrecen su CLI real (con selector de shell: `vtysh`,
   `sr_cli`, `bash`, `zsh`, `sh`) y la captura de tráfico.
-  - **Contenedores por topología:** el panel los agrupa por topología, en grupos que se abren y
-    cierran desde su cabecera (su punto de color, su nombre, cuántos están en marcha y
-    «Reiniciar»). Cada equipo tiene su botón de reinicio, cuyo icono gira mientras tanto, y
-    «Reiniciar todo» reinicia el laboratorio entero. Los que su topología no inicia se ven en
-    gris («no se inicia»), sin botón.
-  - **Aviso de cambios:** si la topología cambió desde el despliegue, una nota lo dice, y los
-    reinicios se desactivan: hay que volver a desplegar.
+  - **El panel, por secciones con título:**
+    - Entorno: estado del laboratorio, equipos en marcha, topologías y cables, versión del
+      emulador y Docker, KVM y contenedores privilegiados, en una lista de dos columnas.
+    - Contenedores, Comandos y Consola.
+    Las secciones van separadas por una línea fina.
+  - **Contenedores por topología:** se agrupan por topología, en grupos que se abren y cierran
+    desde su cabecera (su punto de color, su nombre y cuántos están en marcha). Cada topología,
+    cada equipo y el laboratorio entero (junto al título) tienen tres botones pequeños: iniciar
+    (▶), detener (■) y reiniciar (⟳). El que está trabajando gira. Un equipo detenido se ve en
+    gris.
+  - **Aviso de cambios:** si la topología cambió desde el despliegue, una nota lo dice. Iniciar y
+    reiniciar equipos o topologías se desactivan (detener no), y «Reiniciar todo» la aplica.
   - **Huella:** el cambio se detecta con una huella de la red (`networkFingerprint`) que no tiene
     en cuenta posiciones ni textos.
 

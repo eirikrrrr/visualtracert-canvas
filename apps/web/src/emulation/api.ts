@@ -18,6 +18,14 @@ export interface LabState {
   devices: DeviceState[];
 }
 
+export interface Health {
+  ok: boolean;
+  version: string;
+  docker: boolean;
+  kvm?: boolean;
+  privileged?: boolean;
+}
+
 export type Command = "ping" | "traceroute" | "addresses" | "routes" | "neighbours";
 
 export interface CommandResult {
@@ -79,9 +87,15 @@ export const emulator = {
   /** the topology goes as the editor's JSON document */
   deploy: (lab: string, topology: Topology) => call<LabState & { warnings: string[] }>("PUT", labPath(lab), serialize(topology, "json")),
   stop: (lab: string) => call<LabState>("DELETE", labPath(lab)),
-  /** some devices again (their containers and cables), the rest left running */
+  /** some devices started (those stopped) or again (their containers and
+   * cables), or stopped; the rest left running */
+  start: (lab: string, topology: Topology, devices: string[]) =>
+    call<LabState & { warnings: string[] }>("POST", `${labPath(lab)}/start`, JSON.stringify({ devices, document: JSON.parse(serialize(topology, "json")) })),
   restart: (lab: string, topology: Topology, devices: string[]) =>
     call<LabState & { warnings: string[] }>("POST", `${labPath(lab)}/restart`, JSON.stringify({ devices, document: JSON.parse(serialize(topology, "json")) })),
+  stopDevices: (lab: string, devices: string[]) => call<LabState>("POST", `${labPath(lab)}/stop`, JSON.stringify({ devices })),
+  /** the emulator: its version, Docker, KVM, privileged containers */
+  health: () => call<Health>("GET", "/health"),
   run: (lab: string, device: string, command: Command, target?: string) =>
     call<CommandResult>("POST", `${labPath(lab)}/run`, JSON.stringify({ device, command, target })),
   image: (id: ImageId) => call<ImageStatus>("GET", `/images/${encodeURIComponent(id)}`),
