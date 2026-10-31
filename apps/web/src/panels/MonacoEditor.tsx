@@ -120,5 +120,8 @@ export default function MonacoEditor({ value, language, theme, problems, onChang
     editor.current.focus();
   }, [reveal]);
 
-  return <div className="monaco" ref={host} />;
+  // nokey: the canvas leaves its keys to it (Space pans the canvas otherwise:
+  // Monaco types through EditContext, on a plain div React Flow does not take
+  // for a field)
+  return <div className="monaco nokey" ref={host} />;
 }

@@ -33,6 +33,8 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
   como lo que es: el envoltorio de la máquina virtual. La shell del contenedor se llama así.
 
 ### Arreglado
+- La barra espaciadora no escribía en el editor del documento: React Flow la tomaba para arrastrar
+  el lienzo, porque Monaco escribe con EditContext sobre un `div` que no reconocía como campo.
 - MikroTik con muchos puertos: su CLI no abría. Con 256 MB, RouterOS con ocho tarjetas se quedaba
   sin memoria, su consola dejaba de responder a mitad de la configuración y el SSH de gestión
   quedaba sin configurar. Ahora la máquina tiene 512 MB y dos procesadores, la CLI entra con
