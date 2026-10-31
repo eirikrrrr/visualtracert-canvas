@@ -1,11 +1,12 @@
 // The container images devices run as in the emulation: what each one is,
 // what it brings, where it comes from (its official pages) and how it runs.
 // Alpine comes with the app; the others are in the Marketplace, downloaded
-// on this server when wanted. A generic device (a PC, a router) runs on
+// on this server when wanted (or built on it, as a network OS that is a
+// virtual machine: vrnetlab). A generic device (a PC, a router) runs on
 // Alpine: its icon is generic, its system is Alpine's.
 import { tx } from "./i18n";
 
-export type ImageId = "alpine" | "ubuntu" | "debian" | "busybox" | "nginx" | "netshoot" | "frr" | "srlinux";
+export type ImageId = "alpine" | "ubuntu" | "debian" | "busybox" | "nginx" | "netshoot" | "frr" | "srlinux" | "routeros";
 
 export interface ImageLink {
   label: string;
@@ -38,8 +39,11 @@ export interface ImageInfo {
   /** with the app (no download from the Marketplace) */
   builtin: boolean;
   /** "sleep": kept running doing nothing (a shell); "image": its own command
-   * (a web server, the routing daemons) */
-  run: "sleep" | "image";
+   * (a web server, the routing daemons); "vm": a virtual machine in its
+   * container (vrnetlab), wired and configured by its own launcher */
+  run: "sleep" | "image" | "vm";
+  /** built on this server from the emulator's vrnetlab/<dir>, not pulled */
+  vrnetlab?: string;
   /** what it needs beyond NET_ADMIN */
   caps?: string[];
   /** runs privileged: the emulator only allows it when its server says so */
@@ -49,7 +53,7 @@ export interface ImageInfo {
   user?: string;
   env?: string[];
   /** a network OS configured through its own CLI, not with Linux's ip */
-  config?: "srlinux";
+  config?: "srlinux" | "routeros";
   /** memory, in MB (96 when absent) */
   memory?: number;
   /** run inside it once it is wired */
@@ -239,13 +243,37 @@ export const IMAGES: Record<ImageId, ImageInfo> = {
     shells: [{ id: "sr_cli", label: "sr_cli", cmd: ["sr_cli"] }, bash], packages: null,
     note: tx("Necesita un contenedor privilegiado (el servidor debe permitirlo: ALLOW_PRIVILEGED=1 en el emulador), unos 1,5 GB de memoria y medio minuto para arrancar. Sus puertos son e1-1… (ethernet-1/1…); las direcciones y rutas se le aplican con sr_cli."),
   },
+  routeros: {
+    id: "routeros",
+    name: "MikroTik RouterOS",
+    ref: "visual-tracert/vr-routeros:7.23.8",
+    version: "7.23.8 (long-term)",
+    publisher: tx("MikroTik publica la máquina virtual (CHR); este servidor construye su contenedor, al estilo de vrnetlab"),
+    description: tx("RouterOS de verdad: el Cloud Hosted Router de MikroTik en una máquina virtual (QEMU, con KVM) dentro de su contenedor. Su CLI, firewall, OSPF, BGP, colas…"),
+    base: "Alpine Linux + QEMU + RouterOS CHR",
+    shell: "RouterOS CLI (SSH), consola serie, /bin/sh",
+    tools: ["/ping", "/tool traceroute", "/tool sniffer", "/ip route", "/routing ospf", "/routing bgp"],
+    architectures: ["arm64", "amd64"],
+    license: tx("Propietaria de MikroTik. El CHR sin licencia es gratuito, con cada interfaz limitada a 1 Mbit/s."),
+    links: [
+      { label: tx("Descargas de MikroTik"), url: "https://mikrotik.com/download" },
+      { label: "Cloud Hosted Router", url: "https://help.mikrotik.com/docs/spaces/ROS/pages/18350234/Cloud+Hosted+Router+CHR" },
+      { label: tx("Documentación de RouterOS"), url: "https://help.mikrotik.com/docs/spaces/ROS/overview" },
+      { label: tx("vrnetlab (la idea de esta imagen)"), url: "https://github.com/vrnetlab/vrnetlab" },
+      { label: "containerlab: vr-ros", url: "https://containerlab.dev/manual/kinds/vr-ros/" },
+    ],
+    builtin: false, run: "vm", vrnetlab: "routeros", memory: 512,
+    config: "routeros",
+    shells: [{ id: "routeros", label: "RouterOS (SSH)", cmd: ["vr-cli"] }, { id: "console", label: "serial", cmd: ["vr-console"] }, sh], packages: null,
+    note: tx("Se construye en este servidor la primera vez (un par de minutos: QEMU y el CHR oficial). Arranca en unos 40 s y usa unos 200 MB de memoria; con KVM va a velocidad casi nativa. Sus puertos son ether1…; el usuario es admin y la contraseña, admin."),
+  },
 };
 
 /** the images the Marketplace offers, in its order */
-export const MARKETPLACE: ImageId[] = ["frr", "srlinux", "netshoot", "nginx", "ubuntu", "debian", "busybox"];
+export const MARKETPLACE: ImageId[] = ["routeros", "frr", "srlinux", "netshoot", "nginx", "ubuntu", "debian", "busybox"];
 
 /** A network OS of a vendor that cannot be offered here: its images are not
- * public (an account, a licence) or they are virtual machines. Shown in the
+ * public (an account, a licence) or they are virtual machines for x86. Shown in the
  * Marketplace with the official way to get one. */
 export interface VendorSystem {
   id: string;
@@ -280,14 +308,6 @@ export const VENDORS: VendorSystem[] = [
     links: [
       { label: tx("Descargas de Arista"), url: "https://www.arista.com/en/support/software-download" },
       { label: "containerlab: ceos", url: "https://containerlab.dev/manual/kinds/ceos/" },
-    ] },
-  { id: "mikrotik", vendor: "MikroTik", name: "RouterOS CHR",
-    form: tx("Una máquina virtual (Cloud Hosted Router), también para ARM64."),
-    why: tx("La imagen es pública y gratuita, pero es una máquina virtual: necesita QEMU dentro del contenedor (este servidor tiene KVM). Aún no se emula."),
-    links: [
-      { label: tx("Descargas de MikroTik"), url: "https://mikrotik.com/download" },
-      { label: "Cloud Hosted Router", url: "https://help.mikrotik.com/docs/spaces/ROS/pages/18350234/Cloud+Hosted+Router+CHR" },
-      { label: "containerlab: vr-ros", url: "https://containerlab.dev/manual/kinds/vr-ros/" },
     ] },
   { id: "huawei", vendor: "Huawei", name: "VRP (NE40E, CE)",
     form: tx("Máquinas virtuales."),

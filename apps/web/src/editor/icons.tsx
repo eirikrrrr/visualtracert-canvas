@@ -34,6 +34,7 @@ const INITIALS: Record<string, { text: string; color: string }> = {
   busybox: { text: "BB", color: "#5a6270" },
   netshoot: { text: "ns", color: "#2f6fdf" },
   frr: { text: "FRR", color: "#c0392b" },
+  routeros: { text: "MT", color: "#3b4652" },
 };
 
 function SimpleIcon({ id, size }: { id: string; size: number }) {

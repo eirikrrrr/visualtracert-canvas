@@ -1,0 +1,16 @@
+#!/bin/sh
+# RouterOS's CLI, over SSH on the management NIC, once it has booted and is
+# configured. With arguments, runs them as one command (plain output).
+i=0
+while [ ! -e /run/vr/ready ]; do
+  [ "$i" -eq 0 ] && printf 'RouterOS está arrancando, espera'
+  printf '.'
+  sleep 2
+  i=$((i + 1))
+  [ "$i" -gt 300 ] && { echo; echo 'RouterOS no arrancó: revisa vr-console.'; exit 1; }
+done
+[ "$i" -gt 0 ] && echo
+# +t: no terminal detection (its size comes with the session), +c: no colours
+user=admin+t tty=-t
+[ $# -gt 0 ] && user=admin+ct tty=-T
+exec ssh -q "$tty" -i /run/vr/id -p 2022 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "$user@127.0.0.1" "$@"

@@ -99,11 +99,11 @@ export const docker = {
   },
 
   /** builds an image from a build context (a tar), and says what it printed */
-  async build(tag: string, context: Buffer): Promise<{ ok: boolean; log: string }> {
+  async build(tag: string, context: Buffer, labels: Record<string, string> = {}): Promise<{ ok: boolean; log: string }> {
     const reply = await new Promise<Reply>((resolve, reject) => {
       const req = request({
         socketPath: SOCKET, method: "POST", timeout: 900_000,
-        path: `/build?t=${encodeURIComponent(tag)}&rm=1&forcerm=1`,
+        path: `/build?t=${encodeURIComponent(tag)}&rm=1&forcerm=1&labels=${encodeURIComponent(JSON.stringify(labels))}`,
         headers: { "Content-Type": "application/x-tar", "Content-Length": context.length },
       }, res => {
         const chunks: Buffer[] = [];

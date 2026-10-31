@@ -139,8 +139,8 @@ campo, a 12 px.
   - Alpine: su logo oficial (alpinelinux.org), sobre un hexágono blanco para que se lea en
     cualquier tema.
   - Ubuntu, Debian y NGINX: Simple Icons (CC0), en el color de cada marca.
-  - BusyBox, netshoot y FRRouting: no tienen logo disponible, así que llevan una insignia de
-    iniciales en un cuadrado de color. No se inventan logos de marcas.
+  - BusyBox, netshoot, FRRouting y MikroTik RouterOS («MT»): no tienen logo disponible, así que
+    llevan una insignia de iniciales en un cuadrado de color. No se inventan logos de marcas.
 - La procedencia de cada logo se enlaza desde la tarjeta de la imagen.
 
 ## Componentes
@@ -222,7 +222,8 @@ Los atajos no actúan mientras se escribe en un campo, en el documento o en una 
 
 - **Pestaña Imágenes:** una tarjeta por imagen, con su logo, referencia, estado (Incluida,
   Descargada o No descargada), descripción, quién la publica, notas, herramientas, tamaño y
-  descargar/quitar.
+  descargar/quitar. Las que se construyen en el servidor (máquinas virtuales, como RouterOS) dicen
+  Construida o No construida, y su botón es «Construir», porque tarda unos minutos.
 - **Sistemas de fabricantes:** debajo de las imágenes, en tarjetas discontinuas, los sistemas de
   red que no se pueden ofrecer aquí, con la vía oficial para conseguirlos.
 - **Pestaña Perfiles:**

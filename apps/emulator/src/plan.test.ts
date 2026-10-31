@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CATALOG, exampleTopology, GROUPS, IMAGES, PALETTE, templateById, updateDevice, updateZone } from "@visual-tracert/model";
-import { argvOf } from "./lab";
+import { argvOf, routerosOf } from "./lab";
 import { containerName, ifnameOf, planLab } from "./plan";
 
 const open = (id: string) => templateById(id)!.build();
@@ -112,6 +112,26 @@ describe("planLab", () => {
     expect(startup).toContain("sr_cli source /tmp/visual-tracert.cfg");
   });
 
+  it("runs RouterOS as a virtual machine its launcher wires and configures", () => {
+    const topology = updateDevice(open("cadena-routers"), "r2", device => ({ ...device, type: "routeros", name: 'R2 "core"' }));
+    const r2 = node(planLab("lab", topology), "r2");
+    expect(r2).toMatchObject({ run: "vm", imageId: "routeros", image: IMAGES.routeros.ref, memory: 512, startup: [] });
+    // Linux leaves the ports to the machine: no address, no IPv6
+    const script = r2.script.join("\n");
+    expect(script).not.toContain("ip addr add");
+    expect(script).toMatch(/disable_ipv6=1/);
+    const env = Object.fromEntries(r2.env!.map(item => item.split(/=(.*)/s).slice(0, 2)));
+    // every port in order, the first one ether1; the cabled ones awaited
+    const device = topology.devices.find(item => item.id === "r2")!;
+    expect(env.VR_PORTS.split(" ")).toEqual(device.interfaces.map(iface => `${iface.name.replace("/", "-")}=${iface.mac}`));
+    expect(env.VR_WAIT.split(" ").length).toBe(topology.links.filter(link => link.a.device === "r2" || link.b.device === "r2").length);
+    const config = Buffer.from(env.VR_CONFIG, "base64").toString();
+    expect(config).toContain('/system identity set name="R2 \\"core\\""');
+    expect(config).toContain('/interface ethernet set [find default-name=ether1] name="Gi0/0"');
+    expect(config).toMatch(/\/ip address add address=10\.0\.12\.2\/30 interface="Gi0\/\d"/);
+    expect(config).toMatch(/\/ip route add dst-address=172\.16\.\d\.0\/24 gateway=10\.0\.\d+\.\d+/);
+  });
+
   it("quotes what comes from the document", () => {
     const topology = updateDevice(open("lan-basica"), "pc-1", device => ({
       ...device, interfaces: device.interfaces.map(iface => ({ ...iface, name: "it's; rm -rf /" })),
@@ -137,6 +157,12 @@ describe("names", () => {
 });
 
 describe("commands", () => {
+  it("says the same commands in RouterOS's CLI", () => {
+    expect(routerosOf("ping", "10.0.0.1")).toBe("/ping 10.0.0.1 count=4");
+    expect(routerosOf("routes", undefined)).toBe("/ip route print");
+    expect(routerosOf("ping", "1.2.3.4; /system reset-configuration")).toBeNull();
+  });
+
   it("only runs known commands, with a checked target", () => {
     expect(argvOf("ping", "8.8.8.8")).toEqual(["ping", "-c", "4", "-W", "2", "8.8.8.8"]);
     expect(argvOf("traceroute", "www.ejemplo.com")?.at(-1)).toBe("www.ejemplo.com");

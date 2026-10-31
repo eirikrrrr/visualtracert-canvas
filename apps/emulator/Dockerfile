@@ -13,13 +13,15 @@ COPY apps/emulator apps/emulator
 RUN npm run build -w @visual-tracert/emulator
 
 # --- Runtime: node, and the tools that wire the devices (ip, bridge, nsenter) --
+# plus vrnetlab/: what the images of virtual machines (RouterOS) are built from
 FROM node:22-alpine
 RUN apk add --no-cache iproute2 util-linux tcpdump
 LABEL org.opencontainers.image.title="visual-tracert-emulator" \
       org.opencontainers.image.description="Emulación de visual-tracert: dispositivos en contenedores unidos por cables veth"
 WORKDIR /app
 COPY --from=build /repo/apps/emulator/dist/main.js ./main.js
-ENV PORT=8080
+COPY apps/emulator/vrnetlab ./vrnetlab
+ENV PORT=8080 VRNETLAB_DIR=/app/vrnetlab
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s CMD wget -q -O /dev/null http://127.0.0.1:8080/api/health || exit 1
 CMD ["node", "main.js"]

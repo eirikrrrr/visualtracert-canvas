@@ -10,6 +10,7 @@ export type DeviceType =
   | "netshoot"
   | "frr"
   | "srlinux"
+  | "routeros"
   | "router"
   | "switch"
   | "firewall"

@@ -97,7 +97,7 @@ function ImagesTab() {
                   <span className="mono muted small">{image.ref}</span>
                 </div>
                 <span className={`tag ${here ? "tag-images" : ""}`}>
-                  {image.builtin ? t("Incluida") : status?.pulled ? t("Descargada") : t("No descargada")}
+                  {image.builtin ? t("Incluida") : status?.pulled ? (image.vrnetlab ? t("Construida") : t("Descargada")) : image.vrnetlab ? t("No construida") : t("No descargada")}
                 </span>
               </div>
               <p className="small">{t(image.description)}</p>
@@ -114,7 +114,9 @@ function ImagesTab() {
                   </button>
                 ) : (
                   <button type="button" className="primary small" disabled={Boolean(doing)} onClick={() => useImages.getState().pull(image.id)}>
-                    <Icon name="download" size={15} />{doing === "pull" ? t("Descargando…") : t("Descargar")}
+                    <Icon name="download" size={15} />{image.vrnetlab
+                      ? doing === "pull" ? t("Construyendo… (unos minutos)") : t("Construir")
+                      : doing === "pull" ? t("Descargando…") : t("Descargar")}
                   </button>
                 ))}
               </div>

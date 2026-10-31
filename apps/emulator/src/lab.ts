@@ -9,6 +9,7 @@ import { IMAGES, isIp, spanish, type ImageId, type ImageInfo, type T, type Topol
 import { docker, type ContainerSummary } from "./docker";
 import { LABELS, planLab, type ProfileCatalog } from "./plan";
 import { loadProfiles, profileStatus } from "./profiles";
+import { ensureImage, vmDevices } from "./vrnetlab";
 
 const run = promisify(execFile);
 /** a host command (ip, nsenter): its error says what failed */
@@ -87,19 +88,23 @@ export function deploy(lab: string, topology: Topology, t: T = spanish): Promise
       [profile.id, { profile, ready: (await profileStatus(profile)).state === "built" }] as const)));
     const plan = planLab(lab, topology, t, profiles, { allowPrivileged: ALLOW_PRIVILEGED });
     await removeAll(lab);
-    for(const image of new Set(plan.nodes.map(node => node.image))) await docker.ensureImage(image);
+    for(const image of new Set(plan.nodes.map(node => node.image))) await ensureImage(image);
     const pids = new Map<string, number>();
     try{
       await Promise.all(plan.nodes.map(async node => {
         const id = await docker.create(node.container, {
           Image: node.image,
-          // a shell kept alive; or what the image runs (a server, a router's daemons)
+          // a shell kept alive; or what the image runs (a server, a router's
+          // daemons, a virtual machine's launcher)
           ...(node.run === "sleep" ? { Entrypoint: ["sleep"], Cmd: ["2147483647"] } : node.cmd ? { Cmd: node.cmd } : {}),
           ...(node.user ? { User: node.user } : {}),
           ...(node.env ? { Env: node.env } : {}),
           Hostname: node.hostname,
           Labels: { [LABELS.lab]: lab, [LABELS.device]: node.device, [LABELS.fingerprint]: plan.fingerprint, [LABELS.image]: node.imageId },
-          HostConfig: { NetworkMode: "none", Init: node.run === "sleep", Memory: node.memory * MB, CapAdd: ["NET_ADMIN", ...node.caps], Privileged: node.privileged },
+          HostConfig: {
+            NetworkMode: "none", Init: node.run !== "image", Memory: node.memory * MB, CapAdd: ["NET_ADMIN", ...node.caps], Privileged: node.privileged,
+            ...(node.run === "vm" ? { Devices: vmDevices() } : {}),
+          },
         });
         await docker.start(id);
         pids.set(node.device, await docker.pid(id));
@@ -152,10 +157,26 @@ async function containerOf(lab: string, device: string, t: T) {
   return container;
 }
 
+/** the same commands in RouterOS's CLI */
+export function routerosOf(command: Command, target: string | undefined): string | null {
+  if(!argvOf(command, target)) return null;
+  switch(command){
+    case "ping": return `/ping ${target} count=4`;
+    case "traceroute": return `/tool traceroute ${target} count=1 max-hops=15`;
+    case "addresses": return "/ip address print";
+    case "routes": return "/ip route print";
+    case "neighbours": return "/ip arp print";
+  }
+}
+
 export async function execute(lab: string, device: string, command: Command, target: string | undefined, t: T = spanish) {
   const argv = argvOf(command, target);
   if(!argv) throw new Error(t("Escribe un destino válido: una IP o un nombre."));
   const container = await containerOf(lab, device, t);
+  if(IMAGES[container.Labels[LABELS.image] as ImageId]?.config === "routeros"){
+    const line = routerosOf(command, target)!;
+    return { command: line, ...(await docker.exec(container.Id, ["vr-cli", line], 120_000)) };
+  }
   return { command: argv.join(" "), ...(await docker.exec(container.Id, argv)) };
 }
 

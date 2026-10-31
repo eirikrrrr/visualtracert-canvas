@@ -8,7 +8,9 @@
 // switch (or access point) is a Linux bridge with each port in its access
 // VLAN. DHCP, DNS and web services are not emulated yet: they come back as
 // warnings. Each device runs as the image of its type (a generic one, as
-// Alpine Linux), or as the image of its profile when it has a built one.
+// Alpine Linux), or as the image of its profile when it has a built one. A
+// network OS configures itself: SR Linux through sr_cli once it boots, and a
+// virtual machine (RouterOS) through its launcher, from its environment.
 // Only the devices their topology starts are built (all of a started one,
 // those with status start of a hybrid one), with the cables between them.
 import { fnv1a, IMAGES, imageOf, isStarted, networkFingerprint, profileTag, type ImageId, type ImageProfile, parseCidr, roleOf, sameSubnet, spanish, type Device, type Interface, type Role, type T, type Topology } from "@visual-tracert/model";
@@ -30,8 +32,9 @@ export interface NodePlan {
   /** the catalog image it is (a profile's base): how it runs, its shells */
   imageId: ImageId;
   profile?: string;
-  /** "sleep": kept alive doing nothing; "image": its own command */
-  run: "sleep" | "image";
+  /** "sleep": kept alive doing nothing; "image": its own command; "vm": a
+   * virtual machine its launcher runs */
+  run: "sleep" | "image" | "vm";
   /** capabilities beyond NET_ADMIN */
   caps: string[];
   privileged: boolean;
@@ -140,6 +143,8 @@ export function planLab(lab: string, topology: Topology, t: T = spanish, profile
     }
     const own = imageOf(device.type);
     if(own.config === "srlinux") script.push(...ports.map(({ end }) => `ip link set ${end.ifname} up`));
+    // the machine's NICs take the port's frames: Linux stays quiet on it
+    else if(own.config === "routeros") script.push(...ports.flatMap(({ end }) => [`sysctl -qw net.ipv6.conf.${end.ifname}.disable_ipv6=1`, `ip link set ${end.ifname} up`]));
     else if(role === "switch") script.push(...bridgeScript(ports.map(port => port.iface), port => ports.find(item => item.iface === port)!.end.ifname));
     else script.push(...addressScript(device, role, ports, warnings, t));
     // its profile, if there is one ready; if not, the image of its type
@@ -159,7 +164,9 @@ export function planLab(lab: string, topology: Topology, t: T = spanish, profile
       privileged: Boolean(image.privileged),
       ...(image.cmd ? { cmd: image.cmd } : {}),
       ...(image.user ? { user: image.user } : {}),
-      ...(image.env ? { env: image.env } : {}),
+      ...(image.env || image.config === "routeros" ? {
+        env: [...image.env ?? [], ...(image.config === "routeros" ? routerosEnv(device, role, ifnames.get(device.id)!, ports.map(({ end }) => end.ifname), warnings, t) : [])],
+      } : {}),
       memory: image.memory ?? 96,
       startup: [
         ...(image.startup ?? []),
@@ -216,6 +223,43 @@ function srlinuxStartup(device: Device, role: Role, ports: Interface[], warnings
     "for i in $(seq 1 120); do sr_cli -c 'show version' 2>/dev/null | grep -q 'Software Version *: v' && break; sleep 2; done",
     ...(first ? [`for i in $(seq 1 60); do sr_cli -c 'show interface ethernet-${first}' 2>/dev/null | grep -q 'is up\\|is down' && break; sleep 2; done`] : []),
     "sr_cli source /tmp/visual-tracert.cfg > /tmp/visual-tracert.log 2>&1",
+  ];
+}
+
+// RouterOS: its launcher (vrnetlab) gives it one NIC per port, in order
+// (ether1, ether2…), waits for the cabled ones and applies its configuration
+const routerosQuote = (text: string) => `"${text.replace(/[\\"$]/g, "\\$&")}"`;
+
+export function routerosConfig(device: Device, role: Role, warnings: string[], t: T): string[] {
+  const lines = [`/system identity set name=${routerosQuote(device.name)}`];
+  const names = device.interfaces.map((iface, i) => {
+    const own = `ether${i + 1}`;
+    if(iface.name !== own) lines.push(`/interface ethernet set [find default-name=${own}] name=${routerosQuote(iface.name)}`);
+    return routerosQuote(iface.name);
+  });
+  device.interfaces.forEach((iface, i) => {
+    if(iface.ip && iface.prefix) lines.push(`/ip address add address=${iface.ip}/${iface.prefix} interface=${names[i]}`);
+    else if(iface.dhcp) lines.push(`/ip dhcp-client add interface=${names[i]}`);
+  });
+  if(role === "router"){
+    for(const route of device.routes ?? []){
+      const cidr = parseCidr(route.prefix)!;
+      lines.push(`/ip route add dst-address=${cidr.network}/${cidr.prefix} gateway=${route.via}`);
+    }
+  }else if(device.gateway) lines.push(`/ip route add dst-address=0.0.0.0/0 gateway=${device.gateway}`);
+  const services = device.services;
+  if(services && (services.dhcp?.length || services.dns?.length || services.http)){
+    warnings.push(t("{device}: sus servicios (DHCP, DNS, web) aún no se emulan.", { device: device.name }));
+  }
+  return lines;
+}
+
+function routerosEnv(device: Device, role: Role, ifnames: Map<string, string>, cabled: string[], warnings: string[], t: T): string[] {
+  return [
+    `VR_PORTS=${device.interfaces.map(iface => `${ifnames.get(iface.name)}=${iface.mac}`).join(" ")}`,
+    `VR_WAIT=${cabled.join(" ")}`,
+    `VR_CONFIG=${Buffer.from(routerosConfig(device, role, warnings, t).join("\n")).toString("base64")}`,
+    "VR_MEMORY=256",
   ];
 }
 

@@ -56,6 +56,8 @@ export const CATALOG: Record<DeviceType, DeviceKind> = {
     description: tx("Herramientas de diagnóstico de red: tcpdump, mtr, iperf3, nmap…"), keywords: tx("netshoot diagnostico tcpdump nmap iperf"), group: "images", image: "netshoot" },
   srlinux: { type: "srlinux", label: tx("Nokia SR Linux"), role: "router", ports: range("e1-", 1, 8), namePrefix: tx("SRL"),
     description: tx("Router y switch de Nokia, con su CLI sr_cli."), keywords: tx("nokia sr linux srl router nos sr_cli enrutador"), group: "images", image: "srlinux" },
+  routeros: { type: "routeros", label: tx("MikroTik RouterOS"), role: "router", ports: range("ether", 1, 8), namePrefix: tx("MikroTik"),
+    description: tx("Router MikroTik con RouterOS real (máquina virtual CHR)."), keywords: tx("mikrotik routeros chr router enrutador winbox vrnetlab"), group: "images", image: "routeros" },
   frr: { type: "frr", label: tx("FRRouting"), role: "router", ports: range("eth", 0, 7), namePrefix: tx("FRR"),
     description: tx("Router FRRouting real con vtysh (OSPF, BGP, RIP…)."), keywords: tx("frr frrouting router ospf bgp vtysh enrutador"), group: "images", image: "frr" },
   router: { type: "router", label: tx("Router"), role: "router", ports: range("Gi0/", 0, 3), namePrefix: tx("Router"),
@@ -81,7 +83,7 @@ export const CATALOG: Record<DeviceType, DeviceKind> = {
 };
 
 /** The order of the device palette */
-export const PALETTE: DeviceType[] = ["alpine", "frr", "srlinux", "netshoot", "nginx", "ubuntu", "debian", "busybox", "pc", "laptop", "server", "phone", "iot", "switch", "ap", "router", "firewall", "cloud"];
+export const PALETTE: DeviceType[] = ["alpine", "routeros", "frr", "srlinux", "netshoot", "nginx", "ubuntu", "debian", "busybox", "pc", "laptop", "server", "phone", "iot", "switch", "ap", "router", "firewall", "cloud"];
 
 export const roleOf = (type: DeviceType): Role => CATALOG[type]?.role ?? "host";
 

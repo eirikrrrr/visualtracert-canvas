@@ -6,7 +6,7 @@
 //   POST   /api/labs/:lab/run       { device, command, target? } on a device
 //   GET    /api/images              every image of the catalog, and what Docker has of each
 //   GET    /api/images/:image       one of them
-//   POST   /api/images/:image/pull  download it (Marketplace)
+//   POST   /api/images/:image/pull  download it (Marketplace); build it, a virtual machine
 //   DELETE /api/images/:image       remove it from this server
 //   GET    /api/profiles            the image profiles, each with its state
 //   PUT    /api/profiles/:id        save one (checked as the model says)
@@ -31,6 +31,7 @@ import { CAPTURE_LIMIT, CaptureError, startCapture } from "./capture";
 import { docker, DockerError } from "./docker";
 import { buildProfile, loadProfiles, profileStatus, removeProfile, saveProfile } from "./profiles";
 import { COMMANDS, deploy, destroy, execute, imageStatus, openShell, status, type Command, type Size } from "./lab";
+import { ensureImage } from "./vrnetlab";
 
 const MAX_BODY = 2 * 1024 * 1024;
 const LAB_ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -91,7 +92,7 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     const info = IMAGES[id as ImageId];
     if(image[2]){
       if(method !== "POST") throw new HttpError(405, "POST");
-      await docker.ensureImage(info.ref);
+      await ensureImage(info.ref);
     }else if(method === "DELETE"){
       if(info.builtin) throw new HttpError(400, t("{image} viene con la app: no se puede quitar.", { image: info.name }));
       try{

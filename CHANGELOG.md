@@ -48,8 +48,13 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
   sus capas y bytes, y descarga en .pcap para Wireshark.
 - Nokia SR Linux en el Marketplace: sus direcciones y rutas se aplican con sr_cli. Necesita un
   contenedor privilegiado, que el emulador solo permite con `ALLOW_PRIVILEGED=1`.
-- Sistemas de fabricantes en el Marketplace (Cisco, Juniper, Arista, MikroTik, Huawei, Dell): por
-  qué no se pueden descargar aquí y la vía oficial para conseguir cada uno.
+- MikroTik RouterOS 7.23.8 (long-term) en el Marketplace, como en vrnetlab: el CHR oficial en una
+  máquina virtual QEMU (con KVM) dentro de su contenedor, que se construye en el servidor para ARM64
+  o x86_64. Sus direcciones, rutas, nombre y nombres de puerto se aplican al arrancar; la CLI de
+  RouterOS (por SSH, en una gestión aislada en su VRF), su consola serie, los comandos del panel y
+  la captura funcionan como en los demás dispositivos.
+- Sistemas de fabricantes en el Marketplace (Cisco, Juniper, Arista, Huawei, Dell): por qué no se
+  pueden descargar aquí y la vía oficial para conseguir cada uno.
 - Los dispositivos con un perfil de imagen lo muestran en una etiqueta bajo su nombre.
 - DESIGN.md: el diseño de la web.
 - Editor del documento: plegar y desplegar secciones del YAML/JSON desde el margen, buscar

@@ -111,6 +111,15 @@ servidor: sus comandos se ejecutan como `RUN` con acceso a Internet. FRRouting n
 `SYS_ADMIN` dentro de su contenedor. Nokia SR Linux necesita un contenedor privilegiado (root en
 este equipo): el emulador solo lo permite si se arranca con `ALLOW_PRIVILEGED=1 docker compose up -d`.
 
+MikroTik RouterOS es una máquina virtual (el CHR oficial), así que corre como en
+[vrnetlab](https://github.com/vrnetlab/vrnetlab): su imagen se construye en este servidor desde
+`apps/emulator/vrnetlab/routeros` (Alpine, QEMU y el disco de RouterOS de download.mikrotik.com, para
+ARM64 o x86_64). Su lanzador espera los cables, une cada puerto a una tarjeta de la máquina con `tc`,
+arranca con KVM y configura RouterOS por la consola serie; la CLI entra por SSH en una interfaz de
+gestión aislada en su propio VRF. Su contenedor recibe `/dev/net/tun` y, si existe, `/dev/kvm` (sin
+KVM se emula, mucho más lento); no necesita privilegios. El usuario es `admin` y la contraseña
+`admin`, también desde los equipos del laboratorio.
+
 La captura de tráfico ejecuta tcpdump desde el emulador en el espacio de red del dispositivo, con
 el filtro validado, y la corta a los 64 MB.
 
