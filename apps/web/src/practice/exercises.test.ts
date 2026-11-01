@@ -31,15 +31,13 @@ describe("exercises", () => {
     expect(nextExercise({ [first.id]: 1 })?.id).toBe(second.id);
   });
 
-  it("gives a medium difficulty only where the emulation can check it, and says why not elsewhere", () => {
+  it("gives every machine a medium difficulty, with its CLI steps", () => {
     for(const exercise of EXERCISES){
-      if(exercise.cli){
-        // checked on the real devices: by real pings
-        expect(exercise.goals.every(goal => goal.check.kind === "ping" || goal.check.kind === "isolated")).toBe(true);
-        expect(exercise.cli.length).toBeGreaterThan(0);
-      }else expect(exercise.cliUnavailable).toBeTruthy();
+      // the emulator checks every kind of goal on the real devices (verify.ts)
+      expect(exercise.cli?.length, exercise.id).toBeGreaterThan(0);
+      expect(exercise.cliUnavailable, exercise.id).toBeUndefined();
     }
-    expect(playableExercises("medium").map(item => item.id)).toEqual(["first-network", "subnet-mask", "default-gateway", "static-routes", "default-route"]);
+    expect(playableExercises("medium").map(item => item.id)).toEqual(playableExercises("easy").map(item => item.id));
   });
 
   it("keeps each difficulty's progress apart, and opens medium levels by medium ones", () => {
@@ -49,10 +47,9 @@ describe("exercises", () => {
     // solved in easy: the medium level 2 stays closed
     expect(isUnlocked(second, { [first.id]: 1 }, "medium")).toBe(false);
     expect(isUnlocked(second, { [solvedKey(first.id, "medium")]: 1 }, "medium")).toBe(true);
-    // the path in medium skips what has no medium
-    const routing = exercisesOf("routing").filter(item => hasDifficulty(item, "medium"));
+    // the path in medium goes on to the next topic
     const solved = Object.fromEntries(exercisesOf("basics").map(item => [solvedKey(item.id, "medium"), 1]));
-    expect(nextExercise(solved, "medium")?.id).toBe(routing[0].id);
+    expect(nextExercise(solved, "medium")?.id).toBe(exercisesOf("switching").filter(item => hasDifficulty(item, "medium"))[0].id);
   });
 
   it("gives every machine a name, a story and an avatar, the names apart", () => {

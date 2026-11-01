@@ -2,7 +2,13 @@ import { afterEach, describe, expect, it } from "vitest";
 import { exerciseById, EXERCISES, listedExercises, xpOf } from "./exercises";
 import { applyMachines, checkMachine, MachineError } from "./machines";
 
-const lab = (name: string) => ({ version: 4, name, devices: [{ id: "pc", type: "pc", name: "PC", x: 0, y: 0, interfaces: [{ name: "eth0", mac: "02:00:00:00:00:01" }] }], links: [] });
+const lab = (name: string) => ({
+  version: 4, name, links: [{ id: "l1", a: { device: "pc", interface: "eth0" }, b: { device: "sw", interface: "Fa0/1" } }],
+  devices: [
+    { id: "pc", type: "pc", name: "PC", position: { x: 0, y: 0 }, interfaces: [{ name: "eth0", mac: "02:00:00:00:00:01", ip: "10.0.0.2", prefix: 24 }] },
+    { id: "sw", type: "switch", name: "SW", position: { x: 100, y: 0 }, interfaces: [{ name: "Fa0/1", mac: "02:00:00:00:00:02" }] },
+  ],
+});
 const custom = {
   box: "routing", level: 2, codename: "Isla Nueva", title: "Una red nueva", story: "Una historia.", summary: "Qué hacer.",
   protocols: ["ipv4"], goals: [{ text: "El PC hace ping", check: { kind: "ping", from: "pc", to: "10.0.0.1" } }], hints: ["Una pista"],
@@ -33,6 +39,7 @@ describe("the admins' machines", () => {
     const machine = exerciseById("isla-nueva")!;
     expect(machine).toMatchObject({ custom: true, codename: "Isla Nueva", level: 2 });
     expect(machine.build().name).toBe("Empieza");
+    expect(machine.build().links).toHaveLength(1);
     expect(machine.solve(machine.build()).name).toBe("Resuelta");
     expect(machine.cli).toBeUndefined();
   });

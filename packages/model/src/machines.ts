@@ -5,7 +5,7 @@
 // their own, made from a lab: its state as it starts and as it ends solved,
 // its goals and hints. Applying them changes EXERCISES in place, so every
 // list, check and rank sees them; applying again starts from the app's own.
-import { parse } from "./document";
+import { parse, serialize } from "./document";
 import { tx } from "./i18n";
 import { BOXES, EXERCISES, type BoxId, type Exercise, type ExerciseLevel, type Goal } from "./exercises";
 import { PROTOCOLS, type ProtocolId } from "./protocols";
@@ -125,7 +125,9 @@ function edit(data: Record<string, unknown>): MachineEdit {
 }
 
 function topology(value: unknown, field: string): Topology {
-  const parsed = parse(JSON.stringify(value ?? null), "json");
+  // checked as the document it would be saved as
+  let parsed: ReturnType<typeof parse>;
+  try{ parsed = parse(serialize(value as Topology, "json"), "json"); }catch(_){ throw new MachineError(field); }
   if(!parsed.topology || parsed.problems.length) throw new MachineError(field);
   if(!parsed.topology.devices.length || parsed.topology.devices.length > 40) throw new MachineError(field);
   return parsed.topology;

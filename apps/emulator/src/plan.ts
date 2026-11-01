@@ -6,9 +6,13 @@
 // Devices by role: an end device gets its addresses and default gateway; a
 // router (or firewall, or ISP) forwards IPv4 and gets its static routes; a
 // switch (or access point) is a Linux bridge with each port in its access
-// VLAN. DHCP, DNS and web services are not emulated yet: they come back as
-// warnings. Each device runs as the image of its type (a generic one, as
-// Alpine Linux), or as the image of its profile when it has a built one. A
+// VLAN. Services run inside the device once it is wired: a DHCP pool, DNS
+// records and a DHCP relay as dnsmasq, a web server as httpd; a port that
+// takes its address by DHCP asks for it with udhcpc (and keeps asking), and
+// an end device's DNS server goes in its resolv.conf. Each device runs as the
+// image of its type (a generic one, as Alpine Linux, which runs as the
+// emulator's own lab image when it is built: with bridge, dnsmasq and httpd),
+// or as the image of its profile when it has a built one. A
 // network OS configures itself: SR Linux through sr_cli once it boots, and a
 // virtual machine (RouterOS) through its launcher, from its environment.
 // Only the devices their topology starts are built (all of a started one,
@@ -120,6 +124,8 @@ export type ProfileCatalog = Map<string, { profile: ImageProfile; ready: boolean
 export interface PlanOptions {
   allowPrivileged?: boolean;
   include?: string[];
+  /** the profile an Alpine device without one of its own runs as, when built (LAB_PROFILE) */
+  labProfile?: string;
 }
 
 export function planLab(lab: string, topology: Topology, t: T = spanish, profiles: ProfileCatalog = new Map(), options: PlanOptions = {}): Plan {
@@ -169,12 +175,15 @@ export function planLab(lab: string, topology: Topology, t: T = spanish, profile
     else if(role === "switch") bridgeScript(ports, base, port);
     else tail.push(...addressScript(device, role, ports, port, warnings, t));
     const script = [...base, ...ports.flatMap(({ end }) => port[end.ifname]), ...tail];
-    // its profile, if there is one ready; if not, the image of its type
+    // its profile, if there is one ready; if not, the lab's (an Alpine device),
+    // or the image of its type
     const chosen = device.profile ? profiles.get(device.profile) : undefined;
     if(device.profile && !chosen) warnings.push(t("{device}: el perfil \"{profile}\" no existe en este servidor: usa {image}.", { device: device.name, profile: device.profile, image: imageOf(device.type).name }));
     else if(chosen && !chosen.ready) warnings.push(t("{device}: el perfil \"{profile}\" no está construido (o cambió): usa {image}. Constrúyelo en el Marketplace.", { device: device.name, profile: chosen.profile.name, image: imageOf(device.type).name }));
-    const profile = chosen?.ready ? chosen.profile : undefined;
+    const labImage = !device.profile && own.id === "alpine" && options.labProfile ? profiles.get(options.labProfile) : undefined;
+    const profile = chosen?.ready ? chosen.profile : labImage?.ready ? labImage.profile : undefined;
     const image = profile ? IMAGES[profile.base] : imageOf(device.type);
+    const services = image.id === "alpine" ? serviceStartup(device, role, ports, Boolean(profile), warnings, t) : [];
     return {
       device: device.id, name: device.name, role, script, base, ports: port, tail,
       ...(own.config === "routeros" ? { retap: Object.fromEntries(ports.map(({ end }) => [end.ifname, retap(end.ifname, device.interfaces.findIndex(iface => iface.name === end.iface))])) } : {}),
@@ -193,6 +202,7 @@ export function planLab(lab: string, topology: Topology, t: T = spanish, profile
       memory: image.memory ?? 96,
       startup: [
         ...(image.startup ?? []),
+        ...services,
         ...(image.config === "srlinux" ? srlinuxStartup(device, role, ports.map(port => port.iface), warnings, t) : []),
         ...(profile?.startup ?? []),
       ],
@@ -316,7 +326,6 @@ function addressScript(device: Device, role: Role, ports: { end: LinkEnd; iface:
   const script: string[] = [];
   for(const { end, iface } of ports){
     if(iface.ip && iface.prefix) port[end.ifname].push(`ip addr add ${iface.ip}/${iface.prefix} dev ${end.ifname}`);
-    else if(iface.dhcp) warnings.push(t("{device}: {iface} toma su dirección por DHCP, que aún no se emula: queda sin dirección.", { device: device.name, iface: iface.name }));
     port[end.ifname].push(`ip link set ${end.ifname} up`);
   }
   // a next hop only works on a network that is cabled and addressed
@@ -333,16 +342,66 @@ function addressScript(device: Device, role: Role, ports: { end: LinkEnd; iface:
       }
       script.push(`ip route replace ${cidr.prefix === 0 ? "default" : `${cidr.network}/${cidr.prefix}`} via ${route.via}`);
     }
-    for(const iface of device.interfaces.filter(item => item.relay)){
-      warnings.push(t("{device}: el relay DHCP de {iface} aún no se emula.", { device: device.name, iface: iface.name }));
-    }
   }else if(device.gateway){
     if(reachable(device.gateway)) script.push(`ip route replace default via ${device.gateway}`);
     else warnings.push(t("{device}: la puerta de enlace {gateway} no está en ninguna red cableada: no se aplica.", { device: device.name, gateway: device.gateway }));
   }
-  const services = device.services;
-  if(services && (services.dhcp?.length || services.dns?.length || services.http)){
-    warnings.push(t("{device}: sus servicios (DHCP, DNS, web) aún no se emulan.", { device: device.name }));
-  }
   return script;
+}
+
+/** a network's mask, from its prefix: 24 → 255.255.255.0 */
+function maskOf(prefix: number): string {
+  const bits = prefix ? (0xffffffff << (32 - prefix)) >>> 0 : 0;
+  return [24, 16, 8, 0].map(shift => (bits >>> shift) & 255).join(".");
+}
+
+/** what runs inside an Alpine device once it is wired: its DNS server, the
+ * DHCP client of its ports that take their address so, and its services
+ * (DHCP pools, DNS records, a DHCP relay: dnsmasq; a web server: httpd) */
+export function serviceStartup(device: Device, role: Role, ports: { end: LinkEnd; iface: Interface }[], labImage: boolean, warnings: string[], t: T): string[] {
+  const lines: string[] = [];
+  // its resolver: the one it has, or none (not the host's)
+  if(role !== "switch") lines.push(device.dns ? `echo 'nameserver ${device.dns}' > /etc/resolv.conf` : ": > /etc/resolv.conf");
+  // asks again and again until a server answers (the player may fix it meanwhile)
+  for(const { end, iface } of ports) if(iface.dhcp && !iface.ip) lines.push(`udhcpc -i ${end.ifname} -b -t 2 -T 2 -A 5 >/dev/null 2>&1`);
+  const services = device.services;
+  const relays = role === "router" ? ports.filter(({ iface }) => iface.relay && iface.ip) : [];
+  const conf: string[] = [];
+  for(const record of services?.dns ?? []) conf.push(`host-record=${record.name},${record.ip}`);
+  for(const pool of services?.dhcp ?? []){
+    const cidr = parseCidr(pool.network);
+    if(!cidr) continue;
+    conf.push(`dhcp-range=${pool.start},${pool.end},${maskOf(cidr.prefix)},12h`);
+    if(pool.gateway) conf.push(`dhcp-option=3,${pool.gateway}`);
+    if(pool.dns) conf.push(`dhcp-option=6,${pool.dns}`);
+  }
+  for(const { iface } of relays) conf.push(`dhcp-relay=${iface.ip},${iface.relay}`);
+  if(conf.length || services?.http){
+    if(!labImage){
+      warnings.push(t("{device}: la imagen de laboratorio aún se está construyendo: sus servicios (DHCP, DNS, web) no arrancan. Vuelve a desplegar en unos minutos.", { device: device.name }));
+      return lines;
+    }
+  }
+  if(conf.length){
+    lines.push(
+      "mkdir -p /etc/vt",
+      "cat > /etc/vt/dnsmasq.conf <<'VTEOF'",
+      "no-resolv",
+      // a DNS server of its own: what it does not know does not exist (and it
+      // answers so, NXDOMAIN or no data, never "refused", which musl takes as a failure)
+      ...(services?.dns?.length ? ["port=53", "local=/#/"] : ["port=0"]),
+      "log-facility=/var/log/dnsmasq.log",
+      ...conf,
+      "VTEOF",
+      "dnsmasq --conf-file=/etc/vt/dnsmasq.conf",
+    );
+  }
+  if(services?.http){
+    lines.push(
+      "mkdir -p /var/www",
+      `printf '<!doctype html><title>%s</title><h1>%s</h1><p>visual-tracert</p>\\n' ${quote(device.name)} ${quote(device.name)} > /var/www/index.html`,
+      "httpd -h /var/www",
+    );
+  }
+  return lines;
 }

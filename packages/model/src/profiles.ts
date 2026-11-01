@@ -73,3 +73,17 @@ export function checkProfile(raw: unknown, t: T = spanish): { profile: ImageProf
     problems: [],
   };
 }
+
+/** the image the emulator builds by itself (once) and runs every Alpine device
+ * as, when a device has no profile of its own: Alpine with what the machines
+ * need in medium difficulty — bridge (a switch's VLANs), dnsmasq (DHCP, DNS
+ * and DHCP relay), httpd (a web server), tcpdump and dig */
+export const LAB_PROFILE: ImageProfile = {
+  id: "vt-lab",
+  name: "Laboratorio (visual-tracert)",
+  base: "alpine",
+  description: "Alpine Linux con iproute2 (bridge), dnsmasq, httpd, tcpdump y dig.",
+  packages: ["iproute2", "dnsmasq", "busybox-extras", "tcpdump", "bind-tools"],
+  setup: [],
+  startup: [],
+};

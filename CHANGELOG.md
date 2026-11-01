@@ -7,6 +7,25 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 ## [Sin publicar]
 
 ### Añadido
+- **Todas las máquinas se juegan en Medio.** El emulador construye solo su imagen de laboratorio
+  (Alpine con `bridge`, dnsmasq, httpd, tcpdump y dig) y emula los servicios: DHCP (dnsmasq, y
+  `udhcpc` en los clientes), DNS, relay DHCP y web. La comprobación en los equipos reales cubre
+  ahora también recibir dirección por DHCP, resolver un nombre, abrir una web y la VLAN de un
+  puerto. Probado de punta a punta en las 12 máquinas: fallan al empezar y pasan con su solución
+  por CLI.
+- **Panel → Máquinas** (administradores): editar cualquier máquina (nombre, historia, nivel, XP,
+  imagen, walkthrough en PDF, protocolos, ocultarla) o crear máquinas propias a partir de
+  laboratorios (cómo empieza, cómo queda resuelta, sus objetivos, pistas y pasos de CLI). El
+  servicio de cuentas las guarda (migración 3) y el ranking cuenta sus puntos.
+- **Protocolos y walkthroughs.** Cada máquina muestra sus protocolos como etiquetas que abren la
+  página del protocolo (lo esencial, las secciones de las guías con sus diagramas, las máquinas
+  que lo usan y sus RFC); las Referencias los reúnen en una biblioteca. Pestaña Walkthrough en
+  cada máquina; el walkthrough y la solución salen difuminados hasta que se piden. El botón de
+  volver es ahora bien visible.
+- **Starting Point con guías completas:** los niveles 0 a 2 son una guía larga cada uno (redes,
+  OSI y TCP/IP, binario, IPv4 y máscaras, ARP, switching, VLAN, enrutamiento, TCP y UDP a fondo,
+  ICMP, DHCP, DNS, NAT, cabeceras, subnetting, IPv6, CLI, diagnóstico), con 35 diagramas,
+  documentos de referencia y un quiz final de 49 a 57 preguntas (se aprueba con el 75 %).
 - Practicar con su propio menú lateral (el jugador, la season en curso con tu puesto, y cinco
   secciones). **Starting Point:** cuatro niveles (Fundamentos, Conceptos, Referencias y
   Máquinas), con diez lecciones cortas que se dan por hechas al acertar su pregunta, cuatro hojas

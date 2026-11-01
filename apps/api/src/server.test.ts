@@ -261,7 +261,7 @@ describe("practice: solves, ranking, machines and seasons", () => {
     expect((await upload(ana, "image/png", png)).status).toBe(403);
     expect((await upload(admin, "image/svg+xml", png)).status).toBe(415);
     expect((await upload(admin, "image/jpeg", png)).status).toBe(415);
-    const made = await (await upload(admin, "image/png", png)).json();
+    const made = await (await upload(admin, "image/png", png)).json() as { id: string };
     expect(made).toMatchObject({ mime: "image/png", size: png.length });
     const got = await fetch(`${base}/auth/files/${made.id}`, { headers: { Cookie: ana.cookie() } });
     expect(got.headers.get("content-type")).toBe("image/png");

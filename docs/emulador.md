@@ -97,7 +97,11 @@ classDiagram
 - **Qué equipos:** los que su topología inicia (`up`, o `hybrid` con `status: up`), más los que
   se piden a mano (`options.include`). Los que necesitan un contenedor privilegiado (SR Linux)
   solo si el servidor lo permite (`ALLOW_PRIVILEGED=1`).
-- **Qué imagen:** la de su tipo (los genéricos, Alpine), o la de su perfil si está construido.
+- **Qué imagen:** la de su tipo (los genéricos, Alpine), o la de su perfil si está construido. Un
+  equipo Alpine sin perfil propio corre como la **imagen de laboratorio** (`LAB_PROFILE`, la
+  etiqueta `visual-tracert/profile-vt-lab`): Alpine con `iproute2` (el comando `bridge`),
+  `dnsmasq`, `busybox-extras` (`httpd`), `tcpdump` y `bind-tools` (`dig`). El emulador la construye
+  él solo al arrancar si no está; mientras tanto, esos equipos corren como Alpine sin más.
 - **El script de cada equipo, en tres partes:**
   - `base`: lo que se hace una vez (`lo` arriba; el puente `br0` de un switch);
   - `ports`: lo de cada puerto cableado: renombrar el extremo temporal, poner su MAC y su alias
@@ -116,9 +120,17 @@ classDiagram
 | SR Linux | Solo los puertos arriba; la configuración va por `sr_cli` al arrancar (`startup`) |
 | RouterOS | Los puertos arriba sin IPv6; la configuración va a la máquina virtual por su entorno (`VR_CONFIG`) |
 
-- **Avisos:** lo que no se emula aún (DHCP, DNS, web como servicios; relay DHCP), rutas cuyo
-  siguiente salto no está en ninguna red cableada, perfiles no construidos, equipos que no se
-  inician. La web los muestra en el panel de Emulación.
+- **Servicios** (`serviceStartup`, en el `startup` de cada equipo Alpine, dentro del contenedor):
+  - su servidor DNS en `/etc/resolv.conf` (o vacío: nunca el del anfitrión);
+  - cada puerto con `dhcp` pide su dirección con `udhcpc -b`, que sigue pidiendo hasta que un
+    servidor responde (el jugador puede arreglar el servidor mientras);
+  - los rangos DHCP, los registros DNS (`host-record`) y el relay DHCP de un router
+    (`dhcp-relay`) van a `/etc/vt/dnsmasq.conf` y arrancan un `dnsmasq`. Con registros, responde
+    solo de lo suyo (`local=/#/`: NXDOMAIN o sin datos, nunca «refused», que musl toma por fallo);
+  - un servidor web es `httpd -h /var/www` con una página con su nombre.
+- **Avisos:** rutas cuyo siguiente salto no está en ninguna red cableada, perfiles no construidos,
+  servicios que esperan a la imagen de laboratorio, equipos que no se inician, y los servicios de
+  un RouterOS (aún no). La web los muestra en el panel de Emulación.
 - **Huella** (`fingerprint`): un hash de la red (`networkFingerprint`, sin posiciones ni textos).
   Se guarda en las etiquetas de los contenedores: si la topología de la web ya no coincide, la
   web avisa de que cambió.

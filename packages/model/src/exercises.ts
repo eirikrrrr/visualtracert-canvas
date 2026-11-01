@@ -109,8 +109,6 @@ export const TIME_LIMIT: Record<Difficulty, Record<ExerciseLevel, number>> = {
   medium: { 1: 10, 2: 15, 3: 20 },
 };
 
-const NO_BRIDGE = tx("Los switches genéricos no traen el comando bridge para cambiar la VLAN de un puerto desde su CLI.");
-const NO_SERVICES = tx("DHCP, DNS y web aún no se emulan: este reto solo se comprueba en la simulación.");
 
 export const LEVEL_LABEL: Record<ExerciseLevel, string> = { 1: tx("Básico"), 2: tx("Intermedio"), 3: tx("Avanzado") };
 
@@ -207,7 +205,10 @@ export const EXERCISES: Exercise[] = [
     title: tx("Separa la red en VLAN"),
     codename: tx("Muro Invisible"), icon: "switch",
     story: tx("Ventas y Almacén se pasan el día espiándose por el mismo switch. Levanta un muro invisible entre ellos."),
-    cliUnavailable: NO_BRIDGE,
+    cli: [
+      tx("Abre la CLI del switch: bridge vlan show muestra la VLAN de cada puerto (todos en la 1)."),
+      tx("Pasa los puertos de Almacén a la VLAN 20: bridge vlan del dev Fa0-3 vid 1 y bridge vlan add dev Fa0-3 vid 20 pvid untagged; lo mismo con Fa0-4."),
+    ],
     summary: tx("Ventas (A1, A2) y Almacén (B1, B2) comparten switch y red. Sepáralos con VLAN sin tocar sus direcciones."),
     goals: [
       { text: tx("A1 hace ping a A2"), check: { kind: "ping", from: "a1", to: "a2" } },
@@ -236,7 +237,10 @@ export const EXERCISES: Exercise[] = [
     title: tx("Un puerto en la VLAN equivocada"),
     codename: tx("El Infiltrado"), icon: "switch",
     story: tx("Alguien de Almacén se ha colado en la VLAN de Ventas. Descubre qué puerto le abrió la puerta."),
-    cliUnavailable: NO_BRIDGE,
+    cli: [
+      tx("En la CLI del switch, bridge vlan show: Fa0-4 (el puerto de B2) está en la VLAN 10."),
+      tx("bridge vlan del dev Fa0-4 vid 10 y después bridge vlan add dev Fa0-4 vid 20 pvid untagged."),
+    ],
     summary: tx("Las VLAN ya están hechas, pero B2 no habla con B1 y en cambio ve a Ventas. Encuentra el puerto mal puesto."),
     goals: [
       { text: tx("B1 hace ping a B2"), check: { kind: "ping", from: "b1", to: "b2" } },
@@ -349,7 +353,10 @@ export const EXERCISES: Exercise[] = [
     title: tx("Un servidor DHCP"),
     codename: tx("Reparto Vacío"), icon: "server",
     story: tx("El servidor DHCP abre la tienda… sin nada que repartir. Dale un rango de direcciones."),
-    cliUnavailable: NO_SERVICES,
+    cli: [
+      tx("En la CLI del servidor, arranca un servidor DHCP: dnsmasq --port=0 --dhcp-range=192.168.1.100,192.168.1.150,255.255.255.0,12h"),
+      tx("El PC ya está pidiendo dirección (udhcpc): en unos segundos, ip addr en el PC muestra la suya."),
+    ],
     summary: tx("El PC pide su dirección por DHCP, pero el servidor no tiene ningún rango que repartir."),
     goals: [{ text: tx("El PC recibe una dirección por DHCP"), check: { kind: "dhcp", from: "pc" } }],
     hints: [
@@ -370,7 +377,10 @@ export const EXERCISES: Exercise[] = [
     title: tx("DHCP a través de un router"),
     codename: tx("El Mensajero"), icon: "server",
     story: tx("El grito del PC pidiendo dirección se pierde en el router. Convierte al router en mensajero."),
-    cliUnavailable: NO_SERVICES,
+    cli: [
+      tx("En la CLI del router, haz de relay hacia el servidor: dnsmasq --port=0 --dhcp-relay=10.30.0.1,10.20.0.5"),
+      tx("El PC sigue pidiendo dirección: en unos segundos, ip addr en el PC muestra una de 10.30.0.x."),
+    ],
     summary: tx("El servidor DHCP está en otra red y la difusión del PC muere en el router. Haz que el router la reenvíe."),
     goals: [{ text: tx("El PC recibe una dirección por DHCP"), check: { kind: "dhcp", from: "pc" } }],
     hints: [
@@ -396,7 +406,11 @@ export const EXERCISES: Exercise[] = [
     title: tx("Resuelve un nombre"),
     codename: tx("Guía Telefónica"), icon: "globe",
     story: tx("El cliente busca www.ejemplo.com en la guía y la página está en blanco. Escribe la entrada que falta."),
-    cliUnavailable: NO_SERVICES,
+    cli: [
+      tx("En la CLI del servidor DNS, cat /etc/vt/dnsmasq.conf muestra sus registros: falta www.ejemplo.com."),
+      tx("Añádelo y reinicia dnsmasq: echo 'host-record=www.ejemplo.com,172.20.0.80' >> /etc/vt/dnsmasq.conf; pkill dnsmasq; dnsmasq --conf-file=/etc/vt/dnsmasq.conf"),
+      tx("Desde el cliente, nslookup www.ejemplo.com lo comprueba."),
+    ],
     summary: tx("El cliente pregunta al DNS por www.ejemplo.com, pero el servidor DNS no tiene ese nombre."),
     goals: [{ text: tx("El cliente resuelve www.ejemplo.com a 172.20.0.80"), check: { kind: "dns", from: "client", name: "www.ejemplo.com", ip: "172.20.0.80" } }],
     hints: [
@@ -421,7 +435,10 @@ export const EXERCISES: Exercise[] = [
     title: tx("Llega a la web"),
     codename: tx("Web Perdida"), icon: "globe",
     story: tx("Todo funciona, pero el cliente no sabe a quién preguntar por los nombres. Dale su guía."),
-    cliUnavailable: NO_SERVICES,
+    cli: [
+      tx("En la CLI del cliente, cat /etc/resolv.conf: no tiene ningún servidor DNS."),
+      tx("echo 'nameserver 172.20.0.53' > /etc/resolv.conf y después wget -qO- http://www.ejemplo.com"),
+    ],
     summary: tx("El DNS y el servidor web funcionan, pero el cliente no sabe a quién preguntar por los nombres."),
     goals: [{ text: tx("El cliente abre http://www.ejemplo.com"), check: { kind: "http", from: "client", to: "www.ejemplo.com" } }],
     hints: [
@@ -448,7 +465,11 @@ export const EXERCISES: Exercise[] = [
     title: tx("Tres averías"),
     codename: tx("Triple Avería"), icon: "search",
     story: tx("Tres fallos escondidos en dos oficinas. Ponte el casco de detective y encuéntralos uno a uno."),
-    cliUnavailable: NO_BRIDGE,
+    cli: [
+      tx("R2 no sabe volver a la oficina A: en su CLI, ip route add 192.168.10.0/24 via 10.9.9.1"),
+      tx("PC A2 tiene mal la puerta de enlace: en su CLI, ip route replace default via 192.168.10.1"),
+      tx("En el switch B, el puerto de PC B2 está en la VLAN 30: bridge vlan del dev Fa0-3 vid 30 y bridge vlan add dev Fa0-3 vid 1 pvid untagged"),
+    ],
     summary: tx("Dos oficinas unidas por dos routers, y solo PC A1 llega a su router. Hay tres averías: una ruta, una puerta de enlace y una VLAN."),
     goals: [
       { text: tx("PC A1 hace ping a PC B1"), check: { kind: "ping", from: "pc-a1", to: "pc-b1" } },

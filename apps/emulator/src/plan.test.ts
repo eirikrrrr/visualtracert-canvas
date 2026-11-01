@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CATALOG, exampleTopology, GROUPS, IMAGES, PALETTE, templateById, updateDevice, updateZone } from "@visual-tracert/model";
+import { CATALOG, exampleTopology, GROUPS, IMAGES, LAB_PROFILE, PALETTE, profileTag, templateById, updateDevice, updateZone } from "@visual-tracert/model";
 import { argvOf, routerosOf } from "./lab";
 import { containerName, ifnameOf, planLab } from "./plan";
 
@@ -46,11 +46,21 @@ describe("planLab", () => {
     expect(script.join("\n")).not.toContain("Fa0-8");
   });
 
-  it("warns about what it does not emulate yet, and skips what cannot work", () => {
-    const plan = planLab("lab", exampleTopology());
-    expect(plan.warnings.some(text => /Smartphone 1.*DHCP/.test(text))).toBe(true);
-    expect(plan.warnings.some(text => /Servidor DNS.*servicios/.test(text))).toBe(true);
-    expect(plan.warnings.some(text => /relay DHCP/.test(text))).toBe(true);
+  it("runs the services in the lab image: dnsmasq, httpd, udhcpc and the resolver", () => {
+    // without the lab image built, the services wait (and say so)
+    expect(planLab("lab", exampleTopology()).warnings.some(text => /Servidor DNS.*imagen de laboratorio/.test(text))).toBe(true);
+    const catalog = new Map([[LAB_PROFILE.id, { profile: LAB_PROFILE, ready: true }]]);
+    const plan = planLab("lab", exampleTopology(), undefined, catalog, { labProfile: LAB_PROFILE.id });
+    const dns = node(plan, "dns");
+    expect(dns.image).toBe(profileTag(LAB_PROFILE.id));
+    expect(dns.startup.join("\n")).toMatch(/host-record=www\.ejemplo\.com,8\.8\.8\.8[\s\S]*dnsmasq --conf-file/);
+    expect(dns.startup.join("\n")).toContain("httpd -h /var/www");
+    expect(node(plan, "smartphone-1").startup.join("\n")).toMatch(/udhcpc -i \S+ -b/);
+    expect(node(plan, "pc-1").startup).toContain("echo 'nameserver 8.8.8.8' > /etc/resolv.conf");
+    expect(plan.warnings.some(text => /imagen de laboratorio/.test(text))).toBe(false);
+  });
+
+  it("skips what cannot work", () => {
     const broken = updateDevice(open("dos-redes"), "pc-a1", device => ({ ...device, gateway: "10.9.9.9" }));
     const skipped = planLab("lab", broken);
     expect(node(skipped, "pc-a1").script.join("\n")).not.toContain("default via");

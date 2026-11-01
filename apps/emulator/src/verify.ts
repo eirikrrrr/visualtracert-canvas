@@ -6,8 +6,8 @@
 // ranking does not take a page's word for it.
 import { exerciseById, networkFingerprint, type Check, type Goal, type T, type Topology } from "@visual-tracert/model";
 import { docker } from "./docker";
-import { execute, startedOf } from "./lab";
-import { LABELS } from "./plan";
+import { execute, probe, startedOf } from "./lab";
+import { ifnameOf, LABELS } from "./plan";
 
 export interface GoalResult {
   ok: boolean;
@@ -42,10 +42,49 @@ async function addressesOf(lab: string, device: string, t: T): Promise<string[]>
 /** the last lines of a ping: how many went and came back */
 const summary = (output: string) => output.trim().split("\n").filter(line => /packets|received|loss|unreachable/i.test(line)).slice(-1)[0] ?? output.trim().split("\n").slice(-1)[0] ?? "";
 
-async function checkGoal(lab: string, names: Map<string, string>, check: Check, t: T): Promise<GoalResult> {
-  if(check.kind !== "ping" && check.kind !== "isolated") return { ok: false, detail: t("Este objetivo no se comprueba en modo Medio.") };
+/** a name resolved on a device, with the resolver it has now */
+async function resolve(lab: string, device: string, name: string, t: T): Promise<string[]> {
+  const { output } = await probe(lab, device, ["nslookup", "-timeout=2", "-retry=1", name], t);
+  // the server's own address comes first ("Address: 172.20.0.53#53"): those with a port are not the answer
+  return [...output.matchAll(/Address:\s*(\d+\.\d+\.\d+\.\d+)(?!#)\s*$/gm)].map(match => match[1]);
+}
+
+/** a switch port's access VLAN now (its PVID), as its bridge says */
+async function vlanOf(lab: string, device: string, ifname: string, t: T): Promise<number | null> {
+  const { output } = await probe(lab, device, ["bridge", "-j", "vlan", "show", "dev", ifname], t);
+  try{
+    const ports = JSON.parse(output) as { ifname: string; vlans?: { vlan: number; flags?: string[] }[] }[];
+    return ports.find(port => port.ifname === ifname)?.vlans?.find(vlan => vlan.flags?.includes("PVID"))?.vlan ?? null;
+  }catch(_){ return null; }
+}
+
+async function checkGoal(lab: string, names: Map<string, string>, ports: Map<string, Map<string, string>>, check: Check, t: T): Promise<GoalResult> {
   const name = (id: string) => names.get(id) ?? id;
   try{
+    if(check.kind === "dhcp"){
+      const got = (await addressesOf(lab, check.from, t)).filter(ip => !ip.startsWith("169.254."));
+      return got.length ? { ok: true, detail: t("{device} recibió {ip} por DHCP.", { device: name(check.from), ip: got[0] }) }
+        : { ok: false, detail: t("{device} aún no tiene dirección: ningún servidor DHCP le ha respondido.", { device: name(check.from) }) };
+    }
+    if(check.kind === "dns"){
+      const got = await resolve(lab, check.from, check.name, t);
+      if(got.includes(check.ip)) return { ok: true, detail: t("{device} resuelve {name} a {ip}.", { device: name(check.from), name: check.name, ip: check.ip }) };
+      return { ok: false, detail: got.length ? t("{device} resuelve {name} a {got}, no a {ip}.", { device: name(check.from), name: check.name, got: got.join(", "), ip: check.ip })
+        : t("{device} no resuelve {name}: revisa su servidor DNS y el registro.", { device: name(check.from), name: check.name }) };
+    }
+    if(check.kind === "http"){
+      const target = names.has(check.to) ? (await addressesOf(lab, check.to, t))[0] : check.to;
+      const run = await probe(lab, check.from, ["wget", "-q", "-O", "/dev/null", "-T", "4", `http://${target}/`], t);
+      return run.exitCode === 0 ? { ok: true, detail: t("{device} abre http://{to}.", { device: name(check.from), to: check.to }) }
+        : { ok: false, detail: t("{device} no abre http://{to}: {message}", { device: name(check.from), to: check.to, message: run.output.trim().split("\n").slice(-1)[0] || t("sin respuesta") }) };
+    }
+    if(check.kind === "vlan"){
+      const ifname = ports.get(check.device)?.get(check.iface);
+      if(!ifname) return { ok: false, detail: t("{device} no tiene el puerto {iface}.", { device: name(check.device), iface: check.iface }) };
+      const vlan = await vlanOf(lab, check.device, ifname, t);
+      return vlan === check.vlan ? { ok: true, detail: t("{iface} está en la VLAN {vlan}.", { iface: check.iface, vlan: check.vlan }) }
+        : { ok: false, detail: t("{iface} está en la VLAN {vlan}, no en la {want}.", { iface: check.iface, vlan: vlan ?? "—", want: check.vlan }) };
+    }
     const device = names.has(check.to);
     const to = device ? (await addressesOf(lab, check.to, t))[0] : check.to;
     if(!to) return { ok: false, detail: t("{device} no tiene dirección.", { device: name(check.to) }) };
@@ -74,6 +113,11 @@ export async function verifyExercise(lab: string, id: string, t: T, definition?:
   const { start } = machine;
   if(containers[0].Labels[LABELS.fingerprint] !== networkFingerprint(start)) throw new VerifyError(t("Este laboratorio no es el del reto tal como empieza: inícialo de nuevo desde Practicar."));
   const names = new Map(start.devices.map(device => [device.id, device.name]));
-  const results = await Promise.all(machine.goals.map(goal => checkGoal(lab, names, goal.check, t)));
+  // each port's Linux name, as the plan gives it (Fa0/3 → Fa0-3)
+  const ports = new Map(start.devices.map(device => {
+    const taken = new Set<string>();
+    return [device.id, new Map(device.interfaces.map(iface => [iface.name, ifnameOf(iface.name, taken)]))];
+  }));
+  const results = await Promise.all(machine.goals.map(goal => checkGoal(lab, names, ports, goal.check, t)));
   return { ok: results.every(result => result.ok), results, startedAt: startedOf(containers) };
 }

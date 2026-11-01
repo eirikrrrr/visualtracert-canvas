@@ -5,7 +5,7 @@
 // emulator and a lab can always be cleaned up.
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { IMAGES, isIp, spanish, type ImageId, type ImageInfo, type T, type Topology } from "@visual-tracert/model";
+import { IMAGES, isIp, LAB_PROFILE, spanish, type ImageId, type ImageInfo, type T, type Topology } from "@visual-tracert/model";
 import { docker, DockerError, type ContainerSummary } from "./docker";
 import { LABELS, planLab, type LinkPlan, type NodePlan, type Plan, type ProfileCatalog } from "./plan";
 import { loadProfiles, profileStatus } from "./profiles";
@@ -195,9 +195,11 @@ export function destroy(lab: string): Promise<LabState> {
 
 // the plan of a lab: the profiles it can use, and what this server allows
 async function planOf(lab: string, topology: Topology, t: T, include: string[] = []): Promise<Plan> {
-  const profiles: ProfileCatalog = new Map(await Promise.all((await loadProfiles()).map(async profile =>
+  const saved = await loadProfiles();
+  const all = saved.some(profile => profile.id === LAB_PROFILE.id) ? saved : [...saved, LAB_PROFILE];
+  const profiles: ProfileCatalog = new Map(await Promise.all(all.map(async profile =>
     [profile.id, { profile, ready: (await profileStatus(profile)).state === "built" }] as const)));
-  return planLab(lab, topology, t, profiles, { allowPrivileged: ALLOW_PRIVILEGED, include });
+  return planLab(lab, topology, t, profiles, { allowPrivileged: ALLOW_PRIVILEGED, include, labProfile: LAB_PROFILE.id });
 }
 
 /** a device's container, created and started: its id, and its process as the host sees it */
@@ -438,6 +440,12 @@ export async function execute(lab: string, device: string, command: Command, tar
     return { command: line, ...(await docker.exec(container.Id, ["vr-cli", line], 120_000)) };
   }
   return { command: argv.join(" "), ...(await docker.exec(container.Id, argv)) };
+}
+
+/** a command run on a device for the server's own checks (verify.ts), not the user's */
+export async function probe(lab: string, device: string, argv: string[], t: T = spanish) {
+  const container = await containerOf(lab, device, t);
+  return docker.exec(container.Id, argv);
 }
 
 /** the terminal size a shell starts with, and is changed to */
