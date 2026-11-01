@@ -1,14 +1,17 @@
-// Before the app: who is using it. Sign-in; sign-up with an invitation (the
+// Before the app: who is using it. A visitor without a session first sees the
+// landing page (../landing), and from it the sign-in; sign-up with an invitation (the
 // link ?invite=CODE types it in); the first account, the admin, with the setup
 // code of the API's log; and a password an admin set, changed before going on.
 // The app itself is drawn only for an account signed in.
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Icon } from "../editor/icons";
 import { LANGS, useLang, useT } from "../i18n";
 import { useAuth } from "./auth";
 import { useStore } from "./store";
 
 const invited = new URLSearchParams(location.search).get("invite") ?? "";
+// what a visitor without a session sees first; loaded only for them
+const Landing = lazy(() => import("../landing/Landing").then(module => ({ default: module.Landing })));
 
 function Field({ label, hint, ...input }: { label: string; hint?: string } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
@@ -20,12 +23,16 @@ function Field({ label, hint, ...input }: { label: string; hint?: string } & Rea
   );
 }
 
+/** back to the landing page, from the sign-in and the sign-up */
+let toLanding: (() => void) | null = null;
+
 function Card({ title, lead, children }: { title: string; lead?: ReactNode; children: ReactNode }) {
   const t = useT();
   const lang = useLang(state => state.lang);
   return (
     <main className="auth">
       <div className="auth-card">
+        {toLanding && <button type="button" className="link small auth-back" onClick={toLanding}>← {t("Volver al inicio")}</button>}
         <div className="auth-brand">
           <span className="brand-mark"><Icon name="logo" size={22} /></span>
           <span className="brand-name">visual-tracert</span>
@@ -165,7 +172,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const phase = useAuth(state => state.phase);
   const mustChange = useAuth(state => state.user?.mustChange ?? false);
   const theme = useStore(state => state.theme);
-  const [view, setView] = useState<"sign-in" | "register">(invited ? "register" : "sign-in");
+  const [view, setView] = useState<"landing" | "sign-in" | "register">(invited ? "register" : "landing");
+  toLanding = phase === "signed-out" ? () => setView("landing") : null;
   useEffect(() => { void useAuth.getState().refresh(); }, []);
   useEffect(() => { document.body.dataset.theme = theme; }, [theme]);
   // signed in from an invitation link: the code goes out of the address
@@ -178,7 +186,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
     </Card>
   );
   if(phase === "setup") return <Setup />;
-  if(phase === "signed-out") return view === "register" ? <Register toSignIn={() => setView("sign-in")} /> : <SignIn toRegister={() => setView("register")} />;
+  if(phase === "signed-out"){
+    if(view === "landing") return <Suspense fallback={<main className="auth" aria-busy="true" />}><Landing onSignIn={() => setView("sign-in")} onRegister={() => setView("register")} /></Suspense>;
+    return view === "register" ? <Register toSignIn={() => setView("sign-in")} /> : <SignIn toRegister={() => setView("register")} />;
+  }
   if(mustChange) return (
     <Card title={t("Elige tu contraseña")} lead={t("Un administrador te dio una contraseña provisional: cámbiala por una tuya para seguir.")}>
       <ChangePasswordForm first />

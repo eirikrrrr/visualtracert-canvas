@@ -217,7 +217,7 @@ export function TopBar() {
           <span className="brand-mark"><Icon name="logo" size={20} /></span>
           <span className="brand-name">visual-tracert</span>
         </button>
-        <span className="brand-version" title={t("Versión {version}", { version: __APP_VERSION__ })}>v{__APP_VERSION__}</span>
+        <span className="brand-version" title={t("Versión {version} ({stage})", { version: __APP_VERSION__, stage: __APP_STAGE__ })}>v{__APP_VERSION__}{__APP_STAGE__ !== "stable" && <b> {__APP_STAGE__}</b>}</span>
       </div>
 
       <div className="modes" role="radiogroup" aria-label={t("Modo")}>

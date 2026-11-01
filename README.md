@@ -1,227 +1,164 @@
-# Concepto: Next-Generation Network Simulator
+# visual-tracert
 
-Quiero desarrollar una plataforma web que funcione como una alternativa moderna a Cisco Packet Tracer, ofreciendo una experiencia de usuario significativamente mejorada, una interfaz visual intuitiva y capacidades de simulación y emulación de redes.
+**Aprende redes rompiendo y arreglando laboratorios reales.**
+Una plataforma de retos de networking al estilo de HackTheBox: cada máquina es una red con algo roto;
+la diagnosticas, la arreglas desde la CLI de equipos reales y subes en el ranking.
 
-La aplicación debe permitir a los usuarios diseñar, construir, configurar y experimentar con topologías de red desde el navegador, sin depender de una aplicación de escritorio.
+**Versión 0.5.0 · alpha** · en marcha en **https://visualtracert.online** (registro con invitación)
 
-## Concepto principal
+---
 
-La plataforma contará con un espacio de trabajo visual e interactivo donde los usuarios podrán crear topologías de red mediante drag & drop, incorporando diferentes tipos de dispositivos, conectándolos entre sí y configurando sus propiedades.
+## Qué es
 
-Los dispositivos se representarán mediante iconos e imágenes visuales propias, con interfaces, puertos y conexiones identificables. La topología deberá generarse dinámicamente y mantenerse sincronizada con su definición lógica.
+Aprender redes suele ser leer teoría o montar laboratorios a mano. visual-tracert junta las dos cosas
+en un camino con objetivos, como las plataformas de hacking ético, pero de networking:
 
-## Definición de topologías
+- **Aprendes** con guías completas (de qué es una red a subnetting e IPv6), cada concepto con su
+  diagrama y un quiz al final de cada nivel.
+- **Practicas** con máquinas: laboratorios con una avería o algo por hacer. En **Fácil** los
+  resuelves desde la interfaz, viendo cada paquete en la simulación; en **Medio**, solo desde la
+  CLI de equipos reales, como en una red de verdad.
+- **Compites**: cada máquina da XP, el servidor comprueba cada reto en los equipos reales, y hay
+  rangos, tracks, temporadas temáticas y un ranking global.
 
-Las redes podrán definirse tanto visualmente como mediante documentos estructurados, utilizando formatos como YAML o JSON.
+Está pensada para quien empieza en redes, para quien prepara una certificación (CCNA, MTCNA…) y
+para profesores que quieren dar laboratorios a su clase y seguir su progreso.
 
-Estos documentos describirán:
-- Dispositivos y sus tipos.
-- Interfaces de red.
-- Direccionamiento IP y MAC.
-- Conexiones entre dispositivos.
-- VLAN y segmentos de red.
-- Protocolos y configuraciones.
-- Parámetros específicos de cada dispositivo.
+## Estado del proyecto: alpha
 
-La modificación de una topología desde el editor visual deberá poder reflejarse en su documento de definición y viceversa.
+| Fase | Qué significa | |
+|---|---|---|
+| **alpha** | Funciona de punta a punta y está en Internet, pero cambia cada semana: puede haber cambios que rompan datos y el registro es solo con invitación. | ← **aquí** |
+| beta | Contenido y funciones estables, registro abierto (correo verificado o Google/GitHub), copias de seguridad probadas y nada que rompa los datos de los usuarios. | |
+| stable | 1.0: compromiso de compatibilidad, más máquinas por tema y soporte para aulas. | |
 
-El documento actual (versión 4) separa lo que es cada equipo (su tipo y sus puertos), cómo se
-configura (`config`) y cómo se dibuja (`canvas`):
+La fase está en el `package.json` raíz (`"stage"`), en el CHANGELOG, en cada etiqueta de versión y
+en la barra superior de la app (junto al número de versión).
 
-```yaml
-version: 4
-name: Dos redes y un router
-topology:
-  - id: oficina
-    name: Oficina
-    status: up
-    devices:
-      - id: r1
-        type: frr
-        name: R1
-        interfaces:
-          - { name: eth0, mac: 02:00:00:00:00:01 }
-          - { name: eth1, mac: 02:00:00:00:00:02 }
-        config:
-          interfaces:
-            eth0: { ip: 192.168.1.1/24 }
-            eth1: { ip: 10.0.0.1/30 }
-          routes:
-            - { prefix: 0.0.0.0/0, via: 10.0.0.2 }
-      - id: pc-1
-        type: pc
-        name: PC 1
-        interfaces:
-          - { name: eth0, mac: 02:00:00:00:00:03 }
-        config:
-          interfaces:
-            eth0: { ip: 192.168.1.10/24 }
-          gateway: 192.168.1.1
-links:
-  - { id: l1, a: "r1:eth0", b: "pc-1:eth0" }
-canvas:
-  positions:
-    r1: { x: 300, y: 200 }
-    pc-1: { x: 80, y: 200 }
-```
+## Cómo se aprende
 
-`config` no depende del fabricante: la emulación la aplica a Linux, FRR, SR Linux o RouterOS. Los
-documentos de versiones anteriores se siguen leyendo.
+- **Starting Point.** Tres guías largas —Fundamentos, Conceptos y Referencias— en español, inglés y
+  portugués: modelos OSI y TCP/IP, binario, IPv4 y máscaras, ARP, switching y VLAN, enrutamiento,
+  TCP y UDP a fondo, ICMP, DHCP, DNS, NAT, cabeceras, subnetting, IPv6, CLI de Linux y MikroTik y
+  diagnóstico por capas. 35 diagramas, enlaces a los RFC y un quiz final por nivel (más de 150
+  preguntas; se aprueba con el 75 %). Y las primeras máquinas.
+- **Máquinas.** Cada una con su nombre, su historia, su nivel (básico, intermedio, avanzado), su
+  XP, sus protocolos como etiquetas, un walkthrough y la solución (ocultos hasta que los pidas).
+- **Protocolos.** Una página por protocolo (ARP, IPv4, ICMP, VLAN, TCP, UDP, DHCP, DNS, HTTP…) con
+  lo esencial, cómo verlo en el laboratorio, sus diagramas, sus máquinas y su documentación.
+- **Tracks.** Caminos guiados con un objetivo: primeros pasos, switching y VLAN, enrutamiento,
+  servicios de red, la CLI de principio a fin, diagnóstico.
+- **Seasons y ranking.** Temporadas de máquinas alrededor de un tema, cada una con su ranking, y el
+  ranking global por XP.
+- **Inicio.** Tu nivel, tu racha semanal, tu XP de las últimas semanas, máquinas para ti y las que
+  tienes en curso.
 
-## Dispositivos y tecnologías
+### Las máquinas de hoy
 
-La plataforma deberá contemplar diferentes tipos de dispositivos de red:
+| Máquina | Tema | Nivel | Protocolos |
+|---|---|---|---|
+| Hola, Vecino | Fundamentos IP | Básico | Ethernet, ARP, IPv4, ICMP |
+| Máscara Rota | Fundamentos IP | Intermedio | IPv4, ARP, ICMP |
+| Muro Invisible | Switching y VLAN | Básico | VLAN, Ethernet, ICMP |
+| El Infiltrado | Switching y VLAN | Intermedio | VLAN, Ethernet, ICMP |
+| Puerta Cerrada | Enrutamiento | Básico | Enrutamiento, IPv4, ARP, ICMP |
+| Puente Entre Islas | Enrutamiento | Intermedio | Enrutamiento, IPv4, ICMP |
+| Rumbo a Internet | Enrutamiento | Avanzado | Enrutamiento, IPv4, ICMP |
+| Reparto Vacío | DHCP | Básico | DHCP, UDP, IPv4 |
+| El Mensajero | DHCP | Intermedio | DHCP, UDP, enrutamiento |
+| Guía Telefónica | DNS y web | Básico | DNS, UDP |
+| Web Perdida | DNS y web | Intermedio | HTTP, DNS, TCP |
+| Triple Avería | Diagnóstico | Avanzado | Enrutamiento, VLAN, ARP, ICMP |
 
-- Routers.
-- Switches.
-- Firewalls.
-- Ordenadores y clientes.
-- Servidores.
-- Access Points.
-- Dispositivos IoT.
-- Máquinas virtuales y contenedores.
+Todas se juegan en Fácil y en Medio. Los administradores editan las máquinas (nombre, historia,
+nivel, XP, imagen, walkthrough en PDF) y crean las suyas a partir de un laboratorio, desde el panel.
 
-También deberá permitir representar y trabajar con tecnologías y protocolos como TCP/IP, ARP, ICMP, DHCP, DNS, NAT, VLAN, STP, OSPF, BGP, VPN y routing estático.
+## Laboratorios de verdad
 
-## Simulación y emulación
+En Medio, cada equipo es un **contenedor real** y cada cable un enlace virtual (par veth):
 
-Uno de los elementos fundamentales será la posibilidad de trabajar con dos modalidades:
+- **Linux** (Alpine, Ubuntu, Debian) con iproute2: `ip`, `bridge`, `ping`, `traceroute`, `ss`,
+  `tcpdump`, `dig`. Los switches son puentes Linux con VLAN.
+- **Servicios** funcionando en los equipos: DHCP, DNS y relay DHCP (dnsmasq) y web (httpd).
+- **MikroTik RouterOS** (el CHR oficial, como máquina virtual) y **Nokia SR Linux**, más FRRouting.
+- **Capturas de tráfico** en cualquier cable, que se descargan como .pcap para Wireshark.
 
-**Simulación:** representar el comportamiento de dispositivos y protocolos de red, permitiendo observar el recorrido de los paquetes, las comunicaciones, los estados de las interfaces y los procesos internos de la red.
+El servidor comprueba cada reto en Medio en los equipos reales (que el laboratorio sea el reto tal
+como empieza, y pings, DHCP, DNS, web y VLAN de verdad) antes de darlo por superado y apuntarlo en
+el ranking, con el tiempo medido por él mismo.
 
-**Emulación:** permitir que los dispositivos representados correspondan a entornos de ejecución reales, utilizando contenedores, máquinas virtuales y sistemas operativos de red compatibles.
+Además de los retos, hay un **laboratorio libre**: un editor visual de topologías para montar tus
+propias redes y mirarlas paquete a paquete (**Simulación**) o desplegarlas con equipos reales
+(**Emulación**), con plantillas y documento YAML/JSON editable.
 
-La intención es que el usuario pueda pasar de una representación visual de una infraestructura a una red funcional y operativa.
+## Para profesores y administradores
 
-## Interfaz y experiencia de usuario
+- Cuentas con **roles** (alumno, profesor, administrador) y **registro con invitación**: códigos con
+  su rol, sus usos y su caducidad.
+- **Alumnos:** el progreso de cada cuenta (XP, retos superados, tiempos), para profesores.
+- **Máquinas y seasons:** editar y crear máquinas, crear temporadas con su tema y sus máquinas.
+- **Todo en la cuenta:** laboratorios (con versiones anteriores), perfil, preferencias y progreso
+  se guardan en el servidor y siguen al usuario a cualquier navegador.
+- Cada laboratorio desplegado es de quien lo desplegó, con un límite de laboratorios y equipos por
+  cuenta.
 
-La experiencia de usuario será uno de los principales diferenciadores del proyecto.
-
-La interfaz deberá tener una estética moderna, profesional y minimalista, con especial atención a la usabilidad y a la claridad visual.
-
-El espacio de trabajo deberá incluir:
-- Canvas interactivo para diseñar topologías.
-- Panel lateral de dispositivos.
-- Inspector contextual de propiedades y configuración.
-- Consolas y terminales integradas.
-- Visualización de conexiones y estados.
-- Inspección del tráfico de red.
-- Monitorización de dispositivos.
-- Gestión de proyectos y laboratorios.
-
-La interfaz deberá ser fluida, adaptable y fácil de utilizar, incluso en topologías complejas.
-
-## Visualización y análisis de tráfico
-
-La plataforma deberá permitir observar cómo circula la información por la infraestructura.
-
-Los usuarios podrán visualizar paquetes atravesando los dispositivos, inspeccionar protocolos, examinar cabeceras, identificar errores y comprender cómo se comporta una red.
-
-También se contempla la integración de funcionalidades de análisis similares a las ofrecidas por herramientas como Wireshark.
-
-## Filosofía del producto
-
-El objetivo es crear una plataforma independiente que combine la accesibilidad educativa de Cisco Packet Tracer con la flexibilidad y potencia de herramientas de emulación profesional como GNS3 y Containerlab.
-
-No se pretende realizar una copia de implementaciones propietarias existentes, sino desarrollar un producto original, con arquitectura propia, recursos gráficos propios y una experiencia de usuario superior.
-
-El resultado deseado es una plataforma de laboratorio de redes accesible desde cualquier navegador, que permita aprender, diseñar, experimentar, configurar y desplegar infraestructuras de red tanto simuladas como reales.
-## Lo que ya funciona
-
-- **Editor visual:** lienzo con dispositivos, cables y topologías (rectángulos de color), un
-  inspector flotante con las propiedades de lo seleccionado y el documento YAML/JSON editable a
-  la vez, con 12 plantillas de laboratorio.
-- **Emulación** (el modo con el que se abre): cada equipo es un contenedor real y cada cable un
-  par veth; se inicia, detiene o reinicia por equipo, por topología o entero. CLI real en el
-  navegador, captura de tráfico tipo Wireshark y comandos (ping, traza, rutas).
-- **Imágenes:** Alpine, Ubuntu, Debian, BusyBox, NGINX, netshoot, FRRouting, Nokia SR Linux y
-  MikroTik RouterOS (máquina virtual, al estilo de vrnetlab), más perfiles de imagen propios.
-- **Simulación:** el recorrido de cada paquete (ARP, ICMP, DHCP, DNS, TCP/HTTP), paso a paso.
-- **Practicar**, al estilo de un laboratorio de hacking, con su propio menú lateral:
-  - **Starting Point:** cuatro niveles con lecciones, referencias y las primeras máquinas.
-  - **Máquinas:** los retos por temas, en Fácil (simulación) o Medio (CLI de equipos reales,
-    comprobado por el servidor).
-  - **Tracks:** caminos guiados.
-  - **Seasons:** temporadas de máquinas alrededor de un tema, que crean los administradores.
-  - **Ranking:** global y por season.
-- **Cuentas:** inicio de sesión, registro con invitación, roles (alumno, profesor,
-  administrador) y un panel para gestionar usuarios e invitaciones. Sin sesión no se llega al
-  emulador ni a ninguna CLI.
-- **Panel de usuario:** perfil, cuenta, preferencias (idioma, tema, animaciones), laboratorios,
-  estado del servidor y atajos.
-- **Interfaz:** cuatro temas, español, inglés y portugués, y tipografía incluida con la app.
-
-La documentación técnica está en [docs/](docs/README.md): la arquitectura, el emulador por dentro
-(con diagramas), el formato del documento y la API.
-
-## Estructura del repositorio
+## Arquitectura
 
 Un monorepo con workspaces de npm:
 
 ```
 apps/
-  web/            editor visual y simulación de paquetes en el navegador (Vite + React)
-  emulator/       emulación: cada equipo, un contenedor; cada cable, un par veth (API en /api)
-  api/            cuentas: usuarios, sesiones e invitaciones en SQLite (API en /auth)
-    vrnetlab/     las imágenes de máquinas virtuales (RouterOS) que el emulador construye
+  web/        la web (Vite + React): landing, Practicar, el laboratorio libre y el panel
+  api/        cuentas, progreso, ranking, máquinas y laboratorios guardados (Node + SQLite)
+  emulator/   los laboratorios reales: un contenedor por equipo, un par veth por cable (Node + Docker)
+    vrnetlab/ las imágenes de máquinas virtuales (RouterOS) que el emulador construye
 packages/
-  model/          lo que comparten las apps: tipos de la topología, documento YAML/JSON,
-                  catálogo de dispositivos e imágenes, plantillas de laboratorio y traducciones
-docs/             documentación técnica: arquitectura, emulador, documento y API
+  model/      lo que comparten: topología, documento, catálogo, máquinas, guías, protocolos y traducciones
+deploy/       producción: compose detrás de Caddy (HTTPS), copias de seguridad y preparación del servidor
+docs/         documentación técnica
 ```
 
-- `npm install` en la raíz instala y enlaza todo.
-- `npm run dev` arranca el editor; `npm test` y `npm run typecheck` recorren todos los workspaces.
-- `docker compose up -d --build` construye cada app desde la raíz (para que vea `packages/`) y publica el editor en el puerto 9150.
-- La primera vez, la web pide crear el administrador con el código de instalación que muestra
-  `docker compose logs api`. Las demás cuentas se crean con invitaciones (panel de usuario →
-  Usuarios).
+nginx (en la imagen de la web) pregunta al servicio de cuentas antes de cada petición al emulador:
+sin sesión no se llega a ningún laboratorio ni CLI. El emulador tiene el socket de Docker y entra en
+el espacio de red de otros contenedores, así que es root sobre la máquina: nunca se publica, solo se
+alcanza a través de la web.
 
-El emulador necesita el socket de Docker y entrar en el espacio de red de otros contenedores (va con
-privilegios y con los PID del host): en la práctica es root sobre la máquina. Por eso solo se alcanza a
-través del nginx del editor (`/api`) y, para desarrollo, en `127.0.0.1:9151`. Los contenedores de cada
-laboratorio llevan la etiqueta `visual-tracert.lab` y se pueden borrar con
-`docker rm -f $(docker ps -aq --filter label=visual-tracert.lab)`.
+Más detalles: [docs/](docs/README.md) (arquitectura, emulador por dentro, documento y API) y
+[DESIGN.md](DESIGN.md) (el diseño de la web).
 
-Los perfiles de imagen se guardan en el volumen `emulator-data` y se construyen con Docker en este
-servidor: sus comandos se ejecutan como `RUN` con acceso a Internet. FRRouting necesita además
-`SYS_ADMIN` dentro de su contenedor. Nokia SR Linux necesita un contenedor privilegiado (root en
-este equipo): el emulador solo lo permite si se arranca con `ALLOW_PRIVILEGED=1 docker compose up -d`.
+## Desarrollo
 
-MikroTik RouterOS es una máquina virtual (el CHR oficial), así que corre como en
-[vrnetlab](https://github.com/vrnetlab/vrnetlab): su imagen se construye en este servidor desde
-`apps/emulator/vrnetlab/routeros` (Alpine, QEMU y el disco de RouterOS de download.mikrotik.com, para
-ARM64 o x86_64). Su lanzador espera los cables, une cada puerto a una tarjeta de la máquina con `tc`,
-arranca con KVM y configura RouterOS por la consola serie; la CLI entra por SSH en una interfaz de
-gestión aislada en su propio VRF. Su contenedor recibe `/dev/net/tun` y, si existe, `/dev/kvm` (sin
-KVM se emula, mucho más lento); no necesita privilegios. El usuario es `admin` y la contraseña
-`admin`, también desde los equipos del laboratorio.
+```sh
+npm install                      # instala y enlaza todos los workspaces
+npm run dev                      # la web en modo desarrollo
+npm test                         # las pruebas de todos los workspaces
+npm run typecheck
+docker compose up -d --build     # todo en Docker, la web en el puerto 9150
+```
 
-La captura de tráfico ejecuta tcpdump desde el emulador en el espacio de red del dispositivo, con
-el filtro validado, y la corta a los 64 MB.
+La primera vez, la web pide crear el administrador con el código de instalación que muestra
+`docker compose logs api`; las demás cuentas se crean con invitaciones (panel → Usuarios). Más en
+[docs/desarrollo.md](docs/desarrollo.md).
 
-El diseño de la web (temas, tokens, componentes, lienzo e interacción) está en [DESIGN.md](DESIGN.md).
+## Despliegue
 
-La CLI de cada dispositivo es una shell de root dentro de su contenedor (sin red propia, 96 MB de
-memoria, con `NET_ADMIN` solo en su espacio de red), por WebSocket en
-`/api/labs/:lab/devices/:device/shell`. Solo llega a ellas quien ha iniciado sesión: nginx pregunta
-al servicio de cuentas antes de cada petición al emulador. Cada laboratorio es de quien
-lo desplegó (otra cuenta no lo ve ni abre sus CLI) y cada cuenta tiene un límite de laboratorios
-y equipos encendidos (`MAX_LABS_PER_USER`, `MAX_CONTAINERS_PER_USER`). Para publicarla en
-Internet, ponla detrás de HTTPS (con `COOKIE_SECURE=1`).
-
-Un equipo, una topología o todo se pueden iniciar, detener o reiniciar sin tocar el resto
-(`POST /api/labs/:lab/start`, `/stop` y `/restart`): sus contenedores y sus cables se hacen de nuevo
-y, al otro extremo de cada cable, el puerto se vuelve a configurar (su dirección, su puente, sus
-rutas).
+Cada push a `main` pasa las pruebas, construye las imágenes para x86 y las publica en GHCR, y el
+servidor las descarga y reinicia (GitHub Actions). Delante va Caddy con HTTPS automático. La guía
+está en [deploy/README.md](deploy/README.md).
 
 ## Versiones
 
-Todo el repositorio comparte una versión ([SemVer](https://semver.org/lang/es/)) y cada una queda en
-[CHANGELOG.md](CHANGELOG.md) y en una etiqueta `vX.Y.Z`. Para publicar una:
+Todo el repositorio comparte una versión ([SemVer](https://semver.org/lang/es/)) y una fase (alpha,
+beta, stable). Cada versión queda en [CHANGELOG.md](CHANGELOG.md) y en una etiqueta `vX.Y.Z`. Para
+publicar una:
 
-1. Pasa lo de «Sin publicar» del CHANGELOG a la nueva versión, con su fecha.
-2. `npm version X.Y.Z --workspaces --include-workspace-root --no-git-tag-version`
-3. Commit `chore: release X.Y.Z`, etiqueta `git tag -a vX.Y.Z -m "visual-tracert X.Y.Z"` y push con `--follow-tags`.
+1. Pasa lo de «Sin publicar» del CHANGELOG a la nueva versión, con su fecha y su fase.
+2. `npm version X.Y.Z --workspaces --include-workspace-root --no-git-tag-version` (y, si cambia,
+   la fase en `"stage"` del `package.json` raíz).
+3. Commit `chore: release X.Y.Z`, etiqueta `git tag -a vX.Y.Z -m "visual-tracert X.Y.Z (alpha)"` y
+   push con `--follow-tags`.
 
-La app muestra su versión junto al nombre, en la barra superior.
+---
+
+Las marcas (Linux, MikroTik, Nokia, Huawei, Cisco…) pertenecen a sus dueños y se mencionan solo para
+indicar con qué sistemas se practica o se practicará; ninguna patrocina este proyecto.
