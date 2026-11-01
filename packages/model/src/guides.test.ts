@@ -15,7 +15,8 @@ const shape = (book: Book) => ({
   guides: Object.fromEntries(Object.entries(book.guides).map(([tier, guide]) => [tier, {
     sections: guide.sections.map(section => ({ id: section.id, blocks: section.blocks.map(kind) })),
     quiz: guide.quiz.map(item => ({ section: item.section, options: item.options.length, answer: item.answer })),
-    references: guide.references.map(item => item.url),
+    // the same documents, though Wikipedia's in each language
+    references: guide.references.length,
   }])),
   protocols: Object.fromEntries(Object.entries(book.protocols).map(([id, text]) => [id, text.blocks.map(kind)])),
   walkthroughs: Object.fromEntries(Object.entries(book.walkthroughs).map(([id, blocks]) => [id, blocks.map(kind)])),

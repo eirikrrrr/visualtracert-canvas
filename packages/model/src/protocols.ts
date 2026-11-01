@@ -73,7 +73,7 @@ export const PROTOCOLS: Protocol[] = [
   {
     id: "dns", layer: 7, carrier: "UDP/TCP 53", icon: "globe", color: "#33c9c9",
     sections: [["concepts", "dns"]],
-    references: [rfc(1034, "Domain Names — Concepts and Facilities"), rfc(1035, "Domain Names — Implementation and Specification"), { title: "dig(1)", url: "https://man7.org/linux/man-pages/man1/dig.1.html" }],
+    references: [rfc(1034, "Domain Names — Concepts and Facilities"), rfc(1035, "Domain Names — Implementation and Specification"), { title: "dig and nslookup (BIND 9 manual pages)", url: "https://bind9.readthedocs.io/en/latest/manpages.html" }],
   },
   {
     id: "http", layer: 7, carrier: "TCP 80 / 443", icon: "globe", color: "#f06fb0",
