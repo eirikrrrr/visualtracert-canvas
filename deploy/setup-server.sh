@@ -10,8 +10,10 @@ APP=/opt/visual-tracert
 apt-get update
 apt-get install -y ca-certificates curl ufw
 if ! command -v docker >/dev/null; then
-  curl -fsSL https://get.docker.com | sh
+  # Docker's own packages; on an Ubuntu too new for them, Ubuntu's
+  curl -fsSL https://get.docker.com | sh || apt-get install -y docker.io docker-compose-v2
 fi
+docker compose version >/dev/null 2>&1 || apt-get install -y docker-compose-v2
 systemctl enable --now docker
 
 # the firewall: Docker publishes only Caddy's 80 and 443; nothing else answers
