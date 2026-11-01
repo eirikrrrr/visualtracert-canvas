@@ -9,6 +9,7 @@
 import { exerciseById, EXERCISES, rankOf, solvedKey, xpOf, type Difficulty, type Solved } from "@visual-tracert/model";
 import type { DatabaseSync } from "node:sqlite";
 import { AccountError, type Role } from "./accounts";
+import { Machines } from "./machines";
 
 export interface Solve {
   exercise: string;
@@ -78,7 +79,12 @@ function checkSolve(exercise: unknown, difficulty: unknown): { exercise: string;
 const checkTime = (time: unknown) => typeof time === "number" && Number.isFinite(time) && time > 0 && time < 7 * 24 * 3600e3 ? Math.round(time) : null;
 
 export class Practice {
-  constructor(private readonly db: DatabaseSync, private readonly now: () => number = Date.now) {}
+  /** the machines as the admins changed them */
+  readonly machines: Machines;
+
+  constructor(private readonly db: DatabaseSync, private readonly now: () => number = Date.now) {
+    this.machines = new Machines(db, now);
+  }
 
   solves(userId: number): Solve[] {
     return (this.db.prepare("SELECT * FROM solves WHERE user_id = ? ORDER BY solved_at").all(userId) as unknown as SolveRow[]).map(toSolve);

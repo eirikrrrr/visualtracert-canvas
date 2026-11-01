@@ -6,7 +6,7 @@
 //                                   (ms since the epoch): stopped by itself then
 //   DELETE /api/labs/:lab           remove it
 //   GET    /api/labs/:lab/addresses the addresses its running devices have now, by device
-//   POST   /api/labs/:lab/verify    { exercise }: that exercise (medium) checked on the lab's devices,
+//   POST   /api/labs/:lab/verify    { exercise, definition? }: that exercise (medium) checked on the lab's devices,
 //                                   for its owner: { ok, results, startedAt }
 //   POST   /api/labs/:lab/run       { device, command, target? } on a device
 //   POST   /api/labs/:lab/start     { devices, document }: those devices, if stopped; the rest left running
@@ -47,7 +47,7 @@ import { CAPTURE_LIMIT, CaptureError, startCapture } from "./capture";
 import { docker, DockerError } from "./docker";
 import { buildProfile, loadProfiles, profileStatus, removeProfile, saveProfile } from "./profiles";
 import { ALLOW_PRIVILEGED, COMMANDS, deploy, destroy, execute, imageStatus, liveAddresses, openShell, ownerOf, QUOTA, QuotaError, relaunch, runningLabs, status, stopDevices, type Command, type Owner, type Size } from "./lab";
-import { verifyExercise, VerifyError } from "./verify";
+import { verifyExercise, VerifyError, type Definition } from "./verify";
 import { ensureImage } from "./vrnetlab";
 
 const MAX_BODY = 2 * 1024 * 1024;
@@ -193,9 +193,9 @@ async function route(req: IncomingMessage, res: ServerResponse) {
   if(match[2] === "/verify"){
     if(method !== "POST") throw new HttpError(405, "POST");
     if(caller && owner?.id !== caller.id) throw new HttpError(404, t("No existe ese laboratorio."));
-    const body = (await bodyOf(req)) as { exercise?: unknown };
+    const body = (await bodyOf(req)) as { exercise?: unknown; definition?: unknown };
     if(typeof body.exercise !== "string") throw new HttpError(400, t("Falta el reto."));
-    try{ send(res, 200, await verifyExercise(lab, body.exercise, t)); }
+    try{ send(res, 200, await verifyExercise(lab, body.exercise, t, body.definition as Definition | undefined)); }
     catch(error){ if(error instanceof VerifyError) throw new HttpError(409, error.message); throw error; }
     return;
   }

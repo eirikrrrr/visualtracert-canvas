@@ -1,9 +1,11 @@
 // An exercise's avatar, as a machine's: a disc in the colour of its topic with
 // its device's icon, inside a ring in the colour of its level (green, amber,
-// red), the ring full when it is solved.
+// red), the ring full when it is solved. An admin may give it a picture: then
+// the picture fills the disc.
 import { BOX_COLOR, type Exercise } from "@visual-tracert/model";
 import { useId } from "react";
 import { Icon } from "../editor/icons";
+import { fileUrl } from "./server";
 
 const RING = { 1: "var(--ok)", 2: "var(--arp)", 3: "var(--danger)" } as const;
 
@@ -23,7 +25,9 @@ export function MachineAvatar({ exercise, size = 48, solved = false }: { exercis
         <circle cx="24" cy="24" r="18" fill={`url(#${id}-glow)`} />
         <circle cx="17" cy="15" r="6" fill="#fff" opacity=".18" />
       </svg>
-      <span className="machine-avatar-icon"><Icon name={exercise.icon} size={Math.round(size * .42)} /></span>
+      {exercise.image
+        ? <img className="machine-avatar-image" src={fileUrl(exercise.image)} alt="" style={{ inset: size * 0.125 }} />
+        : <span className="machine-avatar-icon"><Icon name={exercise.icon} size={Math.round(size * .42)} /></span>}
     </span>
   );
 }

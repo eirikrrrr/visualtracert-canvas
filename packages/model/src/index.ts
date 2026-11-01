@@ -15,4 +15,5 @@ export * from "./exercises";
 export * from "./learn";
 export * from "./guides/types";
 export * from "./protocols";
+export * from "./machines";
 export * from "./i18n";

@@ -9,7 +9,7 @@
 // around a theme, each with its ranking. And the ranking. On a narrow screen
 // the menu is a row of tabs.
 import {
-  BOXES, BOX_COLOR, EXERCISES, LEVEL_LABEL, nextExercise, protocolById, solvedKey, TIME_LIMIT, xpOf, type Exercise,
+  BOXES, BOX_COLOR, EXERCISES, LEVEL_LABEL, listedExercises, nextExercise, protocolById, solvedKey, TIME_LIMIT, xpOf, type Exercise,
 } from "@visual-tracert/model";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Icon } from "../editor/icons";
@@ -19,7 +19,7 @@ import { MachineAvatar } from "./MachineAvatar";
 import { clock, useProgress } from "./progress";
 import { Rankings } from "./Rankings";
 import { SeasonCard, Seasons, useCurrentSeason } from "./Seasons";
-import { useShared } from "./server";
+import { fileUrl, useShared } from "./server";
 import { ProtocolPage, ProtocolTags } from "./Protocols";
 import { Blocks } from "./blocks";
 import { useBook } from "./guides";
@@ -68,7 +68,7 @@ function MachinesView() {
   const [topic, setTopic] = useState("");
   const [shown, setShown] = useState<Shown>("all");
   const words = query.trim().toLowerCase();
-  const list = EXERCISES.filter(exercise => {
+  const list = listedExercises().filter(exercise => {
     const box = BOXES.find(item => item.id === exercise.box)!;
     const solved = Boolean(done[solvedKey(exercise.id, difficulty)]);
     return (!words || [exercise.codename, exercise.title, exercise.story, box.title].some(text => t(text).toLowerCase().includes(words)))
@@ -223,7 +223,14 @@ function MachinePage({ exercise }: { exercise: Exercise }) {
         {tab === "walkthrough" && (
           <Spoiler solved={state.solvedAny} what={t("el walkthrough")}>
             <p className="muted small">{t("Cómo resolverla paso a paso, en los dos modos, y por qué funciona.")}</p>
-            <div className="guide-section walkthrough">{walkthrough ? <Blocks blocks={walkthrough} /> : <p className="muted small">{t("Cargando…")}</p>}</div>
+            {exercise.pdf && (
+              <div className="walkthrough-pdf">
+                <a className="primary small button-link" href={fileUrl(exercise.pdf)} target="_blank" rel="noreferrer noopener"><Icon name="file" size={15} />{t("Abrir el walkthrough en PDF")}</a>
+                <iframe title={t("Walkthrough en PDF")} src={fileUrl(exercise.pdf)} />
+              </div>
+            )}
+            <div className="guide-section walkthrough">{walkthrough ? <Blocks blocks={walkthrough} /> : exercise.custom ? null : <p className="muted small">{t("Cargando…")}</p>}</div>
+            {exercise.custom && !exercise.pdf && <p className="muted small">{t("Esta máquina aún no tiene walkthrough: mira su solución.")}</p>}
           </Spoiler>
         )}
         {tab === "solution" && (
@@ -271,12 +278,14 @@ export function PracticeHub() {
   const { section, machine, protocol } = useView();
   const open = machine ? EXERCISES.find(item => item.id === machine) : undefined;
   const page = protocol ? protocolById(protocol) : undefined;
-  useEffect(() => { void useShared.getState().refreshFigures(); void useShared.getState().refreshSeasons(); }, []);
+  // the admins' changes to the machines: drawn again when they come
+  const version = useShared(state => state.machinesVersion);
+  useEffect(() => { void useShared.getState().refreshFigures(); void useShared.getState().refreshSeasons(); void useShared.getState().refreshMachines(); }, []);
   return (
     <main className="practice">
       <Rail />
       <div className="practice-main">
-        <div className="practice-inner" key={page ? `protocol:${page.id}` : open ? open.id : section}>
+        <div className="practice-inner" key={`${version}:${page ? `protocol:${page.id}` : open ? open.id : section}`}>
           {page ? <ProtocolPage protocol={page} />
             : open ? <MachinePage exercise={open} />
             : section === "start" ? <StartingPoint />

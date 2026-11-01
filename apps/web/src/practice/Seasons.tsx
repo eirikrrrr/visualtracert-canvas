@@ -4,7 +4,7 @@
 // whether it runs); one opens its page: what its machines are based on, the
 // machines and the season's own ranking. An admin makes, changes and removes
 // them here. The season running shows in the side menu with the user's place.
-import { EXERCISES, LANGS, exerciseById } from "@visual-tracert/model";
+import { LANGS, exerciseById, listedExercises } from "@visual-tracert/model";
 import { useEffect, useState, type CSSProperties } from "react";
 import { useAuth } from "../app/auth";
 import { useStore } from "../app/store";
@@ -128,7 +128,7 @@ function SeasonEditor({ season, done }: { season?: Season; done: (saved?: Season
       </label>
       <fieldset className="season-machines">
         <legend>{t("Máquinas ({n})", { n: draft.machines.length })}</legend>
-        {EXERCISES.map(exercise => (
+        {listedExercises().map(exercise => (
           <label key={exercise.id}>
             <input type="checkbox" checked={draft.machines.includes(exercise.id)}
               onChange={event => set({ machines: event.target.checked ? [...draft.machines, exercise.id] : draft.machines.filter(id => id !== exercise.id) })} />

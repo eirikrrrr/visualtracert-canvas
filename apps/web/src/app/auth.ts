@@ -51,6 +51,18 @@ const MESSAGES: Record<string, string> = {
   "unauthorized": tx("Tu sesión terminó: vuelve a iniciar sesión."),
   "forbidden": tx("No tienes permiso para hacer esto."),
   "emulator-unavailable": tx("No se puede conectar con el emulador."),
+  "bad-machine": tx("Revisa los datos de la máquina."),
+  "bad-file": tx("Solo se admiten imágenes PNG, JPEG o WebP, y documentos PDF."),
+  "too-large": tx("El archivo es demasiado grande: las imágenes, hasta 2 MB; los PDF, hasta 10 MB."),
+};
+
+/** a machine's field the server refused (bad-machine), named for the user */
+const MACHINE_FIELD: Record<string, string> = {
+  id: tx("el identificador (de 3 a 40 minúsculas, números o guiones)"), codename: tx("el nombre"), title: tx("el título"),
+  story: tx("la historia"), summary: tx("el resumen"), level: tx("el nivel"), xp: tx("los puntos (de 0 a 1000)"),
+  image: tx("la imagen"), pdf: tx("el PDF"), file: tx("el archivo (súbelo de nuevo)"), protocols: tx("los protocolos"),
+  box: tx("el tema"), goals: tx("los objetivos (cada uno con su texto y un equipo del laboratorio)"), hints: tx("las pistas"),
+  cli: tx("los pasos de CLI"), start: tx("el laboratorio de partida"), solution: tx("el laboratorio resuelto"),
 };
 
 export class AuthError extends Error {
@@ -76,7 +88,8 @@ export async function authCall<R>(method: string, path: string, body?: unknown):
   const data = text ? (() => { try{ return JSON.parse(text); }catch(_){ return null; } })() : null;
   if(!res.ok){
     if(res.status === 401 && path !== "/login") useAuth.getState().expired();
-    throw new AuthError(data?.error ?? String(res.status), typeof data?.message === "string" ? data.message : undefined);
+    const field = data?.error === "bad-machine" && typeof data.detail === "string" ? MACHINE_FIELD[data.detail] : undefined;
+    throw new AuthError(data?.error ?? String(res.status), typeof data?.message === "string" ? data.message : field ? t("Revisa {field}.", { field: t(field) }) : undefined);
   }
   return data as R;
 }

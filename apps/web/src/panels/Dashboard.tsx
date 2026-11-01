@@ -17,6 +17,7 @@ import { emulator, type RunningLab } from "../emulation/api";
 import { useEmulation } from "../emulation/store";
 import { tx, useLang, useT } from "../i18n";
 import { useProgress } from "../practice/progress";
+import { MachinesSection } from "./MachinesSection";
 import { AccountSection, StudentsSection, UsersSection } from "./AccountSections";
 import { HelpList } from "./Inspector";
 import { Avatar } from "./TopBar";
@@ -25,6 +26,7 @@ const SECTIONS: { id: DashboardSection; label: string; icon: string }[] = [
   { id: "profile", label: tx("Perfil"), icon: "user" },
   { id: "account", label: tx("Cuenta"), icon: "key" },
   { id: "users", label: tx("Usuarios"), icon: "users" },
+  { id: "machines", label: tx("Máquinas"), icon: "flag" },
   { id: "students", label: tx("Alumnos"), icon: "practice" },
   { id: "preferences", label: tx("Preferencias"), icon: "settings" },
   { id: "labs", label: tx("Laboratorios"), icon: "topology" },
@@ -352,7 +354,7 @@ export function Dashboard() {
 
   const role = useAuth(state => state.user?.role);
   // the users: an admin's only; the students' progress: a teacher's or an admin's
-  const sections = SECTIONS.filter(item => (item.id !== "users" || role === "admin") && (item.id !== "students" || role === "admin" || role === "teacher"));
+  const sections = SECTIONS.filter(item => (item.id !== "users" || role === "admin") && (item.id !== "machines" || role === "admin") && (item.id !== "students" || role === "admin" || role === "teacher"));
   const current = sections.find(item => item.id === section);
   return (
     <dialog ref={dialog} className="gallery dashboard" aria-labelledby="dash-title" onClose={close}
@@ -380,6 +382,7 @@ export function Dashboard() {
               {current.id === "profile" && <ProfileSection />}
               {current.id === "account" && <AccountSection />}
               {current.id === "users" && <UsersSection />}
+              {current.id === "machines" && <MachinesSection />}
               {current.id === "students" && <StudentsSection />}
               {current.id === "preferences" && <PreferencesSection />}
               {current.id === "labs" && <LabsSection />}

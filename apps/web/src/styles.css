@@ -1380,3 +1380,35 @@ button.featured:hover { border-color: var(--line-strong); transform: translateY(
 @media (max-width: 700px) {
   .protocol-hero { flex-direction: column; padding: 18px; }
 }
+
+/* --- the machines' editor (dashboard, admins) ----------------------------------- */
+.machine-admin-list li { gap: 12px; }
+.machine-editor h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; text-transform: none; letter-spacing: 0; font: 600 18px var(--heading); color: var(--ink); }
+.machine-editor h4 { margin: 18px 0 8px; font: 600 14px var(--heading); }
+.machine-editor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0 14px; }
+.machine-editor .field input, .machine-editor .field select, .machine-editor .field textarea { color: var(--ink); }
+.machine-protocols { display: flex; flex-wrap: wrap; gap: 6px; }
+.machine-protocols label { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line-strong); font: 600 11.5px var(--mono); color: var(--ink-2); cursor: pointer; }
+.machine-protocols label.on { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
+.machine-protocols input { display: none; }
+.machine-file-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.machine-file-preview { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 1px solid var(--line-strong); }
+.button-like { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 5px 10px; border-radius: var(--radius-s); border: 1px solid var(--line-strong); font-size: 12.5px; }
+.button-like:hover { border-color: var(--accent); }
+.machine-labs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.machine-labs > div { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.machine-labs > p { grid-column: 1 / -1; margin: 0; display: flex; align-items: center; gap: 6px; }
+.ok-text { color: var(--ok); }
+.error-text { color: var(--danger); }
+.machine-goals { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.machine-goals li { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; }
+.machine-goals input, .machine-goals select { padding: 6px 9px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-s); color: var(--ink); min-width: 0; }
+.machine-goal-check { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.machine-goal-check input { flex: 1 1 120px; }
+.machine-hidden { display: flex; align-items: center; gap: 8px; margin: 14px 0; font-size: 13.5px; }
+.machine-editor-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.machine-avatar-image { position: absolute; width: auto; height: auto; aspect-ratio: 1; border-radius: 50%; object-fit: cover; }
+.walkthrough-pdf { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 16px; }
+.walkthrough-pdf iframe { width: 100%; height: 640px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.button-link { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+@media (max-width: 700px) { .machine-labs { grid-template-columns: 1fr; } }

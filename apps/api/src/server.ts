@@ -25,18 +25,29 @@
 //   POST   /auth/seasons              (admin) { name, theme, summary?, inspiration?, color?, icon?, startsAt, endsAt, machines }
 //   PATCH  /auth/seasons/:id          (admin)
 //   DELETE /auth/seasons/:id          (admin)
+//   GET    /auth/machines             what the admins changed of the machines, and their own
+//   PUT    /auth/machines/:id         (admin) an edit of one of the app's ({ codename?, title?, story?, summary?,
+//                                     level?, xp?, image?, pdf?, hidden?, protocols? }), or one of their own
+//                                     (all of that and box, icon, goals, hints, cli?, start, solution)
+//   DELETE /auth/machines/:id         (admin) back to the app's own, or gone
+//   POST   /auth/files                (admin) a file as the body (PNG, JPEG, WebP up to 2 MB; PDF up to 10 MB)
+//   GET    /auth/files/:id            a file
 //   GET    /auth/check                nginx asks it before every /api request (auth_request):
 //                                     204 with X-User-* headers, 401 without a session, 403 if not allowed
 // The session is a cookie (HttpOnly, SameSite=Strict; Secure behind HTTPS).
 // What changes something must come as JSON from this same site (Origin), so
 // another site cannot make the browser do it. Errors are { error: code }.
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { exerciseById } from "@visual-tracert/model";
 import { version } from "../../../package.json";
 import { AccountError, Accounts, type ErrorCode, type User } from "./accounts";
+import { FILE_TYPES } from "./machines";
 import type { Practice } from "./practice";
 
 export const COOKIE = "vt_session";
 const MAX_BODY = 16 * 1024;
+/** a machine of their own carries two labs */
+const MAX_MACHINE = 512 * 1024;
 const WINDOW = 15 * 60 * 1000;
 /** failed sign-ins allowed per window: from one address, and for one username */
 const LIMITS = { address: 20, username: 8 };
@@ -80,25 +91,29 @@ function sameOrigin(req: IncomingMessage): boolean {
   try{ return new URL(origin).host === host; }catch(_){ return false; }
 }
 
-function bodyOf(req: IncomingMessage): Promise<Record<string, unknown>> {
+/** the body as it came, up to a size */
+function rawOf(req: IncomingMessage, max: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    if(!(req.headers["content-type"] ?? "").startsWith("application/json")){ reject(new HttpError("bad-request", 415)); return; }
     const chunks: Buffer[] = [];
     let size = 0;
     req.on("data", (chunk: Buffer) => {
       size += chunk.length;
-      if(size > MAX_BODY){ reject(new HttpError("bad-request", 413)); req.destroy(); return; }
+      if(size > max){ reject(new HttpError("too-large", 413)); req.destroy(); return; }
       chunks.push(chunk);
     });
-    req.on("end", () => {
-      try{
-        const data = chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {};
-        if(!data || typeof data !== "object" || Array.isArray(data)) throw new Error();
-        resolve(data);
-      }catch(_){ reject(new HttpError("bad-request")); }
-    });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
+}
+
+async function bodyOf(req: IncomingMessage, max = MAX_BODY): Promise<Record<string, unknown>> {
+  if(!(req.headers["content-type"] ?? "").startsWith("application/json")) throw new HttpError("bad-request", 415);
+  const raw = await rawOf(req, max).catch(() => { throw new HttpError("bad-request", 413); });
+  try{
+    const data = raw.length ? JSON.parse(raw.toString("utf8")) : {};
+    if(!data || typeof data !== "object" || Array.isArray(data)) throw new Error();
+    return data;
+  }catch(_){ throw new HttpError("bad-request"); }
 }
 
 function send(res: ServerResponse, code: number, data?: unknown, headers: Record<string, string | string[]> = {}) {
@@ -132,7 +147,8 @@ export function emulatorVerifier(base: string) {
       res = await fetch(`${base}/api/labs/${encodeURIComponent(lab)}/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept-Language": lang, "X-User-Id": String(user.id), "X-User-Name": user.username, "X-User-Role": user.role },
-        body: JSON.stringify({ exercise }),
+        // one an admin made: the emulator does not have it, so it goes along
+        body: JSON.stringify({ exercise, ...definitionOf(exercise) }),
       });
     }catch(_){
       throw new HttpError("emulator-unavailable", 502);
@@ -141,6 +157,12 @@ export function emulatorVerifier(base: string) {
     if(!res.ok || !data) throw new VerifyRefused(data?.error ?? String(res.status));
     return data;
   };
+}
+
+/** an admin's machine, for the emulator to check: how it starts and its goals */
+function definitionOf(id: string) {
+  const machine = exerciseById(id);
+  return machine?.custom && machine.cli ? { definition: { start: machine.build(), goals: machine.goals } } : {};
 }
 
 /** the emulator would not check it (not deployed, not the exercise as it starts…): its words */
@@ -302,9 +324,32 @@ export function createHandler(accounts: Accounts, practice: Practice, options: S
       if(seasonMatch && method === "PATCH"){ admin(req); send(res, 200, practice.updateSeason(Number(seasonMatch[1]), await bodyOf(req))); return; }
       if(seasonMatch && method === "DELETE"){ admin(req); practice.deleteSeason(Number(seasonMatch[1])); send(res, 204); return; }
 
+      if(path === "/auth/machines" && method === "GET"){ signedIn(req); send(res, 200, practice.machines.list()); return; }
+      const machineMatch = path.match(/^\/auth\/machines\/([a-z0-9-]{1,40})$/);
+      if(machineMatch && method === "PUT"){ const by = admin(req); send(res, 200, practice.machines.put(machineMatch[1], await bodyOf(req, MAX_MACHINE), by.id)); return; }
+      if(machineMatch && method === "DELETE"){ admin(req); practice.machines.remove(machineMatch[1]); send(res, 204); return; }
+      if(path === "/auth/files" && method === "POST"){
+        const by = admin(req);
+        const mime = String(req.headers["content-type"] ?? "").split(";")[0].trim().toLowerCase();
+        if(!FILE_TYPES[mime]) throw new HttpError("bad-file", 415);
+        send(res, 201, practice.machines.addFile(mime, await rawOf(req, FILE_TYPES[mime]), by.id));
+        return;
+      }
+      const fileMatch = path.match(/^\/auth\/files\/([a-f0-9]{32})$/);
+      if(fileMatch && method === "GET"){
+        signedIn(req);
+        const file = practice.machines.file(fileMatch[1]);
+        if(!file) throw new HttpError("not-found", 404);
+        // never run as a page: shown as an image or a PDF, or downloaded
+        res.writeHead(200, { "Content-Type": file.mime, "Content-Length": file.data.length, "Cache-Control": "private, max-age=31536000, immutable",
+          "X-Content-Type-Options": "nosniff", "Content-Disposition": "inline", ...(file.mime.startsWith("image/") ? { "Content-Security-Policy": "default-src 'none'" } : {}) });
+        res.end(file.data);
+        return;
+      }
+
       throw new HttpError("not-found", 404);
     }catch(error){
-      if(error instanceof AccountError){ send(res, error.status, { error: error.code satisfies ErrorCode }); return; }
+      if(error instanceof AccountError){ send(res, error.status, { error: error.code satisfies ErrorCode, ...(error.detail ? { detail: error.detail } : {}) }); return; }
       console.error(error);
       send(res, 500, { error: "server" });
     }

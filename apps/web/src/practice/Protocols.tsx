@@ -4,7 +4,7 @@
 // travels), what to remember and how to see it in the lab, then the guides'
 // sections that explain it, with their diagrams, the machines that use it and
 // its standards. The Starting Point's references list them all.
-import { EXERCISES, protocolById, PROTOCOLS, type Protocol, type ProtocolId } from "@visual-tracert/model";
+import { listedExercises, protocolById, PROTOCOLS, type Protocol, type ProtocolId } from "@visual-tracert/model";
 import type { CSSProperties } from "react";
 import { Icon } from "../editor/icons";
 import { useT } from "../i18n";
@@ -63,7 +63,7 @@ export function ProtocolPage({ protocol }: { protocol: Protocol }) {
   const t = useT();
   const book = useBook();
   const text = book?.protocols[protocol.id];
-  const machines = EXERCISES.filter(item => item.protocols.includes(protocol.id));
+  const machines = listedExercises().filter(item => item.protocols.includes(protocol.id));
   return (
     <div className="protocol-page" style={{ "--tag": protocol.color } as CSSProperties}>
       <button type="button" className="back-button" onClick={() => useView.setState({ protocol: null })}>

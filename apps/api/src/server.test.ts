@@ -238,4 +238,40 @@ describe("practice: solves, ranking, machines and seasons", () => {
     const progress = (await admin.call("GET", "/auth/progress")).data;
     expect(progress.find((user: { username: string }) => user.username === "ana2")).toMatchObject({ xp: 30 });
   });
+
+  it("lets an admin edit the machines, make their own and upload their files", async () => {
+    expect((await ana.call("PUT", "/auth/machines/first-network", { xp: 50 })).status).toBe(403);
+    expect((await admin.call("PUT", "/auth/machines/first-network", { xp: -5 })).data).toMatchObject({ error: "bad-machine", detail: "xp" });
+    expect((await admin.call("PUT", "/auth/machines/first-network", { codename: "Hola de Nuevo", xp: 50 })).status).toBe(200);
+    expect((await ana.call("GET", "/auth/machines")).data).toMatchObject([{ id: "first-network", edit: { codename: "Hola de Nuevo", xp: 50 } }]);
+    // its points change the ranking: ana solved it in easy (50) and medium (100)
+    expect((await ana.call("GET", "/auth/rankings")).data.me).toMatchObject({ xp: 150 });
+
+    const lab = { version: 4, name: "Empieza", devices: [{ id: "pc", type: "pc", name: "PC", x: 0, y: 0, interfaces: [{ name: "eth0", mac: "02:00:00:00:00:01" }] }], links: [] };
+    const custom = { box: "routing", level: 1, codename: "Isla", title: "Una red", story: "Historia.", summary: "Qué hacer.", protocols: ["ipv4"],
+      goals: [{ text: "Ping", check: { kind: "ping", from: "pc", to: "10.0.0.1" } }], hints: [], start: lab, solution: lab };
+    expect((await admin.call("PUT", "/auth/machines/isla", custom)).data).toMatchObject({ id: "isla", custom: { codename: "Isla" } });
+    // a season may use it
+    expect((await admin.call("POST", "/auth/seasons", { name: "T2", theme: "x", startsAt: Date.now() - 1000, endsAt: Date.now() + 1e6, machines: ["isla"] })).status).toBe(201);
+
+    // files: only the types it says, as their bytes say, and only for admins
+    const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(32)]);
+    const upload = (who: ReturnType<typeof browser>, type: string, body: Buffer) =>
+      fetch(base + "/auth/files", { method: "POST", headers: { "Content-Type": type, Cookie: who.cookie() }, body });
+    expect((await upload(ana, "image/png", png)).status).toBe(403);
+    expect((await upload(admin, "image/svg+xml", png)).status).toBe(415);
+    expect((await upload(admin, "image/jpeg", png)).status).toBe(415);
+    const made = await (await upload(admin, "image/png", png)).json();
+    expect(made).toMatchObject({ mime: "image/png", size: png.length });
+    const got = await fetch(`${base}/auth/files/${made.id}`, { headers: { Cookie: ana.cookie() } });
+    expect(got.headers.get("content-type")).toBe("image/png");
+    expect(got.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(Buffer.from(await got.arrayBuffer()).equals(png)).toBe(true);
+    expect((await admin.call("PUT", "/auth/machines/first-network", { image: "0".repeat(32) })).data).toMatchObject({ detail: "file" });
+    expect((await admin.call("PUT", "/auth/machines/first-network", { image: made.id })).status).toBe(200);
+
+    expect((await admin.call("DELETE", "/auth/machines/isla")).status).toBe(204);
+    expect((await admin.call("DELETE", "/auth/machines/first-network")).status).toBe(204);
+    expect((await ana.call("GET", "/auth/rankings")).data.me).toMatchObject({ xp: 30 });
+  });
 });

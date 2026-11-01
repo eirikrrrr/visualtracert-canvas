@@ -68,6 +68,15 @@ export interface Exercise {
   cli?: string[];
   /** why it has no medium difficulty */
   cliUnavailable?: string;
+  /** set by an admin (./machines): the points it gives in easy (twice in medium), instead of its level's */
+  xp?: number;
+  /** its picture and its walkthrough as a PDF: ids of the accounts service's files */
+  image?: string;
+  pdf?: string;
+  /** not listed (its solves still count) */
+  hidden?: boolean;
+  /** made by an admin from a lab, not one of the app's */
+  custom?: boolean;
 }
 
 /** easy: from the interface, checked in the simulation; medium: from the CLI, checked on the real devices */
@@ -77,7 +86,7 @@ export const DIFFICULTY_LABEL: Record<Difficulty, string> = { easy: tx("Fácil")
 
 /** the points an exercise gives, by level: twice from the CLI */
 export const XP: Record<ExerciseLevel, number> = { 1: 10, 2: 20, 3: 40 };
-export const xpOf = (exercise: Exercise, difficulty: Difficulty) => XP[exercise.level] * (difficulty === "medium" ? 2 : 1);
+export const xpOf = (exercise: Exercise, difficulty: Difficulty) => (exercise.xp ?? XP[exercise.level]) * (difficulty === "medium" ? 2 : 1);
 
 /** the ranks, from the points each one starts at */
 export const RANKS: { name: string; from: number }[] = [
@@ -473,7 +482,9 @@ export const EXERCISES: Exercise[] = [
 ];
 
 export const exerciseById = (id: string) => EXERCISES.find(item => item.id === id);
-export const exercisesOf = (box: BoxId) => EXERCISES.filter(item => item.box === box).sort((p, q) => p.level - q.level);
+export const exercisesOf = (box: BoxId) => EXERCISES.filter(item => item.box === box && !item.hidden).sort((p, q) => p.level - q.level);
+/** the machines listed: all but those an admin hid */
+export const listedExercises = () => EXERCISES.filter(item => !item.hidden);
 
 /** the points of what was solved (its keys: solvedKey), and the rank they make */
 export function rankOf(solved: Solved): { xp: number; rank: string; level: number; next?: { name: string; from: number }; progress: number } {
@@ -501,7 +512,7 @@ export const isUnlocked = (exercise: Exercise, solved: Solved, difficulty: Diffi
 
 /** the exercises of the boxes that can be played, in a difficulty */
 export const playableExercises = (difficulty: Difficulty = "easy") =>
-  EXERCISES.filter(item => !BOXES.find(box => box.id === item.box)?.upcoming && hasDifficulty(item, difficulty));
+  EXERCISES.filter(item => !item.hidden && !BOXES.find(box => box.id === item.box)?.upcoming && hasDifficulty(item, difficulty));
 
 /** the next exercise of the path in a difficulty: the first open one not solved yet */
 export function nextExercise(solved: Solved, difficulty: Difficulty = "easy"): Exercise | undefined {

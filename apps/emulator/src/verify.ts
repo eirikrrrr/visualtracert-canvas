@@ -4,7 +4,7 @@
 // and each goal is a real ping from the device, to the address its target has
 // now. The accounts service asks this before it counts a medium solve, so the
 // ranking does not take a page's word for it.
-import { exerciseById, networkFingerprint, type Check, type T } from "@visual-tracert/model";
+import { exerciseById, networkFingerprint, type Check, type Goal, type T, type Topology } from "@visual-tracert/model";
 import { docker } from "./docker";
 import { execute, startedOf } from "./lab";
 import { LABELS } from "./plan";
@@ -24,6 +24,14 @@ export interface Verdict {
 }
 
 export class VerifyError extends Error {}
+
+/** a machine an admin made, which this server does not have: how it starts and
+ * its goals (the accounts service sends it; a definition sent by anyone else
+ * only fools its sender, since only the service records solves) */
+export interface Definition {
+  start: Topology;
+  goals: Goal[];
+}
 
 /** the IPv4 addresses a running device has now (set from its CLI, not the document's) */
 async function addressesOf(lab: string, device: string, t: T): Promise<string[]> {
@@ -56,14 +64,16 @@ async function checkGoal(lab: string, names: Map<string, string>, check: Check, 
 }
 
 /** checks a lab deployed for an exercise in medium difficulty, on its devices */
-export async function verifyExercise(lab: string, id: string, t: T): Promise<Verdict> {
+export async function verifyExercise(lab: string, id: string, t: T, definition?: Definition): Promise<Verdict> {
   const exercise = exerciseById(id);
-  if(!exercise || !exercise.cli) throw new VerifyError(t("Ese reto no tiene modo Medio."));
+  if(exercise && !exercise.cli) throw new VerifyError(t("Ese reto no tiene modo Medio."));
+  const machine = exercise ? { start: exercise.build(t), goals: exercise.goals } : definition;
+  if(!machine?.start?.devices || !Array.isArray(machine.goals)) throw new VerifyError(t("Ese reto no tiene modo Medio."));
   const containers = await docker.list({ [LABELS.lab]: lab });
   if(!containers.length) throw new VerifyError(t("El laboratorio no está desplegado."));
-  const start = exercise.build(t);
+  const { start } = machine;
   if(containers[0].Labels[LABELS.fingerprint] !== networkFingerprint(start)) throw new VerifyError(t("Este laboratorio no es el del reto tal como empieza: inícialo de nuevo desde Practicar."));
   const names = new Map(start.devices.map(device => [device.id, device.name]));
-  const results = await Promise.all(exercise.goals.map(goal => checkGoal(lab, names, goal.check, t)));
+  const results = await Promise.all(machine.goals.map(goal => checkGoal(lab, names, goal.check, t)));
   return { ok: results.every(result => result.ok), results, startedAt: startedOf(containers) };
 }

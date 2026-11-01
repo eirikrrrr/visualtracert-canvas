@@ -72,6 +72,25 @@ const MIGRATIONS = [
     created_at INTEGER NOT NULL
   );
   `,
+  // 3: what the admins changed of the machines (and the machines they made), and
+  // the files they uploaded for them (pictures, walkthroughs as PDF)
+  `
+  CREATE TABLE machines (
+    id TEXT PRIMARY KEY,
+    -- { edit } of one of the app's, or { custom }: as JSON
+    data TEXT NOT NULL,
+    updated_at INTEGER NOT NULL,
+    updated_by INTEGER REFERENCES users (id) ON DELETE SET NULL
+  );
+  CREATE TABLE files (
+    id TEXT PRIMARY KEY,
+    mime TEXT NOT NULL,
+    data BLOB NOT NULL,
+    size INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    created_by INTEGER REFERENCES users (id) ON DELETE SET NULL
+  );
+  `,
 ];
 
 /** opens (or creates) the database at that path (":memory:" for tests), migrated */
