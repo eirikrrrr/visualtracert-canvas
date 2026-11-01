@@ -117,12 +117,14 @@ function Quiz({ tier, guide }: { tier: GuideTier; guide: Guide }) {
           <>
             <h4>{t("Para repasar")}</h4>
             <ul className="quiz-review">
-              {failed.map(({ question }) => {
+              {failed.map(({ question, chosen }) => {
                 const item = guide.quiz[question];
                 return (
                   <li key={question}>
                     <strong>{item.q}</strong>
-                    <span className="small">{t("Respuesta correcta")}: {item.options[item.answer]}</span>
+                    <span className="quiz-answer wrong"><Icon name="close" size={13} />{t("Tu respuesta")}: <Rich text={item.options[chosen]} /></span>
+                    <span className="quiz-answer right"><Icon name="check" size={13} />{t("Respuesta correcta")}: <Rich text={item.options[item.answer]} /></span>
+                    <span className="small muted"><Rich text={item.why} /></span>
                     <button type="button" className="ghost small" onClick={() => scrollTo(anchor(tier, item.section))}>{t("Repasar: {title}", { title: titles[item.section] ?? item.section })}</button>
                   </li>
                 );

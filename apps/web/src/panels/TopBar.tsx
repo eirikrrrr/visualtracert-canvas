@@ -208,8 +208,10 @@ export function TopBar() {
   return (
     <header className="topbar">
       <div className="brand">
-        <span className="brand-mark"><Icon name="logo" size={20} /></span>
-        <span className="brand-name">visual-tracert</span>
+        <button type="button" className="brand-home" aria-current={mode === "home" ? "page" : undefined} title={t("Inicio")} onClick={() => chooseMode("home")}>
+          <span className="brand-mark"><Icon name="logo" size={20} /></span>
+          <span className="brand-name">visual-tracert</span>
+        </button>
         <span className="brand-version" title={t("Versión {version}", { version: __APP_VERSION__ })}>v{__APP_VERSION__}</span>
       </div>
 

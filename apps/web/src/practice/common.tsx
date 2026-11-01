@@ -144,7 +144,7 @@ export function MachineRow({ exercise }: { exercise: Exercise }) {
     <tr className={`machine-row${!state.open ? " locked" : ""}`} tabIndex={0} onClick={show} onKeyDown={event => { if(event.key === "Enter") show(); }}>
       <td>
         <div className="machine-cell">
-          <MachineAvatar exercise={exercise} size={44} solved={state.solved} />
+          <MachineAvatar exercise={exercise} size={54} solved={state.solved} />
           <div>
             <strong>{t(exercise.codename)}</strong>
             <span className="mono small muted">{t(LEVEL_LABEL[exercise.level])} · {t(box.title)}</span>

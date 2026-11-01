@@ -23,7 +23,7 @@ function TrackCard({ track }: { track: Track }) {
       onClick={() => useView.setState({ track: track.id })}>
       <span className="track-art" aria-hidden="true">
         <span className="track-corner"><Icon name="layers" size={16} /></span>
-        <Icon name={track.icon} size={64} />
+        <Icon name={track.icon} size={88} />
       </span>
       <span className="track-text">
         <span className={`track-level level-${track.level}`}>{t(LEVEL_LABEL[track.level])}{track.difficulty === "medium" ? ` · ${t("Medio")}` : ""}</span>

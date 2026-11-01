@@ -22,7 +22,7 @@ export type Tool = "select" | "ping" | "capture";
 /** simulation: the network is modelled here; emulation: real containers */
 /** practice: the exercises; simulation: the network is modelled here;
  * emulation: real containers */
-export type Mode = "practice" | "simulation" | "emulation";
+export type Mode = "home" | "practice" | "simulation" | "emulation";
 /** how a run is played back: at once ("realtime") or frame by frame at a speed */
 export type Speed = "realtime" | 0.5 | 1 | 2 | 4;
 export const SPEEDS: Speed[] = ["realtime", 0.5, 1, 2, 4];
@@ -295,7 +295,8 @@ export const useStore = create<State>((set, get) => ({
   tool: "select",
   pingFrom: null,
   // the app opens emulating: real containers (the simulation, one click away)
-  mode: "emulation",
+  // the app opens at its home page, not straight onto a lab
+  mode: "home",
   speed: loadSpeed(),
   tab: "simulation",
   theme: loadTheme(),
@@ -539,4 +540,7 @@ export function selectedZone(state: Pick<State, "selection" | "topology">): stri
   return device ? zoneOf(state.topology, device)?.id : undefined;
 }
 
-
+// a lab opened, made or duplicated from the home page shows on the canvas
+useStore.subscribe((state, previous) => {
+  if(state.labId !== previous.labId && state.mode === "home") useStore.getState().setMode("simulation");
+});

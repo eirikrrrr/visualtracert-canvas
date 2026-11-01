@@ -29,6 +29,7 @@ const TemplateGallery = lazy(() => import("../panels/TemplateGallery").then(modu
 const Marketplace = lazy(() => import("../panels/Marketplace").then(module => ({ default: module.Marketplace })));
 const Dashboard = lazy(() => import("../panels/Dashboard").then(module => ({ default: module.Dashboard })));
 const PracticeHub = lazy(() => import("../practice/PracticeHub").then(module => ({ default: module.PracticeHub })));
+const Home = lazy(() => import("./Home").then(module => ({ default: module.Home })));
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "simulation", label: tx("Simulación") },
@@ -46,7 +47,7 @@ function Shortcuts() {
       const state = useStore.getState();
       // the gallery and the Marketplace are modal dialogs: their own keys only
       // the dialogs, and practice (no canvas), have their own keys only
-      if(state.gallery || state.marketplace || state.dashboard || state.mode === "practice") return;
+      if(state.gallery || state.marketplace || state.dashboard || state.mode === "practice" || state.mode === "home") return;
       const key = event.key.toLowerCase();
       if((event.ctrlKey || event.metaKey) && key === "z"){ event.preventDefault(); event.shiftKey ? state.redo() : state.undo(); return; }
       if((event.ctrlKey || event.metaKey) && key === "y"){ event.preventDefault(); state.redo(); return; }
@@ -216,6 +217,7 @@ export function App() {
   const marketplace = useStore(state => state.marketplace);
   const dashboard = useStore(state => state.dashboard);
   const practicing = useStore(state => state.mode === "practice");
+  const home = useStore(state => state.mode === "home");
   const challenge = useStore(state => state.challenge);
   const motion = useProfile(state => state.motion ?? "full");
   useEffect(() => { document.body.dataset.theme = theme; }, [theme]);
@@ -228,7 +230,7 @@ export function App() {
       <Shortcuts />
       <div className="app">
         <TopBar />
-        {practicing ? <Suspense fallback={null}><PracticeHub /></Suspense> : (
+        {home ? <Suspense fallback={null}><Home /></Suspense> : practicing ? <Suspense fallback={null}><PracticeHub /></Suspense> : (
           <main className={`workspace${sideFull ? " side-full" : sideFloating ? " side-undocked" : ""}`} style={{ "--side-width": `${sideWidth}px` } as CSSProperties}>
             <div className="stage">
               <div className={`canvas-area${challenge ? " with-challenge" : ""}`} style={{ "--reserved-left": `${challenge ? CHALLENGE_SPACE : 0}px` } as CSSProperties}>
