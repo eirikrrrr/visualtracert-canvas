@@ -6,7 +6,22 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 
 ## [Sin publicar]
 
+## [0.5.0] - 2026-11-01 · alpha
+
+La primera versión en Internet (https://visualtracert.online) y con un objetivo claro: aprender
+redes con laboratorios y retos al estilo de las plataformas de hacking ético. Fase **alpha**:
+funciona de punta a punta, pero puede cambiar sin aviso y el registro es con invitación.
+
 ### Añadido
+- **Landing page** para quien llega sin sesión: qué es la plataforma, una red animada con sus
+  paquetes, una terminal que resuelve una máquina, el camino de aprendizaje, máquinas de ejemplo,
+  los sistemas con los que se practica (y los que vienen), cómo funciona y el acceso. Respeta el
+  movimiento reducido. La pantalla de acceso tiene «Volver al inicio».
+- **Fase del proyecto** (alpha, beta, stable) en el `package.json` raíz, mostrada junto a la versión
+  en la barra superior y en la landing. README reescrito con el nuevo enfoque.
+- **Despliegue en producción:** compose detrás de Caddy (HTTPS automático), GitHub Actions que
+  prueba, construye las imágenes, las publica en GHCR y despliega por SSH, preparación del servidor
+  (Docker, firewall) y copias de seguridad diarias de la base de datos.
 - **Todo en tu cuenta (fase B).** Tus laboratorios, tu perfil, tus preferencias (tema, idioma, menú) y tu progreso de Practicar se guardan en el servidor (migración 4) y te siguen a cualquier navegador; el navegador sigue siendo la copia con la que se trabaja, así que nada espera a la red. Al iniciar sesión se juntan las dos copias (gana el cambio más nuevo, los borrados se propagan) y lo que tenías antes pasa a tu cuenta. Cada laboratorio guarda sus versiones anteriores (una cada 10 minutos de cambios, las 10 últimas), que se recuperan desde Panel → Laboratorios. En Panel → Cuenta, el estado de la sincronización. Límite: 50 laboratorios de 512 KB por cuenta (`MAX_SAVED_LABS`).
 - **Menú lateral global.** El menú de Practicar pasa a toda la app (inicio, secciones de Practicar, Simulación y Emulación, con tu rango y la season en curso). El botón ☰ del header lo oculta y lo muestra, y se recuerda; en pantallas estrechas se abre por encima de la página.
 - **Página de inicio.** La app abre en un inicio con tu perfil, nivel y rango, la season en curso con tu puesto, tu racha semanal, la XP de las últimas semanas, máquinas para ti y las que tienes en curso, tu Starting Point, novedades y accesos a Practicar, Simulación y Emulación. El logo lleva a ella; antes la app abría directamente en el lienzo de Emulación.
@@ -291,7 +306,8 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 - Primera versión: editor visual de topologías, documento YAML/JSON sincronizado en los dos sentidos,
   panel de propiedades y simulación de ping (ARP, ICMP, switches con VLAN y rutas estáticas) paso a paso.
 
-[Sin publicar]: https://github.com/eirikrrrr/visual-tracert/compare/v0.4.0...HEAD
+[Sin publicar]: https://github.com/eirikrrrr/visual-tracert/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/eirikrrrr/visual-tracert/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/eirikrrrr/visual-tracert/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/eirikrrrr/visual-tracert/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/eirikrrrr/visual-tracert/compare/v0.1.0...v0.2.0

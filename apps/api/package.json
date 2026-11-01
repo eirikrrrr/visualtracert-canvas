@@ -1,7 +1,7 @@
 {
   "name": "@visual-tracert/api",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Cuentas y progreso: usuarios con roles, invitaciones, la comprobación de sesión que nginx hace antes de cada llamada al emulador, los retos superados, el ranking y las seasons.",
   "type": "module",
   "scripts": {
