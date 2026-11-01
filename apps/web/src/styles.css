@@ -881,7 +881,7 @@ body[data-motion="reduced"] *, body[data-motion="reduced"] *::before, body[data-
 /* ===========================================================================
    Practice: its sections, and the challenge card over the canvas
    =========================================================================== */
-.practice { min-height: 0; display: grid; grid-template-columns: 248px minmax(0, 1fr); gap: 12px; padding: 0 12px 12px; }
+.practice { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); padding: 0 12px 12px; }
 .practice-main { min-height: 0; overflow-y: auto; border-radius: 18px; }
 .practice-inner { max-width: 1080px; margin: 0 auto; padding: 18px 12px 28px; animation: fade-in var(--slow) var(--ease); }
 .challenge-kicker { font: 600 11px var(--heading); letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
@@ -1126,10 +1126,10 @@ button.featured:hover { border-color: var(--line-strong); transform: translateY(
 .dash-solves { margin-top: 8px; }
 
 /* --- Practice: the side menu and its sections ---------------------------------- */
-.practice-rail { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; }
-.practice-rail .player-card { padding: 12px; gap: 12px; box-shadow: none; background: var(--surface-2); }
-.practice-rail .player-badge { width: 42px; height: 42px; border-radius: 12px; }
-.practice-rail .player-text strong { font-size: 15px; }
+.app-sidebar { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; }
+.app-sidebar .player-card { padding: 12px; gap: 12px; box-shadow: none; background: var(--surface-2); }
+.app-sidebar .player-badge { width: 42px; height: 42px; border-radius: 12px; }
+.app-sidebar .player-text strong { font-size: 15px; }
 .rail-sections { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--line); }
 .rail-sections button { display: flex; align-items: center; gap: 11px; padding: 9px 12px; background: none; border: 1px solid transparent; border-radius: 10px; color: var(--ink-2); font-weight: 500; text-align: left; transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease); }
 .rail-sections button:hover { background: var(--surface-2); color: var(--ink); }
@@ -1251,12 +1251,6 @@ button.featured:hover { border-color: var(--line-strong); transform: translateY(
 .season-machines label { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; }
 
 @media (max-width: 900px) {
-  .practice { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
-  .practice-rail { flex-direction: row; align-items: center; overflow-x: auto; padding: 8px; }
-  .practice-rail .player-card { flex: none; min-width: 200px; }
-  .practice-rail .season-mini { flex: none; min-width: 200px; }
-  .rail-sections { flex-direction: row; margin: 0; padding: 0 0 0 8px; border-top: 0; border-left: 1px solid var(--line); }
-  .rail-sections button { white-space: nowrap; }
   .tier-about, .start-hero, .season-editor-grid { grid-template-columns: minmax(0, 1fr); }
   .start-art { display: none; }
 }
@@ -1480,3 +1474,18 @@ button.featured:hover { border-color: var(--line-strong); transform: translateY(
 .home-shortcuts button > span:nth-child(2) { flex: 1; display: flex; flex-direction: column; gap: 2px; }
 @media (max-width: 1000px) { .home-top { grid-template-columns: 1fr 1fr; } .home-top > .home-column { grid-column: 1 / -1; flex-direction: row; } .home-top > .home-column > * { flex: 1; } }
 @media (max-width: 700px) { .home-top, .home-bottom { grid-template-columns: minmax(0, 1fr); } .home-top > .home-column { flex-direction: column; } .home-inner { padding: 16px; } .home-head { flex-wrap: wrap; } }
+
+/* --- the app's side menu ------------------------------------------------------ */
+.app-body { position: relative; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+.app-body.with-sidebar { grid-template-columns: 240px minmax(0, 1fr); }
+.app-body.with-sidebar .app-sidebar { margin: 0 0 12px 12px; }
+.app-main { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); }
+.app-sidebar { animation: fade-in var(--base) var(--ease); }
+.rail-heading { padding: 0 12px 4px; font: 600 11px var(--mono); letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); }
+.app-sidebar-scrim { display: none; }
+.sidebar-toggle { margin-left: -4px; }
+@media (max-width: 900px) {
+  .app-body.with-sidebar { grid-template-columns: minmax(0, 1fr); }
+  .app-body.with-sidebar .app-sidebar { position: absolute; z-index: 40; top: 0; bottom: 12px; left: 0; width: min(280px, 85vw); box-shadow: var(--shadow); }
+  .app-body.with-sidebar .app-sidebar-scrim { display: block; position: absolute; inset: 0; z-index: 39; background: rgba(0, 0, 0, .35); }
+}

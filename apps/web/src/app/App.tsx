@@ -16,6 +16,7 @@ import { EmulationPanel } from "../emulation/EmulationPanel";
 import { useImages } from "../emulation/images";
 import { SimulationPanel } from "../panels/SimulationPanel";
 import { Toolbar } from "../panels/Toolbar";
+import { Sidebar } from "./Sidebar";
 import { TopBar } from "../panels/TopBar";
 import { Icon } from "../editor/icons";
 import { Grip } from "../panels/Grip";
@@ -218,6 +219,7 @@ export function App() {
   const dashboard = useStore(state => state.dashboard);
   const practicing = useStore(state => state.mode === "practice");
   const home = useStore(state => state.mode === "home");
+  const sidebar = useStore(state => state.sidebar);
   const challenge = useStore(state => state.challenge);
   const motion = useProfile(state => state.motion ?? "full");
   useEffect(() => { document.body.dataset.theme = theme; }, [theme]);
@@ -230,6 +232,9 @@ export function App() {
       <Shortcuts />
       <div className="app">
         <TopBar />
+        <div className={`app-body${sidebar ? " with-sidebar" : ""}`}>
+        {sidebar && <Sidebar />}
+        <div className="app-main">
         {home ? <Suspense fallback={null}><Home /></Suspense> : practicing ? <Suspense fallback={null}><PracticeHub /></Suspense> : (
           <main className={`workspace${sideFull ? " side-full" : sideFloating ? " side-undocked" : ""}`} style={{ "--side-width": `${sideWidth}px` } as CSSProperties}>
             <div className="stage">
@@ -259,6 +264,8 @@ export function App() {
             <SidePanel />
           </main>
         )}
+        </div>
+        </div>
       </div>
       <Suspense fallback={null}>
         {gallery && <TemplateGallery />}

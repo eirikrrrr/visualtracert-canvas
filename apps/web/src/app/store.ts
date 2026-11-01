@@ -12,6 +12,7 @@ const THEME_KEY = "visual-tracert.theme";
 const HISTORY_LIMIT = 100;
 const SIDE_KEY = "visual-tracert.side-width";
 const SIDE_FLOAT_KEY = "visual-tracert.side-float";
+const SIDEBAR_KEY = "visual-tracert.sidebar";
 export interface SideFloat { x: number; y: number; width: number; height: number }
 const SIDE_FLOAT_DEFAULT: SideFloat = { x: -1, y: 16, width: 420, height: 640 };
 export const SIDE_DEFAULT = 380;
@@ -142,6 +143,8 @@ interface State {
   speed: Speed;
   tab: Tab;
   theme: Theme;
+  /** the app's side menu is shown */
+  sidebar: boolean;
   run: SimRun | null;
   /** the action being prepared in the simulation panel, with a target per kind */
   draft: SimDraft;
@@ -207,6 +210,7 @@ interface State {
   setTool: (tool: Tool) => void;
   setPingFrom: (id: string | null) => void;
   setMode: (mode: Mode) => void;
+  setSidebar: (shown: boolean) => void;
   setSpeed: (speed: Speed) => void;
   setTab: (tab: Tab) => void;
   setTheme: (theme: Theme) => void;
@@ -284,6 +288,15 @@ function loadSideWidth(): number {
 
 let toastId = 0;
 
+/** the side menu as it was left; at first, shown except on a narrow screen */
+function loadSidebar(): boolean {
+  try{
+    const saved = localStorage.getItem(SIDEBAR_KEY);
+    if(saved === "1" || saved === "0") return saved === "1";
+  }catch(_){ /* no storage */ }
+  return typeof window === "undefined" || !window.matchMedia("(max-width: 900px)").matches;
+}
+
 export const useStore = create<State>((set, get) => ({
   labId: opening.id,
   labs: opening.labs,
@@ -300,6 +313,7 @@ export const useStore = create<State>((set, get) => ({
   speed: loadSpeed(),
   tab: "simulation",
   theme: loadTheme(),
+  sidebar: loadSidebar(),
   run: null,
   draft: { kind: "ping", from: "", targets: {}, ttl: 64, maxHops: 30 },
   request: null,
@@ -423,6 +437,10 @@ export const useStore = create<State>((set, get) => ({
   setTool: tool => set({ tool, pingFrom: null }),
   setPingFrom: pingFrom => set({ pingFrom }),
   // the third tab is the one of the mode; a simulated run stays off the canvas while emulating
+  setSidebar: sidebar => {
+    try{ localStorage.setItem(SIDEBAR_KEY, sidebar ? "1" : "0"); }catch(_){ /* ignore */ }
+    set({ sidebar });
+  },
   setMode: mode => set(state => ({ mode, playing: false, tab: state.mode === mode ? state.tab : "simulation", ...(mode === "emulation" ? { run: null, request: null, step: -1 } : {}) })),
   setSpeed: speed => {
     try{ localStorage.setItem(SPEED_KEY, String(speed)); }catch(_){ /* ignore */ }

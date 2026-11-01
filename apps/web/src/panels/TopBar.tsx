@@ -193,6 +193,7 @@ function ProfileButton() {
 export function TopBar() {
   const name = useStore(state => state.topology.name);
   const mode = useStore(state => state.mode);
+  const sidebar = useStore(state => state.sidebar);
   const inspectLab = useStore(state => state.inspectLab);
   const t = useT();
   const [draft, setDraft] = useState(name);
@@ -208,6 +209,10 @@ export function TopBar() {
   return (
     <header className="topbar">
       <div className="brand">
+        <button type="button" className="icon-button sidebar-toggle" aria-pressed={sidebar} aria-label={sidebar ? t("Ocultar el menú") : t("Mostrar el menú")}
+          title={sidebar ? t("Ocultar el menú") : t("Mostrar el menú")} onClick={() => useStore.getState().setSidebar(!sidebar)}>
+          <Icon name="menu" size={20} />
+        </button>
         <button type="button" className="brand-home" aria-current={mode === "home" ? "page" : undefined} title={t("Inicio")} onClick={() => chooseMode("home")}>
           <span className="brand-mark"><Icon name="logo" size={20} /></span>
           <span className="brand-name">visual-tracert</span>

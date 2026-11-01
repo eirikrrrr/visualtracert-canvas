@@ -1830,4 +1830,7 @@ export const pt: Record<string, string> = {
   "Ver perfil": "Ver perfil",
   "Inicio": "Início",
   "Tu respuesta": "Sua resposta",
+  "Menú": "Menu",
+  "Ocultar el menú": "Ocultar o menu",
+  "Mostrar el menú": "Mostrar o menu",
 };

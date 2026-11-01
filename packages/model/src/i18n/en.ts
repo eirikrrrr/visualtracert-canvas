@@ -1830,4 +1830,7 @@ export const en: Record<string, string> = {
   "Ver perfil": "View profile",
   "Inicio": "Home",
   "Tu respuesta": "Your answer",
+  "Menú": "Menu",
+  "Ocultar el menú": "Hide the menu",
+  "Mostrar el menú": "Show the menu",
 };

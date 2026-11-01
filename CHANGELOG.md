@@ -7,6 +7,7 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 ## [Sin publicar]
 
 ### Añadido
+- **Menú lateral global.** El menú de Practicar pasa a toda la app (inicio, secciones de Practicar, Simulación y Emulación, con tu rango y la season en curso). El botón ☰ del header lo oculta y lo muestra, y se recuerda; en pantallas estrechas se abre por encima de la página.
 - **Página de inicio.** La app abre en un inicio con tu perfil, nivel y rango, la season en curso con tu puesto, tu racha semanal, la XP de las últimas semanas, máquinas para ti y las que tienes en curso, tu Starting Point, novedades y accesos a Practicar, Simulación y Emulación. El logo lleva a ella; antes la app abría directamente en el lienzo de Emulación.
 - Tracks con tarjetas más grandes, iconos de las máquinas más grandes y, al terminar un quiz, tu respuesta errónea junto a la correcta.
 - **Todas las máquinas se juegan en Medio.** El emulador construye solo su imagen de laboratorio

@@ -1,24 +1,22 @@
-// Practice, in the manner of a hacking lab: a page of its own with a side
-// menu (the app has no sidebar of its own): the player's card and the season
-// running on top, and five sections. The Starting Point: four tiers from
-// reading to playing. The machines: the exercises, each with a name to
+// Practice, in the manner of a hacking lab: five sections, reached from the
+// app's side menu (app/Sidebar), which also shows the player and the season.
+// The Starting Point: four tiers from reading to playing. The machines: the exercises, each with a name to
 // remember, a story, an avatar, a level, a time and the points (XP) it gives,
 // twice from the CLI, as a table to search and filter; a machine opens its
 // page (play it, what it is about, its solution once solved). The tracks:
 // curated paths through the machines. The seasons: sets of new machines
-// around a theme, each with its ranking. And the ranking. On a narrow screen
-// the menu is a row of tabs.
+// around a theme, each with its ranking. And the ranking.
 import {
   BOXES, BOX_COLOR, EXERCISES, LEVEL_LABEL, listedExercises, nextExercise, protocolById, solvedKey, TIME_LIMIT, xpOf, type Exercise,
 } from "@visual-tracert/model";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Icon } from "../editor/icons";
 import { tx, useT } from "../i18n";
-import { BackButton, DifficultyPicker, go, MachineTable, Meter, PlayButton, PlayerCard, SectionHead, Solves, useMachineState, useView, type Section } from "./common";
+import { BackButton, DifficultyPicker, MachineTable, Meter, PlayButton, SectionHead, Solves, useMachineState, useView } from "./common";
 import { MachineAvatar } from "./MachineAvatar";
 import { clock, useProgress } from "./progress";
 import { Rankings } from "./Rankings";
-import { SeasonCard, Seasons, useCurrentSeason } from "./Seasons";
+import { Seasons } from "./Seasons";
 import { fileUrl, useShared } from "./server";
 import { ProtocolPage, ProtocolTags } from "./Protocols";
 import { Blocks } from "./blocks";
@@ -26,13 +24,6 @@ import { useBook } from "./guides";
 import { StartingPoint } from "./StartingPoint";
 import { Tracks } from "./Tracks";
 
-const SECTIONS: { id: Section; label: string; icon: string }[] = [
-  { id: "start", label: tx("Starting Point"), icon: "flag" },
-  { id: "machines", label: tx("Máquinas"), icon: "topology" },
-  { id: "tracks", label: tx("Tracks"), icon: "layers" },
-  { id: "seasons", label: tx("Seasons"), icon: "calendar" },
-  { id: "ranking", label: tx("Ranking"), icon: "trophy" },
-];
 
 type Shown = "all" | "todo" | "solved";
 
@@ -254,26 +245,6 @@ function MachinePage({ exercise }: { exercise: Exercise }) {
 
 // --- practice ----------------------------------------------------------------
 
-/** the side menu: the player, the season running and the sections */
-function Rail() {
-  const t = useT();
-  const section = useView(state => state.section);
-  const season = useCurrentSeason();
-  return (
-    <nav className="practice-rail" aria-label={t("Practicar")}>
-      <PlayerCard />
-      {season && <SeasonCard season={season} compact />}
-      <div className="rail-sections" role="tablist" aria-orientation="vertical">
-        {SECTIONS.map(item => (
-          <button key={item.id} type="button" role="tab" aria-selected={section === item.id} className={section === item.id ? "active" : ""} onClick={() => go(item.id)}>
-            <Icon name={item.icon} size={18} />{t(item.label)}
-          </button>
-        ))}
-      </div>
-    </nav>
-  );
-}
-
 export function PracticeHub() {
   const { section, machine, protocol } = useView();
   const open = machine ? EXERCISES.find(item => item.id === machine) : undefined;
@@ -283,7 +254,6 @@ export function PracticeHub() {
   useEffect(() => { void useShared.getState().refreshFigures(); void useShared.getState().refreshSeasons(); void useShared.getState().refreshMachines(); }, []);
   return (
     <main className="practice">
-      <Rail />
       <div className="practice-main">
         <div className="practice-inner" key={`${version}:${page ? `protocol:${page.id}` : open ? open.id : section}`}>
           {page ? <ProtocolPage protocol={page} />
