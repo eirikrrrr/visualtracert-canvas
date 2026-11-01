@@ -15,7 +15,8 @@ services:
       - "443:443"
       - "443:443/udp"
     environment:
-      DOMAIN: "${DOMAIN:-}"
+      SITE: "${DOMAIN:-:80}"
+      WWW_SITE: "www.${DOMAIN:-localhost}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
