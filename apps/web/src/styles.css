@@ -1504,3 +1504,19 @@ button.featured:hover { border-color: var(--line-strong); transform: translateY(
 .lab-versions li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px; border-radius: 10px; background: var(--surface-2); }
 .auth-back { display: inline-block; margin-bottom: 14px; color: var(--ink-2); }
 .brand-version b { font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; }
+
+/* --- signing in with GitHub and Google, and signing out --------------------------- */
+.oauth-buttons { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; }
+.oauth-button { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-weight: 600; text-decoration: none; transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease); }
+.oauth-button:hover { border-color: var(--ink-3); background: var(--surface-2); }
+.oauth-button svg { width: 18px; height: 18px; fill: currentColor; }
+.oauth-github svg { fill: var(--ink); }
+.oauth-google svg { fill: #4285f4; }
+.auth-divider { display: flex; align-items: center; gap: 10px; margin: 6px 0 12px; color: var(--ink-3); font-size: 12px; }
+.auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.dash-fields .oauth-buttons, .dash-body .oauth-buttons { max-width: 360px; }
+.app-sidebar { display: flex; flex-direction: column; }
+.rail-bottom { margin-top: auto; }
+.rail-logout, .dash-logout { display: flex; align-items: center; gap: 11px; width: 100%; padding: 9px 12px; background: none; border: 1px solid transparent; border-radius: 10px; color: var(--ink-2); font-weight: 500; text-align: left; }
+.rail-logout:hover, .dash-logout:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); }
+.dash-logout { margin-top: auto; }

@@ -49,6 +49,22 @@ Crea un registro **A** del dominio hacia la IP del servidor, pon `DOMAIN=tudomin
 `/opt/visual-tracert/.env` y reinicia Caddy (`docker compose up -d caddy`). El certificado llega
 en unos segundos. Con HTTPS, las cookies de sesión son `Secure` solas.
 
+## Entrar con GitHub y Google
+
+Cada uno se activa al poner su id y su secreto en `/opt/visual-tracert/.env` (con
+`PUBLIC_URL=https://tudominio.com`) y reiniciar el API: `docker compose up -d api`.
+
+- **GitHub:** github.com → Settings → Developer settings → **OAuth Apps → New OAuth App**.
+  Homepage `https://tudominio.com`; *Authorization callback URL*
+  `https://tudominio.com/auth/oauth/github/callback`. Copia el *Client ID* a `OAUTH_GITHUB_ID` y
+  genera un *Client secret* para `OAUTH_GITHUB_SECRET`.
+- **Google:** console.cloud.google.com → un proyecto → **APIs y servicios → Pantalla de
+  consentimiento de OAuth** (externa; nombre, correo de soporte, dominio) → **Credenciales → Crear
+  credenciales → ID de cliente de OAuth** (aplicación web). *URI de redireccionamiento autorizado*:
+  `https://tudominio.com/auth/oauth/google/callback`. El ID y el secreto van a `OAUTH_GOOGLE_ID` y
+  `OAUTH_GOOGLE_SECRET`. Con los permisos básicos (nombre y correo) no hace falta verificación de
+  Google; publica la app (de «Pruebas» a «En producción») para que entre cualquiera.
+
 ## Copias de seguridad
 
 Cada día a las 03:30, `backup.sh` guarda una copia de la base de datos en

@@ -4,8 +4,9 @@
 // a provisional password, removed) and the invitations to sign up.
 import { DIFFICULTY_LABEL, exerciseById, LANGS } from "@visual-tracert/model";
 import { useCallback, useEffect, useState } from "react";
-import { admin, inviteLink, ROLE_LABEL, useAuth, type Invite, type Role, type User } from "../app/auth";
-import { ChangePasswordForm } from "../app/AuthScreen";
+import { admin, inviteLink, oauth, ROLE_LABEL, useAuth, type Invite, type Provider, type Role, type User } from "../app/auth";
+import { ChangePasswordForm, ProviderButtons } from "../app/AuthScreen";
+import { BRANDS } from "../landing/brands";
 import { useStore } from "../app/store";
 import { syncNow, useSync } from "../app/sync";
 import { Icon } from "../editor/icons";
@@ -34,13 +35,48 @@ export function AccountSection() {
   return (
     <>
       <dl className="emu-info">{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
-      <h3>{t("Cambiar la contraseña")}</h3>
-      <div className="dash-fields"><ChangePasswordForm /></div>
+      <h3>{user.hasPassword ? t("Cambiar la contraseña") : t("Crear una contraseña")}</h3>
+      {!user.hasPassword && <p className="muted small">{t("Entras con GitHub o Google. Si creas una contraseña, también podrás entrar con tu usuario ({username}).", { username: user.username })}</p>}
+      <div className="dash-fields"><ChangePasswordForm fresh={!user.hasPassword} /></div>
+      <LinkedAccounts />
       <h3>{t("Sesión")}</h3>
       <SyncStatus />
       <button type="button" className="ghost" onClick={() => { useStore.getState().setDashboard(null); void useAuth.getState().logout(); }}>
         <Icon name="logout" size={16} />{t("Cerrar sesión")}
       </button>
+    </>
+  );
+}
+
+/** the services linked to the account (to sign in with them): unlink one, or link another */
+function LinkedAccounts() {
+  const t = useT();
+  const date = useDate();
+  const [data, setData] = useState<Awaited<ReturnType<typeof oauth.identities>> | null>(null);
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const load = useCallback(() => { void oauth.identities().then(setData).catch(() => setData(null)); }, []);
+  useEffect(() => { load(); void oauth.providers().then(setProviders); }, [load]);
+  if(!providers.length && !data?.identities.length) return null;
+  const name = (provider: Provider) => provider === "github" ? "GitHub" : "Google";
+  return (
+    <>
+      <h3>{t("Cuentas vinculadas")}</h3>
+      <p className="muted small">{t("Entra con un clic con tu cuenta de GitHub o de Google.")}</p>
+      {data?.identities.length ? (
+        <ul className="dash-images linked-accounts">
+          {data.identities.map(identity => (
+            <li key={identity.provider}>
+              <span className="props-icon market-logo"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d={BRANDS[identity.provider].path} fill="currentColor" /></svg></span>
+              <div className="dash-lab-text"><strong>{name(identity.provider)}</strong><span className="muted small">{identity.email ?? "—"} · {t("desde {date}", { date: date(identity.createdAt) })}</span></div>
+              <button type="button" className="ghost small" onClick={async () => {
+                try{ await oauth.unlink(identity.provider); load(); useStore.getState().notify(t("{service} desvinculado.", { service: name(identity.provider) }), "ok"); }
+                catch(error){ useStore.getState().notify((error as Error).message, "error"); }
+              }}>{t("Desvincular")}</button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <ProviderButtons link linked={data?.identities.map(item => item.provider) ?? []} />
     </>
   );
 }

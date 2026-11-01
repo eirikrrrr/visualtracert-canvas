@@ -10,6 +10,7 @@ import { go, PlayerCard, useView, type Section } from "../practice/common";
 import { chooseMode } from "../practice/progress";
 import { SeasonCard, useCurrentSeason } from "../practice/Seasons";
 import { useShared } from "../practice/server";
+import { useAuth } from "./auth";
 import { useStore, type Mode } from "./store";
 
 const PRACTICE: { id: Section; label: string; icon: string }[] = [
@@ -57,6 +58,9 @@ export function Sidebar() {
         <div className="rail-sections">
           <span className="rail-heading">{t("Laboratorio")}</span>
           {LABS.map(entry => item(entry.id, entry.label, entry.icon, mode === entry.id, () => chooseMode(entry.id)))}
+        </div>
+        <div className="rail-sections rail-bottom">
+          <button type="button" className="rail-logout" onClick={() => void useAuth.getState().logout()}><Icon name="logout" size={18} />{t("Cerrar sesión")}</button>
         </div>
       </nav>
       <div className="app-sidebar-scrim" aria-hidden="true" onClick={() => useStore.getState().setSidebar(false)} />

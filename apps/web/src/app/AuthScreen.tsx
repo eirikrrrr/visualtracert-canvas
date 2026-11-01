@@ -6,7 +6,8 @@
 import { lazy, Suspense, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Icon } from "../editor/icons";
 import { LANGS, useLang, useT } from "../i18n";
-import { useAuth } from "./auth";
+import { BRANDS } from "../landing/brands";
+import { errorMessage, oauth, oauthResult, useAuth, type Provider } from "./auth";
 import { useStore } from "./store";
 
 const invited = new URLSearchParams(location.search).get("invite") ?? "";
@@ -66,22 +67,54 @@ function useSubmit(action: () => Promise<void>) {
 
 const Problem = ({ text }: { text: string | null }) => text ? <p className="auth-error" role="alert">{text}</p> : null;
 
+const PROVIDER_NAME: Record<Provider, string> = { github: "GitHub", google: "Google" };
+
+/** «Continue with GitHub / Google»: the services this server has set up */
+export function ProviderButtons({ link = false, linked = [] }: { link?: boolean; linked?: Provider[] }) {
+  const t = useT();
+  const [providers, setProviders] = useState<Provider[]>([]);
+  useEffect(() => { void oauth.providers().then(setProviders); }, []);
+  const shown = providers.filter(provider => !linked.includes(provider));
+  if(!shown.length) return null;
+  return (
+    <div className="oauth-buttons">
+      {shown.map(provider => (
+        <a key={provider} className={`oauth-button oauth-${provider}`} href={oauth.url(provider, link)}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d={BRANDS[provider].path} /></svg>
+          {link ? t("Vincular {service}", { service: PROVIDER_NAME[provider] }) : t("Continuar con {service}", { service: PROVIDER_NAME[provider] })}
+        </a>
+      ))}
+    </div>
+  );
+}
+
+/** whether this server signs in with any other service */
+function useHasProviders(): boolean {
+  const [has, setHas] = useState(false);
+  useEffect(() => { void oauth.providers().then(list => setHas(list.length > 0)); }, []);
+  return has;
+}
+
 function SignIn({ toRegister }: { toRegister: () => void }) {
   const t = useT();
   const notice = useAuth(state => state.notice);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const { busy, error, submit } = useSubmit(() => useAuth.getState().login(username.trim(), password));
+  const providers = useHasProviders();
   return (
-    <Card title={t("Inicia sesión")} lead={t("Tu laboratorio de redes: topologías, simulación, emulación con equipos reales y retos.")}>
+    <Card title={t("Inicia sesión")} lead={t("Aprende redes con laboratorios y retos sobre equipos reales.")}>
       {notice && <p className="emu-note small">{notice}</p>}
+      {oauthResult.error && <Problem text={errorMessage(oauthResult.error)} />}
+      <ProviderButtons />
+      {providers && <p className="auth-divider"><span>{t("o con tu usuario")}</span></p>}
       <form onSubmit={submit}>
         <Field label={t("Usuario")} autoComplete="username" autoFocus required value={username} onChange={event => setUsername(event.target.value)} />
         <Field label={t("Contraseña")} type="password" autoComplete="current-password" required value={password} onChange={event => setPassword(event.target.value)} />
         <Problem text={error} />
         <button type="submit" className="primary auth-submit" disabled={busy}>{busy ? t("Entrando…") : t("Entrar")}</button>
       </form>
-      <p className="auth-switch small muted">{t("¿Tienes una invitación?")} <button type="button" className="link" onClick={toRegister}>{t("Crea tu cuenta")}</button></p>
+      <p className="auth-switch small muted">{t("¿No tienes cuenta?")} <button type="button" className="link" onClick={toRegister}>{t("Crea tu cuenta")}</button></p>
     </Card>
   );
 }
@@ -118,8 +151,11 @@ function NewAccount({ extra, submitLabel, onSubmit }: {
 function Register({ toSignIn }: { toSignIn: () => void }) {
   const t = useT();
   const [invite, setInvite] = useState(invited);
+  const providers = useHasProviders();
   return (
-    <Card title={t("Crea tu cuenta")} lead={t("Necesitas el código de invitación que te dio un administrador o tu profesor.")}>
+    <Card title={t("Crea tu cuenta")} lead={providers ? t("Gratis y abierto a todos: entra con tu cuenta de GitHub o de Google.") : t("Necesitas el código de invitación que te dio un administrador o tu profesor.")}>
+      <ProviderButtons />
+      {providers && <p className="auth-divider"><span>{t("o con un código de invitación")}</span></p>}
       <NewAccount submitLabel={t("Crear la cuenta")}
         extra={<Field label={t("Código de invitación")} required autoFocus={!invited} className="mono" placeholder="XXXX-XXXX-XXXX" value={invite}
           onChange={event => setInvite(event.target.value)} />}
@@ -143,7 +179,7 @@ function Setup() {
 }
 
 /** a password an admin set: the user picks their own before going on */
-export function ChangePasswordForm({ onDone, first = false }: { onDone?: () => void; first?: boolean }) {
+export function ChangePasswordForm({ onDone, first = false, fresh = false }: { onDone?: () => void; first?: boolean; /** the account has none yet: no current one asked */ fresh?: boolean }) {
   const t = useT();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -157,12 +193,12 @@ export function ChangePasswordForm({ onDone, first = false }: { onDone?: () => v
   });
   return (
     <form onSubmit={submit} className="auth-form">
-      <Field label={first ? t("Contraseña que te dieron") : t("Contraseña actual")} type="password" autoComplete="current-password" required value={current} onChange={event => { setCurrent(event.target.value); setDone(false); }} />
+      {!fresh && <Field label={first ? t("Contraseña que te dieron") : t("Contraseña actual")} type="password" autoComplete="current-password" required value={current} onChange={event => { setCurrent(event.target.value); setDone(false); }} />}
       <Field label={t("Contraseña nueva")} type="password" autoComplete="new-password" required minLength={10} hint={t("Al menos 10 caracteres.")} value={next} onChange={event => setNext(event.target.value)} />
       <Field label={t("Repite la contraseña nueva")} type="password" autoComplete="new-password" required value={again} onChange={event => setAgain(event.target.value)} />
       <Problem text={error} />
       {done && !first && <p className="small ok-text" role="status">{t("Contraseña cambiada. Las demás sesiones se cerraron.")}</p>}
-      <button type="submit" className="primary" disabled={busy}>{busy ? t("Guardando…") : t("Cambiar la contraseña")}</button>
+      <button type="submit" className="primary" disabled={busy}>{busy ? t("Guardando…") : fresh ? t("Crear la contraseña") : t("Cambiar la contraseña")}</button>
     </form>
   );
 }
@@ -172,7 +208,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const phase = useAuth(state => state.phase);
   const mustChange = useAuth(state => state.user?.mustChange ?? false);
   const theme = useStore(state => state.theme);
-  const [view, setView] = useState<"landing" | "sign-in" | "register">(invited ? "register" : "landing");
+  const [view, setView] = useState<"landing" | "sign-in" | "register">(invited ? "register" : oauthResult.error ? "sign-in" : "landing");
   toLanding = phase === "signed-out" ? () => setView("landing") : null;
   useEffect(() => { void useAuth.getState().refresh(); }, []);
   useEffect(() => { document.body.dataset.theme = theme; }, [theme]);

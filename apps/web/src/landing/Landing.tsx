@@ -301,7 +301,7 @@ export function Landing({ onSignIn, onRegister }: { onSignIn: () => void; onRegi
         <section className="lp-final">
           <Reveal>
             <h2>{t("¿Listo para tu primera máquina?")}</h2>
-            <p>{t("Crea tu cuenta con una invitación y empieza por «Hola, Vecino»: dos PC, un switch y una dirección que falta.")}</p>
+            <p>{t("Crea tu cuenta gratis con GitHub o Google y empieza por «Hola, Vecino»: dos PC, un switch y una dirección que falta.")}</p>
             <div className="lp-cta center">
               <button type="button" className="lp-btn big" onClick={onRegister}>{t("Crear cuenta")}<Icon name="next" size={18} /></button>
               <button type="button" className="lp-btn big ghost" onClick={onSignIn}>{t("Entrar")}</button>

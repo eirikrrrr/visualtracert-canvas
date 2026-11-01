@@ -18,7 +18,11 @@ export interface User {
   mustChange: boolean;
   createdAt: number;
   lastLogin: number | null;
+  /** it has a password (an account made with GitHub or Google may not, until it sets one) */
+  hasPassword: boolean;
 }
+
+export type Provider = "github" | "google";
 
 export interface Invite {
   code: string;
@@ -52,6 +56,10 @@ const MESSAGES: Record<string, string> = {
   "forbidden": tx("No tienes permiso para hacer esto."),
   "emulator-unavailable": tx("No se puede conectar con el emulador."),
   "bad-machine": tx("Revisa los datos de la máquina."),
+  "identity-taken": tx("Esa cuenta ya está vinculada a otro usuario de visual-tracert."),
+  "last-sign-in": tx("Es tu única forma de entrar: crea antes una contraseña o vincula otra cuenta."),
+  "oauth-failed": tx("No se pudo completar el inicio de sesión con ese servicio. Vuelve a probar."),
+  "oauth-unavailable": tx("Ese servicio no está disponible en este servidor."),
   "bad-file": tx("Solo se admiten imágenes PNG, JPEG o WebP, y documentos PDF."),
   "too-large": tx("El archivo es demasiado grande: las imágenes, hasta 2 MB; los PDF, hasta 10 MB."),
 };
@@ -147,6 +155,28 @@ export const useAuth = create<AuthState>((set, get) => {
 });
 
 // --- administration ------------------------------------------------------------
+
+/** signing in with GitHub and Google: the services set up, and those linked to the account */
+let providersOnce: Promise<Provider[]> | null = null;
+export const oauth = {
+  providers: () => (providersOnce ??= authCall<Provider[]>("GET", "/providers").catch(() => { providersOnce = null; return []; })),
+  identities: () => authCall<{ hasPassword: boolean; identities: { provider: Provider; email: string | null; createdAt: number }[] }>("GET", "/me/identities"),
+  unlink: (provider: Provider) => authCall<void>("DELETE", `/me/identities/${provider}`),
+  /** where the browser goes to sign in (or, linking: to link it to this account) */
+  url: (provider: Provider, link = false) => `/auth/oauth/${provider}${link ? "?link=1" : ""}`,
+};
+
+/** what the way back from a provider said (?auth_error=…, ?linked=…), read once */
+export const oauthResult = (() => {
+  const params = new URLSearchParams(typeof location === "undefined" ? "" : location.search);
+  const result = { error: params.get("auth_error"), linked: params.get("linked") as Provider | null };
+  if((result.error || result.linked) && typeof history !== "undefined"){
+    params.delete("auth_error"); params.delete("linked");
+    history.replaceState(null, "", location.pathname + (params.size ? `?${params}` : ""));
+  }
+  return result;
+})();
+export const errorMessage = (code: string) => new AuthError(code).message;
 
 export const admin = {
   users: () => authCall<User[]>("GET", "/users"),

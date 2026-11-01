@@ -36,6 +36,12 @@ services:
       COOKIE_SECURE: "${COOKIE_SECURE:-}"
       SETUP_CODE: "${SETUP_CODE:-}"
       MAX_SAVED_LABS: "${MAX_SAVED_LABS:-50}"
+      # signing in with GitHub and Google (each on when its id and secret are set)
+      PUBLIC_URL: "${PUBLIC_URL:-}"
+      OAUTH_GITHUB_ID: "${OAUTH_GITHUB_ID:-}"
+      OAUTH_GITHUB_SECRET: "${OAUTH_GITHUB_SECRET:-}"
+      OAUTH_GOOGLE_ID: "${OAUTH_GOOGLE_ID:-}"
+      OAUTH_GOOGLE_SECRET: "${OAUTH_GOOGLE_SECRET:-}"
     volumes:
       - api-data:/data
       - ./backups:/backups

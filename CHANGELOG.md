@@ -6,6 +6,10 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 
 ## [Sin publicar]
 
+### Añadido
+- **Entrar con GitHub y Google, con registro abierto:** cualquiera crea su cuenta (como alumno) con un clic; el mismo correo verificado lleva a la misma cuenta. En Panel → Cuenta, las cuentas vinculadas (vincular, desvincular) y crear una contraseña para entrar también con el usuario. El registro con usuario y contraseña sigue siendo con invitación hasta que haya verificación por correo. Cada proveedor se activa con su id y su secreto (migración 5).
+- **Cerrar sesión** al pie del menú lateral y del panel de usuario.
+
 ## [0.5.0] - 2026-11-01 · alpha
 
 La primera versión en Internet (https://visualtracert.online) y con un objetivo claro: aprender

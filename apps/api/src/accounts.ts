@@ -20,7 +20,31 @@ export interface User {
   mustChange: boolean;
   createdAt: number;
   lastLogin: number | null;
+  /** it has a password of its own (an account made with GitHub or Google may not) */
+  hasPassword: boolean;
 }
+
+/** an account of another service (GitHub, Google) linked to a user */
+export interface Identity {
+  provider: string;
+  /** that service's id for the person */
+  subject: string;
+  email: string | null;
+  createdAt: number;
+}
+
+/** what a provider says of the person signing in */
+export interface ProviderProfile {
+  provider: string;
+  subject: string;
+  /** only a verified one */
+  email: string | null;
+  login: string | null;
+  name: string | null;
+}
+
+/** the password of an account made with another service, until it sets one: matches none */
+const NO_PASSWORD = "none";
 
 export interface Invite {
   code: string;
@@ -36,7 +60,8 @@ export type ErrorCode =
   | "bad-request" | "bad-username" | "bad-name" | "bad-password" | "username-taken"
   | "already-set-up" | "invalid-setup-code" | "invalid-invite" | "invalid-credentials" | "disabled" | "too-many-attempts"
   | "wrong-password" | "not-found" | "last-admin" | "unauthorized" | "forbidden" | "emulator-unavailable" | "not-verified"
-  | "bad-machine" | "bad-file" | "too-large" | "bad-lab" | "too-many-labs";
+  | "bad-machine" | "bad-file" | "too-large" | "bad-lab" | "too-many-labs"
+  | "identity-taken" | "last-sign-in" | "oauth-failed" | "oauth-unavailable";
 
 export class AccountError extends Error {
   /** what was wrong: the field of a machine, say */
@@ -61,6 +86,7 @@ interface UserRow {
 const toUser = (row: UserRow): User => ({
   id: row.id, username: row.username, name: row.name, role: row.role,
   disabled: Boolean(row.disabled), mustChange: Boolean(row.must_change), createdAt: row.created_at, lastLogin: row.last_login,
+  hasPassword: row.password !== NO_PASSWORD,
 });
 
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
@@ -200,11 +226,73 @@ export class Accounts {
     const password = checkPassword(next);
     const row = this.db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as UserRow | undefined;
     if(!row) throw new AccountError("not-found", 404);
-    if(!await verifyPassword(typeof current === "string" ? current : "", row.password)) throw new AccountError("wrong-password", 403);
+    // an account made with another service sets its first password without one
+    if(row.password !== NO_PASSWORD && !await verifyPassword(typeof current === "string" ? current : "", row.password)) throw new AccountError("wrong-password", 403);
     this.db.prepare("UPDATE users SET password = ?, must_change = 0 WHERE id = ?").run(await hashPassword(password), userId);
     // the other browsers signed in with the old password: out
     this.endSessions(userId, keep);
     return this.user(userId)!;
+  }
+
+  // --- other services (GitHub, Google) ---------------------------------------------
+
+  identities(userId: number): Identity[] {
+    return (this.db.prepare("SELECT provider, subject, email, created_at FROM identities WHERE user_id = ? ORDER BY created_at").all(userId) as { provider: string; subject: string; email: string | null; created_at: number }[])
+      .map(row => ({ provider: row.provider, subject: row.subject, email: row.email, createdAt: row.created_at }));
+  }
+
+  /** who signs in with another service: the account linked to it; else, linked to the
+   * account asking (linkTo), or to the one already linked to the same verified email;
+   * else a new account (a student's), open to anyone */
+  signInWith(profile: ProviderProfile, linkTo?: number): User {
+    const at = this.now();
+    this.db.exec("BEGIN IMMEDIATE");
+    try{
+      const linked = this.db.prepare("SELECT user_id FROM identities WHERE provider = ? AND subject = ?").get(profile.provider, profile.subject) as { user_id: number } | undefined;
+      let userId: number;
+      if(linked){
+        if(linkTo !== undefined && linked.user_id !== linkTo) throw new AccountError("identity-taken", 409);
+        userId = linked.user_id;
+        this.db.prepare("UPDATE identities SET email = ? WHERE provider = ? AND subject = ?").run(profile.email, profile.provider, profile.subject);
+      }else{
+        const sameEmail = profile.email
+          ? this.db.prepare("SELECT user_id FROM identities WHERE email = ? COLLATE NOCASE LIMIT 1").get(profile.email) as { user_id: number } | undefined
+          : undefined;
+        userId = linkTo ?? sameEmail?.user_id ?? this.insertUser(this.freeUsername(profile), this.nameOf(profile), "student", NO_PASSWORD).id;
+        this.db.prepare("INSERT INTO identities (provider, subject, user_id, email, created_at) VALUES (?, ?, ?, ?, ?)").run(profile.provider, profile.subject, userId, profile.email, at);
+      }
+      const user = this.user(userId)!;
+      if(user.disabled) throw new AccountError("disabled", 403);
+      this.db.prepare("UPDATE users SET last_login = ? WHERE id = ?").run(at, userId);
+      this.db.exec("COMMIT");
+      return { ...user, lastLogin: at };
+    }catch(error){
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  /** unlinks a service, unless it is the account's only way in */
+  unlink(userId: number, provider: string): void {
+    const user = this.user(userId);
+    if(!user) throw new AccountError("not-found", 404);
+    const others = this.identities(userId).filter(item => item.provider !== provider).length;
+    if(!user.hasPassword && !others) throw new AccountError("last-sign-in", 409);
+    this.db.prepare("DELETE FROM identities WHERE user_id = ? AND provider = ?").run(userId, provider);
+  }
+
+  /** a username from the service's (or the email's), free: "ana", else "ana2"… */
+  private freeUsername(profile: ProviderProfile): string {
+    const base = ((profile.login ?? profile.email?.split("@")[0] ?? "user").toLowerCase().replace(/[^a-z0-9._-]/g, "").replace(/^[^a-z0-9]+/, "") || "user").slice(0, 28).padEnd(3, "0");
+    for(let n = 1; ; n++){
+      const candidate = n === 1 ? base : `${base}${n}`;
+      if(!this.db.prepare("SELECT 1 FROM users WHERE username = ?").get(candidate)) return candidate;
+    }
+  }
+
+  private nameOf(profile: ProviderProfile): string {
+    const name = (profile.name ?? profile.login ?? profile.email?.split("@")[0] ?? "").trim().replace(/\s+/g, " ").slice(0, NAME_MAX);
+    return name || "Usuario";
   }
 
   rename(userId: number, name: unknown): User {

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { Accounts } from "./accounts";
 import { openDatabase } from "./db";
 import { Practice } from "./practice";
+import { providersFromEnv } from "./oauth";
 import { emulatorVerifier, startServer } from "./server";
 
 const db = openDatabase(join(process.env.DATA_DIR ?? "./data", "visual-tracert.db"));
@@ -16,6 +17,7 @@ if(accounts.needsSetup()) console.log(`No accounts yet. Create the admin at the 
 
 const server = startServer(accounts, new Practice(db), Number(process.env.PORT) || 8090, {
   verify: emulatorVerifier(process.env.EMULATOR_URL ?? "http://127.0.0.1:9151"),
+  oauth: { providers: providersFromEnv(), publicUrl: process.env.PUBLIC_URL || undefined },
   secureCookies: secure === "1" ? "always" : secure === "0" ? "never" : "auto",
   setupCode,
 });

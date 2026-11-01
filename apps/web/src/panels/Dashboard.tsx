@@ -413,6 +413,9 @@ export function Dashboard() {
                 <Icon name={item.icon} size={17} />{t(item.label)}
               </button>
             ))}
+            <button type="button" className="dash-logout" onClick={() => { useStore.getState().setDashboard(null); void useAuth.getState().logout(); }}>
+              <Icon name="logout" size={17} />{t("Cerrar sesión")}
+            </button>
           </nav>
           <section className="dash-main">
             <header className="gallery-head">

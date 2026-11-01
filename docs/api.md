@@ -253,6 +253,9 @@ que cambia algo debe venir como `application/json` y desde el mismo sitio (`Orig
 | `DELETE /auth/labs/:id` | con sesión | Lo borra, con sus versiones |
 | `GET /auth/labs/:id/versions[/:savedAt]` | con sesión | Sus versiones anteriores (una cada 10 minutos de cambios, las 10 últimas), o una con su documento |
 | `GET /auth/me/settings` · `PUT /auth/me/settings` | con sesión | `{ data }`: tu perfil (foto, bio, animaciones), tus preferencias (tema, idioma, menú) y tu progreso de Practicar (lecciones, quizzes, retos en curso), hasta 256 KB |
+| `GET /auth/providers` | todos | Los servicios para entrar configurados: `["github", "google"]` |
+| `GET /auth/oauth/:provider[/callback]` | todos | Inicio de sesión con GitHub o Google (OAuth 2.0 con `state` y, en Google, PKCE). Una cuenta nueva se abre sola, como alumno (registro abierto); con `?link=1` y sesión, lo vincula a la cuenta. Con el mismo correo verificado, la misma cuenta |
+| `GET /auth/me/identities` · `DELETE /auth/me/identities/:provider` | con sesión | Los servicios vinculados (`{ hasPassword, identities }`); desvincular uno, salvo que sea la única forma de entrar (`last-sign-in`) |
 | `GET /auth/check` | nginx | `204` con `X-User-Id`, `X-User-Name` y `X-User-Role`; `401` o `403` |
 
 Un usuario:

@@ -40,6 +40,11 @@
 //   GET    /auth/labs/:id/versions/:savedAt  one of them, with its document
 //   GET    /auth/me/settings          { data, updatedAt }: profile, preferences, practice's progress
 //   PUT    /auth/me/settings          { data }
+//   GET    /auth/providers            the services to sign in with (["github", "google"], those set up)
+//   GET    /auth/oauth/:provider      to the provider (?link=1, signed in: links it to this account)
+//   GET    /auth/oauth/:provider/callback  back from it: signed in (a new account if none), then to the app
+//   GET    /auth/me/identities        { hasPassword, identities }: the services linked to the account
+//   DELETE /auth/me/identities/:provider  unlinks one (not the account's only way in)
 //   GET    /auth/check                nginx asks it before every /api request (auth_request):
 //                                     204 with X-User-* headers, 401 without a session, 403 if not allowed
 // The session is a cookie (HttpOnly, SameSite=Strict; Secure behind HTTPS).
@@ -50,6 +55,7 @@ import { exerciseById } from "@visual-tracert/model";
 import { version } from "../../../package.json";
 import { AccountError, Accounts, type ErrorCode, type User } from "./accounts";
 import { FILE_TYPES } from "./machines";
+import { finishFlow, PENDING_TTL, startFlow, type Pending, type ProviderConfig } from "./oauth";
 import type { Practice } from "./practice";
 
 export const COOKIE = "vt_session";
@@ -132,11 +138,28 @@ function send(res: ServerResponse, code: number, data?: unknown, headers: Record
   res.end(JSON.stringify(data));
 }
 
+export interface OAuthOptions {
+  providers: ProviderConfig[];
+  /** the address the providers send back to (https://visualtracert.online); else the request's */
+  publicUrl?: string;
+  fetch?: typeof fetch;
+}
+
+/** a page that goes on to another address: after the provider's redirect, a new
+ * navigation of this site's own, so the SameSite=Strict session cookie goes with it */
+function goTo(res: ServerResponse, location: string, headers: Record<string, string | string[]> = {}) {
+  const safe = location.replace(/[^A-Za-z0-9/?=&_.:#-]/g, "");
+  res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", ...headers });
+  res.end(`<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=${safe}"><title>visual-tracert</title><a href="${safe}">visual-tracert</a>`);
+}
+
 export interface ServerOptions {
   /** Secure cookies: always, never, or when the request came over HTTPS (X-Forwarded-Proto) */
   secureCookies?: "auto" | "always" | "never";
   /** what the first account must give: whoever reaches the page first cannot make themselves admin */
   setupCode?: string;
+  /** signing in with GitHub and Google */
+  oauth?: OAuthOptions;
   /** asks the emulator to check an exercise (medium) on a lab's devices, as the user */
   verify?: (lab: string, exercise: string, user: User, lang: string) => Promise<Verdict>;
   now?: () => number;
@@ -214,6 +237,23 @@ export function createHandler(accounts: Accounts, practice: Practice, options: S
     if((user.role !== "admin" && user.role !== "teacher") || user.mustChange) throw new HttpError("forbidden", 403);
     return user;
   };
+  // the flows on their way to a provider and back, by their state (they last ten minutes)
+  const pending = new Map<string, Pending>();
+  const providers = options.oauth?.providers ?? [];
+  const originOf = (req: IncomingMessage) => options.oauth?.publicUrl?.replace(/\/+$/, "")
+    ?? `${secure(req) ? "https" : "http"}://${(req.headers["x-forwarded-host"] as string | undefined) ?? req.headers.host}`;
+  const callbackOf = (req: IncomingMessage, provider: string) => `${originOf(req)}/auth/oauth/${provider}/callback`;
+  const OAUTH_COOKIE = "vt_oauth";
+  const oauthCookie = (req: IncomingMessage, value: string, maxAge: number) =>
+    `${OAUTH_COOKIE}=${value}; Path=/auth/oauth; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure(req) ? "; Secure" : ""}`;
+  const readCookie = (req: IncomingMessage, name: string) => {
+    for(const part of (req.headers.cookie ?? "").split(";")){
+      const [key, ...value] = part.trim().split("=");
+      if(key === name) return value.join("=");
+    }
+    return undefined;
+  };
+
   const addressOf = (req: IncomingMessage) => (req.headers["x-real-ip"] as string | undefined) ?? req.socket.remoteAddress ?? "?";
 
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
@@ -334,6 +374,50 @@ export function createHandler(accounts: Accounts, practice: Practice, options: S
       if(seasonMatch && method === "PATCH"){ admin(req); send(res, 200, practice.updateSeason(Number(seasonMatch[1]), await bodyOf(req))); return; }
       if(seasonMatch && method === "DELETE"){ admin(req); practice.deleteSeason(Number(seasonMatch[1])); send(res, 204); return; }
 
+      if(path === "/auth/providers" && method === "GET"){ send(res, 200, providers.map(item => item.id)); return; }
+      const oauthMatch = path.match(/^\/auth\/oauth\/(github|google)(\/callback)?$/);
+      if(oauthMatch && method === "GET"){
+        const provider = providers.find(item => item.id === oauthMatch[1]);
+        if(!provider){ goTo(res, "/?auth_error=oauth-unavailable"); return; }
+        if(!oauthMatch[2]){
+          for(const [state, flow] of pending) if(flow.expires <= now()) pending.delete(state);
+          const link = url.searchParams.get("link") === "1" ? accounts.session(cookieOf(req))?.id : undefined;
+          const flow = startFlow(provider, callbackOf(req, provider.id), now(), link);
+          pending.set(flow.pending.state, flow.pending);
+          res.writeHead(302, { Location: flow.url, "Cache-Control": "no-store", "Set-Cookie": oauthCookie(req, flow.pending.state, PENDING_TTL / 1000) });
+          res.end();
+          return;
+        }
+        const state = url.searchParams.get("state") ?? "";
+        const flow = pending.get(state);
+        const clear = { "Set-Cookie": oauthCookie(req, "", 0) };
+        // this browser's own flow, still fresh, and for this provider
+        if(!flow || readCookie(req, OAUTH_COOKIE) !== state || flow.expires <= now() || flow.provider !== provider.id || url.searchParams.get("error")){
+          if(flow) pending.delete(state);
+          goTo(res, "/?auth_error=oauth-failed", clear);
+          return;
+        }
+        pending.delete(state);
+        try{
+          const profile = await finishFlow(provider, url.searchParams.get("code") ?? "", callbackOf(req, provider.id), flow, options.oauth?.fetch);
+          const user = accounts.signInWith(profile, flow.link);
+          if(flow.link !== undefined){ goTo(res, `/?linked=${provider.id}`, clear); return; }
+          const token = accounts.createSession(user.id, req.headers["user-agent"]);
+          goTo(res, "/", { "Set-Cookie": [oauthCookie(req, "", 0), setCookie(req, token, 30 * 24 * 60 * 60 * 1000)] });
+        }catch(error){
+          const code = error instanceof AccountError ? error.code : "oauth-failed";
+          if(!(error instanceof AccountError)) console.error("oauth:", (error as Error).message);
+          goTo(res, `/?auth_error=${code}`, clear);
+        }
+        return;
+      }
+      if(path === "/auth/me/identities" && method === "GET"){
+        const user = signedIn(req);
+        send(res, 200, { hasPassword: user.hasPassword, identities: accounts.identities(user.id).map(({ provider, email, createdAt }) => ({ provider, email, createdAt })) });
+        return;
+      }
+      const identityMatch = path.match(/^\/auth\/me\/identities\/(github|google)$/);
+      if(identityMatch && method === "DELETE"){ accounts.unlink(signedIn(req).id, identityMatch[1]); send(res, 204); return; }
       if(path === "/auth/labs" && method === "GET"){ send(res, 200, practice.data.labs(signedIn(req).id)); return; }
       const labMatch = path.match(/^\/auth\/labs\/([A-Za-z0-9_-]{1,80})(?:\/versions(?:\/(\d{1,16}))?)?$/);
       if(labMatch){

@@ -16,6 +16,7 @@ import { EmulationPanel } from "../emulation/EmulationPanel";
 import { useImages } from "../emulation/images";
 import { SimulationPanel } from "../panels/SimulationPanel";
 import { Toolbar } from "../panels/Toolbar";
+import { errorMessage, oauthResult } from "./auth";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "../panels/TopBar";
 import { Icon } from "../editor/icons";
@@ -226,6 +227,11 @@ export function App() {
   useEffect(() => { document.body.dataset.motion = motion; }, [motion]);
   // what images this server has: the palette offers their devices
   useEffect(() => { void useImages.getState().refresh(); }, []);
+  // back from linking GitHub or Google to the account
+  useEffect(() => {
+    if(oauthResult.linked) useStore.getState().notify(t("{service} vinculado a tu cuenta.", { service: oauthResult.linked === "github" ? "GitHub" : "Google" }), "ok");
+    else if(oauthResult.error) useStore.getState().notify(errorMessage(oauthResult.error), "error");
+  }, []);
 
   return (
     <ReactFlowProvider>

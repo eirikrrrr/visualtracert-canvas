@@ -122,6 +122,19 @@ const MIGRATIONS = [
     updated_at INTEGER NOT NULL
   );
   `,
+  // 5: accounts of other services (GitHub, Google) linked to a user, to sign in with them
+  `
+  CREATE TABLE identities (
+    provider TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    email TEXT,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (provider, subject)
+  );
+  CREATE INDEX identities_user ON identities (user_id);
+  CREATE INDEX identities_email ON identities (email COLLATE NOCASE);
+  `,
 ];
 
 /** opens (or creates) the database at that path (":memory:" for tests), migrated */
