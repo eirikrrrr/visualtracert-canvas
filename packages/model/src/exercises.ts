@@ -13,6 +13,7 @@
 // devices. Only the exercises whose goals the emulation can check, with the
 // commands its devices have, have a medium one.
 import { spanish, tx, type T } from "./i18n";
+import type { ProtocolId } from "./protocols";
 import { drawLab } from "./templates";
 import { updateDevice } from "./topology";
 import type { Device, Interface, Topology } from "./types";
@@ -61,6 +62,8 @@ export interface Exercise {
   story: string;
   /** its avatar: an icon of the app's set */
   icon: string;
+  /** the protocols it is about, shown as tags that open their pages */
+  protocols: ProtocolId[];
   /** its medium difficulty: hints with the CLI's commands */
   cli?: string[];
   /** why it has no medium difficulty */
@@ -138,6 +141,7 @@ export const EXERCISES: Exercise[] = [
   // --- IP basics ---------------------------------------------------------------
   exercise(101, {
     id: "first-network", box: "basics", level: 1,
+    protocols: ["ethernet", "arp", "ipv4", "icmp"],
     title: tx("Tu primera red"),
     codename: tx("Hola, Vecino"), icon: "pc",
     story: tx("PC 2 acaba de mudarse al barrio y nadie sabe su dirección. Dale una casa en la red para que PC 1 pueda saludarle."),
@@ -161,6 +165,7 @@ export const EXERCISES: Exercise[] = [
   }),
   exercise(102, {
     id: "subnet-mask", box: "basics", level: 2,
+    protocols: ["ipv4", "arp", "icmp"],
     title: tx("La máscara importa"),
     codename: tx("Máscara Rota"), icon: "pc",
     story: tx("PC 2 lleva una máscara que no le queda: oye a PC 1, pero no sabe contestarle. Ajústale la máscara."),
@@ -189,6 +194,7 @@ export const EXERCISES: Exercise[] = [
   // --- switching ---------------------------------------------------------------
   exercise(103, {
     id: "split-vlans", box: "switching", level: 1,
+    protocols: ["vlan", "ethernet", "icmp"],
     title: tx("Separa la red en VLAN"),
     codename: tx("Muro Invisible"), icon: "switch",
     story: tx("Ventas y Almacén se pasan el día espiándose por el mismo switch. Levanta un muro invisible entre ellos."),
@@ -217,6 +223,7 @@ export const EXERCISES: Exercise[] = [
   }),
   exercise(104, {
     id: "wrong-port", box: "switching", level: 2,
+    protocols: ["vlan", "ethernet", "icmp"],
     title: tx("Un puerto en la VLAN equivocada"),
     codename: tx("El Infiltrado"), icon: "switch",
     story: tx("Alguien de Almacén se ha colado en la VLAN de Ventas. Descubre qué puerto le abrió la puerta."),
@@ -247,6 +254,7 @@ export const EXERCISES: Exercise[] = [
   // --- routing -----------------------------------------------------------------
   exercise(105, {
     id: "default-gateway", box: "routing", level: 1,
+    protocols: ["routing", "ipv4", "arp", "icmp"],
     title: tx("La puerta de enlace"),
     codename: tx("Puerta Cerrada"), icon: "router",
     story: tx("El PC quiere salir de su red, pero no sabe por qué puerta. Dile dónde está la salida."),
@@ -270,6 +278,7 @@ export const EXERCISES: Exercise[] = [
   }),
   exercise(106, {
     id: "static-routes", box: "routing", level: 2,
+    protocols: ["routing", "ipv4", "icmp"],
     title: tx("Rutas estáticas"),
     codename: tx("Puente Entre Islas"), icon: "router",
     story: tx("Dos oficinas aisladas, cada una con su router, que no saben llegar a la otra. Tiende el puente."),
@@ -299,6 +308,7 @@ export const EXERCISES: Exercise[] = [
   }),
   exercise(107, {
     id: "default-route", box: "routing", level: 3,
+    protocols: ["routing", "ipv4", "icmp"],
     title: tx("La ruta por defecto"),
     codename: tx("Rumbo a Internet"), icon: "cloud",
     story: tx("La oficina quiere ver el mundo, pero su router no sabe por dónde queda. Marca el rumbo por defecto."),
@@ -326,6 +336,7 @@ export const EXERCISES: Exercise[] = [
   // --- DHCP --------------------------------------------------------------------
   exercise(108, {
     id: "dhcp-server", box: "dhcp", level: 1,
+    protocols: ["dhcp", "udp", "ipv4"],
     title: tx("Un servidor DHCP"),
     codename: tx("Reparto Vacío"), icon: "server",
     story: tx("El servidor DHCP abre la tienda… sin nada que repartir. Dale un rango de direcciones."),
@@ -346,6 +357,7 @@ export const EXERCISES: Exercise[] = [
   }),
   exercise(109, {
     id: "dhcp-relay", box: "dhcp", level: 2,
+    protocols: ["dhcp", "udp", "routing"],
     title: tx("DHCP a través de un router"),
     codename: tx("El Mensajero"), icon: "server",
     story: tx("El grito del PC pidiendo dirección se pierde en el router. Convierte al router en mensajero."),
@@ -371,6 +383,7 @@ export const EXERCISES: Exercise[] = [
   // --- DNS and web -------------------------------------------------------------
   exercise(110, {
     id: "dns-record", box: "services", level: 1,
+    protocols: ["dns", "udp"],
     title: tx("Resuelve un nombre"),
     codename: tx("Guía Telefónica"), icon: "globe",
     story: tx("El cliente busca www.ejemplo.com en la guía y la página está en blanco. Escribe la entrada que falta."),
@@ -395,6 +408,7 @@ export const EXERCISES: Exercise[] = [
   }),
   exercise(111, {
     id: "reach-web", box: "services", level: 2,
+    protocols: ["http", "dns", "tcp"],
     title: tx("Llega a la web"),
     codename: tx("Web Perdida"), icon: "globe",
     story: tx("Todo funciona, pero el cliente no sabe a quién preguntar por los nombres. Dale su guía."),
@@ -421,6 +435,7 @@ export const EXERCISES: Exercise[] = [
   // --- troubleshooting ---------------------------------------------------------
   exercise(112, {
     id: "three-faults", box: "troubleshooting", level: 3,
+    protocols: ["routing", "vlan", "arp", "icmp"],
     title: tx("Tres averías"),
     codename: tx("Triple Avería"), icon: "search",
     story: tx("Tres fallos escondidos en dos oficinas. Ponte el casco de detective y encuéntralos uno a uno."),

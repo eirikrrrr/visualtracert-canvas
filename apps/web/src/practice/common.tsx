@@ -17,12 +17,17 @@ import { useShared } from "./server";
 export type Section = "start" | "machines" | "tracks" | "seasons" | "ranking";
 
 /** where practice is: its section, and what is open in it (kept while the app runs) */
-export const useView = create<{ section: Section; machine: string | null; track: string | null; season: number | null; tier: number }>(() => ({
-  section: "start", machine: null, track: null, season: null, tier: 0,
+export const useView = create<{ section: Section; machine: string | null; track: string | null; season: number | null; tier: number; protocol: string | null }>(() => ({
+  section: "start", machine: null, track: null, season: null, tier: 0, protocol: null,
 }));
 
+/** the way back, out of a page (a machine, a track, a season) */
+export function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return <button type="button" className="back-button" onClick={onClick}><Icon name="prev" size={16} />{label}</button>;
+}
+
 /** opens a section (closing what was open in the one before) */
-export const go = (section: Section) => useView.setState({ section, machine: null, track: null, season: null });
+export const go = (section: Section) => useView.setState({ section, machine: null, track: null, season: null, protocol: null });
 
 const DIFFICULTIES: { id: Difficulty; hint: string; icon: string }[] = [
   { id: "easy", hint: tx("Desde la interfaz: propiedades y documento; se comprueba en la simulación."), icon: "select" },
@@ -134,7 +139,7 @@ export function MachineRow({ exercise }: { exercise: Exercise }) {
   const t = useT();
   const state = useMachineState(exercise);
   const box = BOXES.find(item => item.id === exercise.box)!;
-  const show = () => useView.setState({ machine: exercise.id });
+  const show = () => useView.setState({ machine: exercise.id, protocol: null });
   return (
     <tr className={`machine-row${!state.open ? " locked" : ""}`} tabIndex={0} onClick={show} onKeyDown={event => { if(event.key === "Enter") show(); }}>
       <td>

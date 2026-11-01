@@ -6,7 +6,7 @@ import { DIFFICULTY_LABEL, exerciseById, LEVEL_LABEL, solvedKey, TRACKS, type Tr
 import { useState, type CSSProperties } from "react";
 import { Icon } from "../editor/icons";
 import { useT } from "../i18n";
-import { MachineTable, SectionHead, useView } from "./common";
+import { BackButton, MachineTable, SectionHead, useView } from "./common";
 import { useProgress } from "./progress";
 
 /** how many of a track's machines are solved, in its difficulty */
@@ -45,7 +45,7 @@ function TrackPage({ track }: { track: Track }) {
   const machines = track.machines.map(id => exerciseById(id)!).filter(Boolean);
   return (
     <div className="track-page" style={{ "--track": track.color } as CSSProperties}>
-      <button type="button" className="ghost small machine-back" onClick={() => useView.setState({ track: null })}>← {t("Todos los tracks")}</button>
+      <BackButton label={t("Todos los tracks")} onClick={() => useView.setState({ track: null })} />
       <header className="track-banner">
         <span className="track-banner-icon" aria-hidden="true"><Icon name={track.icon} size={52} /></span>
         <div>

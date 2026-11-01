@@ -775,6 +775,23 @@ function Nat() {
   );
 }
 
+function Http() {
+  const t = useT();
+  return (
+    <Svg h={380} label={t("Una petición HTTP sobre TCP")}>
+      <Box x={70} y={8} w={500} h={30} c="var(--dns)" s>{t("① DNS: www.ejemplo.com → 172.20.0.80")}</Box>
+      <Seq left={t("Navegador")} right={t("Servidor web")} top={54} step={46} bottom={372} msgs={[
+        { label: "SYN", to: "right", c: "var(--ink-3)" },
+        { label: "SYN-ACK", to: "left", c: "var(--ink-3)" },
+        { label: "ACK", to: "right", c: "var(--ink-3)" },
+        { label: "GET / HTTP/1.1 · Host: www.ejemplo.com", to: "right", c: "var(--http)" },
+        { label: "HTTP/1.1 200 OK · <html>…", to: "left", c: "var(--ok)" },
+        { label: "FIN", to: "right", c: "var(--ink-3)" },
+      ]} notesLeft={[[0, ":51514"], [3, t("② petición")]]} notesRight={[[0, ":80"], [4, t("③ respuesta")]]} />
+    </Svg>
+  );
+}
+
 // --- references ---------------------------------------------------------------
 
 function EthernetFrame() {
@@ -920,7 +937,7 @@ export const FIGURES: Record<string, () => ReactNode> = {
   binary: Binary, ipv4: Ipv4, mask: Mask, gateway: Gateway, mac: Mac, arp: Arp, journey: Journey,
   "switch-table": SwitchTable, domains: Domains, vlan: Vlan, "routing-table": RoutingTable, ports: Ports,
   "tcp-handshake": TcpHandshake, "tcp-reliability": TcpReliability, "tcp-close": TcpClose, udp: Udp, traceroute: Traceroute,
-  dhcp: Dhcp, dns: Dns, nat: Nat,
+  dhcp: Dhcp, dns: Dns, nat: Nat, http: Http,
   "ethernet-frame": EthernetFrame, "ipv4-header": Ipv4Header, "tcp-header": TcpHeader, "udp-header": UdpHeader,
   subnetting: Subnetting, ipv6: Ipv6, troubleshoot: Troubleshoot,
 };

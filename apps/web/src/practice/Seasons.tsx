@@ -10,7 +10,7 @@ import { useAuth } from "../app/auth";
 import { useStore } from "../app/store";
 import { Icon } from "../editor/icons";
 import { useLang, useT } from "../i18n";
-import { MachineTable, SectionHead, useView } from "./common";
+import { BackButton, MachineTable, SectionHead, useView } from "./common";
 import { Rankings } from "./Rankings";
 import { practiceApi, useShared, type Season, type SeasonInput } from "./server";
 
@@ -161,7 +161,7 @@ function SeasonPage({ season }: { season: Season }) {
   };
   return (
     <div className="season-page" style={{ "--season": season.color } as CSSProperties}>
-      <button type="button" className="ghost small machine-back" onClick={() => useView.setState({ season: null })}>← {t("Todas las seasons")}</button>
+      <BackButton label={t("Todas las seasons")} onClick={() => useView.setState({ season: null })} />
       <header className="season-banner">
         <span className="season-banner-icon" aria-hidden="true"><Icon name={season.icon} size={56} /></span>
         <div>

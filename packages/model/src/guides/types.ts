@@ -58,3 +58,17 @@ export type Guides = Record<GuideTier, Guide>;
 
 /** the share of right answers that passes a guide's quiz */
 export const QUIZ_PASS = 0.75;
+
+/** a protocol's page, in one language: its name, what it is and the content
+ * of its own (what to remember, how to see it in the lab, the usual faults);
+ * the guides' sections that explain it follow (../protocols) */
+export interface ProtocolText {
+  name: string;
+  /** its full name: "Address Resolution Protocol" */
+  full: string;
+  summary: string;
+  blocks: Block[];
+}
+
+/** a machine's walkthrough: how to solve it, step by step, and why */
+export type Walkthrough = Block[];

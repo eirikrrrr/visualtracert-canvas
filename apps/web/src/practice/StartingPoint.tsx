@@ -7,14 +7,15 @@
 // user is.
 import {
   exerciseById, QUIZ_PASS, solvedKey, TIERS,
-  type Block, type Guide, type GuideReference, type GuideTier, type QuizQuestion, type Tier,
+  type Guide, type GuideReference, type GuideTier, type QuizQuestion, type Tier,
 } from "@visual-tracert/model";
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Icon } from "../editor/icons";
-import { tx, useT } from "../i18n";
+import { useT } from "../i18n";
+import { GuideBlock, Rich } from "./blocks";
 import { MachineTable, useView } from "./common";
-import { FIGURES } from "./figures";
 import { useGuides } from "./guides";
+import { ProtocolGrid } from "./Protocols";
 import { useProgress } from "./progress";
 
 /** what of a tier is done, of how much: its sections read and its quiz, or its machines */
@@ -29,52 +30,6 @@ export function useTierProgress(tier: Tier): { done: number; total: number } {
   }
   const machines = tier.machines ?? [];
   return { done: machines.filter(id => solved[solvedKey(id, "easy")] || solved[solvedKey(id, "medium")]).length, total: machines.length };
-}
-
-/** a text with **bold** and `code` */
-function Rich({ text }: { text: string }) {
-  return <>{text.split(/(\*\*[^*]+\*\*|`[^`]+`)/).map((part, i) =>
-    part.startsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong>
-    : part.startsWith("`") ? <code key={i}>{part.slice(1, -1)}</code>
-    : <Fragment key={i}>{part}</Fragment>)}</>;
-}
-
-const NOTE: Record<"tip" | "lab" | "warn", { label: string; icon: string }> = {
-  tip: { label: tx("Para recordar"), icon: "info" },
-  lab: { label: tx("En el laboratorio"), icon: "emulation" },
-  warn: { label: tx("Cuidado"), icon: "flag" },
-};
-
-function GuideBlock({ block }: { block: Block }) {
-  const t = useT();
-  if("p" in block) return <p><Rich text={block.p} /></p>;
-  if("figure" in block){
-    const Figure = FIGURES[block.figure];
-    return Figure ? <figure className="guide-figure"><Figure /><figcaption><Rich text={block.caption} /></figcaption></figure> : null;
-  }
-  if("list" in block) return <ul>{block.list.map(item => <li key={item}><Rich text={item} /></li>)}</ul>;
-  if("steps" in block) return <ol className="guide-steps">{block.steps.map(item => <li key={item}><Rich text={item} /></li>)}</ol>;
-  if("table" in block){
-    const code = block.table.code ?? [];
-    return (
-      <div className="machine-table-wrap guide-table-wrap">
-        <table className="machine-table guide-table">
-          <thead><tr>{block.table.head.map((head, i) => <th key={i}>{head}</th>)}</tr></thead>
-          <tbody>{block.table.rows.map((row, r) => <tr key={r}>{row.map((cell, i) => <td key={i} className={code.includes(i) ? "mono" : undefined}><Rich text={cell} /></td>)}</tr>)}</tbody>
-        </table>
-      </div>
-    );
-  }
-  if("note" in block){
-    const note = NOTE[block.kind];
-    return (
-      <aside className={`guide-note guide-note-${block.kind}`}>
-        <Icon name={note.icon} size={18} />
-        <div><strong>{t(note.label)}</strong><p><Rich text={block.note} /></p></div>
-      </aside>
-    );
-  }
-  return <pre className="guide-code">{block.code}</pre>;
 }
 
 /** marks each section read once its end has been on screen */
@@ -276,7 +231,10 @@ function TierView({ tier }: { tier: Tier }) {
   const progress = useTierProgress(tier);
   const percent = progress.total ? Math.round(progress.done / progress.total * 100) : 0;
   let body: ReactNode = null;
-  if(tier.guide) body = guides ? <GuideView key={tier.guide} tier={tier.guide} guide={guides[tier.guide]} /> : <p className="muted small">{t("Cargando la guía…")}</p>;
+  if(tier.guide) body = guides ? <>
+    {tier.guide === "references" && <ProtocolGrid />}
+    <GuideView key={tier.guide} tier={tier.guide} guide={guides[tier.guide]} />
+  </> : <p className="muted small">{t("Cargando la guía…")}</p>;
   else if(tier.machines) body = <MachineTable exercises={tier.machines.map(id => exerciseById(id)!).filter(Boolean)} />;
   return (
     <>

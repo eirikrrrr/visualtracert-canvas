@@ -9,17 +9,20 @@
 // around a theme, each with its ranking. And the ranking. On a narrow screen
 // the menu is a row of tabs.
 import {
-  BOXES, BOX_COLOR, EXERCISES, LEVEL_LABEL, nextExercise, solvedKey, TIME_LIMIT, xpOf, type Exercise,
+  BOXES, BOX_COLOR, EXERCISES, LEVEL_LABEL, nextExercise, protocolById, solvedKey, TIME_LIMIT, xpOf, type Exercise,
 } from "@visual-tracert/model";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Icon } from "../editor/icons";
 import { tx, useT } from "../i18n";
-import { DifficultyPicker, go, MachineTable, Meter, PlayButton, PlayerCard, SectionHead, Solves, useMachineState, useView, type Section } from "./common";
+import { BackButton, DifficultyPicker, go, MachineTable, Meter, PlayButton, PlayerCard, SectionHead, Solves, useMachineState, useView, type Section } from "./common";
 import { MachineAvatar } from "./MachineAvatar";
 import { clock, useProgress } from "./progress";
 import { Rankings } from "./Rankings";
 import { SeasonCard, Seasons, useCurrentSeason } from "./Seasons";
 import { useShared } from "./server";
+import { ProtocolPage, ProtocolTags } from "./Protocols";
+import { Blocks } from "./blocks";
+import { useBook } from "./guides";
 import { StartingPoint } from "./StartingPoint";
 import { Tracks } from "./Tracks";
 
@@ -107,30 +110,51 @@ function MachinesView() {
 
 // --- a machine's page --------------------------------------------------------
 
-// --- a machine's page --------------------------------------------------------
+/** what may spoil a machine (its walkthrough, its solution): blurred until asked for */
+function Spoiler({ solved, what, children }: { solved: boolean; what: string; children: ReactNode }) {
+  const t = useT();
+  const [shown, setShown] = useState(false);
+  return (
+    <div className={`spoiler${shown ? " shown" : ""}`}>
+      <div className="spoiler-content" aria-hidden={!shown} inert={!shown}>{children}</div>
+      {!shown && (
+        <div className="spoiler-cover">
+          <Icon name="lock" size={26} />
+          <strong>{t("Oculto para no hacerte spoiler")}</strong>
+          <span className="muted small">{solved ? t("Ya superaste esta máquina: puedes verlo sin problema.") : t("Aún no la has superado. Prueba antes con las pistas de la tarjeta del reto.")}</span>
+          <button type="button" className={solved ? "primary" : "ghost"} onClick={() => setShown(true)}>{t("Mostrar {what}", { what })}</button>
+        </div>
+      )}
+      {shown && <button type="button" className="ghost small spoiler-hide" onClick={() => setShown(false)}>{t("Ocultar de nuevo")}</button>}
+    </div>
+  );
+}
 
 function MachinePage({ exercise }: { exercise: Exercise }) {
   const t = useT();
   const state = useMachineState(exercise);
-  const [tab, setTab] = useState<"play" | "info" | "solution">("play");
+  const [tab, setTab] = useState<"play" | "info" | "walkthrough" | "solution">("play");
+  const walkthrough = useBook()?.walkthroughs[exercise.id];
   const box = BOXES.find(item => item.id === exercise.box)!;
   const lab = useMemo(() => exercise.build(t), [exercise, t]);
   const first = useShared(item => item.figures[exercise.id]?.[state.difficulty]?.first);
   const tabs = [
     { id: "play" as const, label: tx("Jugar") },
     { id: "info" as const, label: tx("Información") },
+    { id: "walkthrough" as const, label: tx("Walkthrough") },
     { id: "solution" as const, label: tx("Solución") },
   ];
   return (
     <div className="machine-page" style={{ "--box": BOX_COLOR[exercise.box] } as CSSProperties}>
       <header className="machine-banner">
-        <button type="button" className="ghost small machine-back" onClick={() => useView.setState({ machine: null })}>← {t("Volver")}</button>
+        <BackButton label={t("Todas las máquinas")} onClick={() => useView.setState({ machine: null })} />
         <div className="machine-hero">
           <MachineAvatar exercise={exercise} size={104} solved={state.solved} />
           <div className="machine-title">
             <h1>{t(exercise.codename)}</h1>
             <span className="mono muted">{t(LEVEL_LABEL[exercise.level])} · {t(box.title)}</span>
             <p className="small">{t(exercise.title)}</p>
+            <ProtocolTags ids={exercise.protocols} />
           </div>
           <dl className="machine-stats">
             <div><dt>{t("Recompensa")}</dt><dd className="xp-cell">{state.available ? `+${xpOf(exercise, state.difficulty)} XP` : "—"}</dd></div>
@@ -145,7 +169,7 @@ function MachinePage({ exercise }: { exercise: Exercise }) {
       <div className="tabs machine-tabs" role="tablist" aria-label={t(exercise.codename)}>
         {tabs.map(item => (
           <button key={item.id} type="button" role="tab" aria-selected={tab === item.id} className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}>
-            {t(item.label)}{item.id === "solution" && !state.solvedAny && <Icon name="lock" size={13} />}
+            {t(item.label)}
           </button>
         ))}
       </div>
@@ -196,8 +220,14 @@ function MachinePage({ exercise }: { exercise: Exercise }) {
             </ul>
           </>
         )}
-        {tab === "solution" && (state.solvedAny ? (
-          <>
+        {tab === "walkthrough" && (
+          <Spoiler solved={state.solvedAny} what={t("el walkthrough")}>
+            <p className="muted small">{t("Cómo resolverla paso a paso, en los dos modos, y por qué funciona.")}</p>
+            <div className="guide-section walkthrough">{walkthrough ? <Blocks blocks={walkthrough} /> : <p className="muted small">{t("Cargando…")}</p>}</div>
+          </Spoiler>
+        )}
+        {tab === "solution" && (
+          <Spoiler solved={state.solvedAny} what={t("la solución")}>
             <p className="muted small">{t("Así lo resuelve la solución de referencia. Si lo hiciste de otra forma y «Comprobar» pasó, también es correcta.")}</p>
             <h3>{t("Desde la interfaz")}</h3>
             <ol className="machine-solution">{exercise.hints.map(hint => <li key={hint}>{t(hint)}</li>)}</ol>
@@ -207,14 +237,8 @@ function MachinePage({ exercise }: { exercise: Exercise }) {
                 <ol className="machine-solution mono">{exercise.cli.map(hint => <li key={hint}>{t(hint)}</li>)}</ol>
               </>
             )}
-          </>
-        ) : (
-          <div className="machine-locked">
-            <Icon name="lock" size={28} />
-            <strong>{t("Supera la máquina para ver su solución")}</strong>
-            <span className="muted small">{t("En cualquiera de sus modos. Mientras, las pistas de la tarjeta del reto te ayudan.")}</span>
-          </div>
-        ))}
+          </Spoiler>
+        )}
       </div>
     </div>
   );
@@ -244,15 +268,17 @@ function Rail() {
 }
 
 export function PracticeHub() {
-  const { section, machine } = useView();
+  const { section, machine, protocol } = useView();
   const open = machine ? EXERCISES.find(item => item.id === machine) : undefined;
+  const page = protocol ? protocolById(protocol) : undefined;
   useEffect(() => { void useShared.getState().refreshFigures(); void useShared.getState().refreshSeasons(); }, []);
   return (
     <main className="practice">
       <Rail />
       <div className="practice-main">
-        <div className="practice-inner" key={open ? open.id : section}>
-          {open ? <MachinePage exercise={open} />
+        <div className="practice-inner" key={page ? `protocol:${page.id}` : open ? open.id : section}>
+          {page ? <ProtocolPage protocol={page} />
+            : open ? <MachinePage exercise={open} />
             : section === "start" ? <StartingPoint />
             : section === "machines" ? <MachinesView />
             : section === "tracks" ? <Tracks />

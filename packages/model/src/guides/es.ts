@@ -1,5 +1,6 @@
 // The Starting Point's guides, in Spanish (see ./types).
-import type { Guide, Guides } from "./types";
+import type { ProtocolId } from "../protocols";
+import type { Guide, Guides, ProtocolText, Walkthrough } from "./types";
 
 const fundamentals: Guide = {
   title: "Fundamentos de redes",
@@ -290,7 +291,7 @@ const fundamentals: Guide = {
     { title: "RFC 1122 — Requirements for Internet Hosts", url: "https://www.rfc-editor.org/rfc/rfc1122", note: "Cómo deben comportarse los equipos finales en cada capa." },
     { title: "Modelo OSI (Wikipedia)", url: "https://es.wikipedia.org/wiki/Modelo_OSI", note: "Las siete capas con su historia y ejemplos." },
     { title: "Modelo TCP/IP (Wikipedia)", url: "https://es.wikipedia.org/wiki/Modelo_TCP/IP", note: "Las capas de Internet y su relación con OSI." },
-    { title: "IEEE Registration Authority — OUI", url: "https://regauth.standards.ieee.org/standards-ra-web/pub/view.html#registries", note: "El registro de los fabricantes de cada prefijo de MAC." },
+    { title: "Identificador único de organización, OUI (Wikipedia)", url: "https://es.wikipedia.org/wiki/Identificador_%C3%BAnico_de_organizaci%C3%B3n", note: "Cómo se asigna a cada fabricante su prefijo de MAC." },
   ],
   quiz: [
     { section: "what-is-a-network", q: "¿Cuál de estos es un equipo intermedio?", options: ["Una impresora", "Un switch", "Un teléfono móvil", "Un servidor web"], answer: 1, why: "Los equipos intermedios transportan datos (switches, routers, puntos de acceso); los demás son equipos finales, donde nacen o mueren los datos." },
@@ -1058,3 +1059,310 @@ const references: Guide = {
 };
 
 export const guides: Guides = { fundamentals, concepts, references };
+
+export const protocols: Record<ProtocolId, ProtocolText> = {
+  ethernet: {
+    name: "Ethernet", full: "IEEE 802.3",
+    summary: "El protocolo de la red local por cable: entrega tramas de una tarjeta a otra dentro de la misma LAN, usando direcciones MAC. Por encima de él viajan IP, ARP y casi todo lo demás.",
+    blocks: [
+      { list: [
+        "Trabaja en la **capa 2**: no sabe nada de redes IP, solo de MAC dentro de su red local.",
+        "Cada trama lleva la **MAC de destino**, la **de origen**, el **tipo** de lo que transporta (0x0800 IPv4, 0x0806 ARP) y una **suma de comprobación** (FCS) al final.",
+        "La carga útil va de 46 a **1500 bytes** (la MTU).",
+        "Los switches la reparten aprendiendo en qué puerto está cada MAC; las tramas de difusión (ff:ff:ff:ff:ff:ff) llegan a todos.",
+      ] },
+      { p: "**Cómo verlo en el laboratorio**: `ip link` muestra la MAC de cada interfaz; en una captura, cada línea es una trama y Wireshark separa su cabecera Ethernet del resto." },
+      { note: "Fallo típico: dos equipos en el mismo switch que no se ven. Antes de mirar IP, comprueba que los puertos estén en la misma VLAN y que las interfaces estén UP.", kind: "lab" },
+    ],
+  },
+  arp: {
+    name: "ARP", full: "Address Resolution Protocol",
+    summary: "Traduce una dirección IP de la red local a su dirección MAC, preguntando a todos por difusión. Sin ARP, un equipo sabría a qué IP enviar, pero no a qué tarjeta entregar la trama.",
+    blocks: [
+      { list: [
+        "La **petición** va por difusión: «¿quién tiene 192.168.1.20?». La **respuesta**, directa, de quien la tiene.",
+        "El resultado se guarda en la **caché ARP** unos minutos (`ip neigh` en Linux, `/ip arp print` en RouterOS).",
+        "Para un destino de otra red se pregunta por la MAC de la **puerta de enlace**, no por la del destino.",
+        "No tiene autenticación: cualquiera puede responder por otro (ARP spoofing).",
+      ] },
+      { code: "$ ip neigh\n192.168.1.1 dev eth0 lladdr 02:42:c0:a8:01:01 REACHABLE\n$ tcpdump -ni eth0 arp\nARP, Request who-has 192.168.1.20 tell 192.168.1.10\nARP, Reply 192.168.1.20 is-at 02:42:ac:11:00:14" },
+      { note: "Si `ip neigh` muestra un vecino en estado FAILED o INCOMPLETE, la petición ARP no tuvo respuesta: el equipo está apagado, en otra VLAN o con otra IP.", kind: "lab" },
+    ],
+  },
+  ipv4: {
+    name: "IPv4", full: "Internet Protocol, versión 4",
+    summary: "El protocolo de la capa de red de Internet: da a cada equipo una dirección de 32 bits y lleva cada paquete de red en red, salto a salto, hasta su destino.",
+    blocks: [
+      { list: [
+        "Una dirección como **192.168.1.10/24** tiene una parte de **red** y otra de **equipo**; el prefijo dice dónde se separan.",
+        "Dos equipos se hablan directamente solo si están en la **misma red**; si no, a través de un router.",
+        "Cada paquete lleva un **TTL** que cada router reduce en 1: así ningún paquete da vueltas para siempre.",
+        "Los rangos **privados** (10/8, 172.16/12, 192.168/16) no salen a Internet sin NAT.",
+      ] },
+      { code: "$ ip addr show eth0\n2: eth0: <BROADCAST,MULTICAST,UP> mtu 1500\n    inet 192.168.1.10/24 brd 192.168.1.255 scope global eth0" },
+      { note: "Fallos típicos: una máscara que no coincide con la de los vecinos, una dirección repetida o una dirección fuera de la red del router.", kind: "lab" },
+    ],
+  },
+  icmp: {
+    name: "ICMP", full: "Internet Control Message Protocol",
+    summary: "Los mensajes de control y de error de IP: el eco de ping, el «tiempo excedido» que usa traceroute y los avisos de destino inalcanzable.",
+    blocks: [
+      { list: [
+        "Va dentro de IP (protocolo **1**), sin puertos.",
+        "**ping**: Echo Request (tipo 8) y Echo Reply (tipo 0).",
+        "**traceroute**: cada router que agota el TTL responde con Time Exceeded (tipo 11).",
+        "**Destination Unreachable** (tipo 3) avisa de que no hay ruta o de que nadie escucha en un puerto UDP.",
+      ] },
+      { code: "$ ping -c 2 10.0.0.10\n64 bytes from 10.0.0.10: icmp_seq=1 ttl=63 time=0.48 ms\n64 bytes from 10.0.0.10: icmp_seq=2 ttl=63 time=0.41 ms" },
+      { note: "El TTL de la respuesta delata los saltos: 63 en lugar de 64 significa que la respuesta cruzó un router.", kind: "tip" },
+    ],
+  },
+  vlan: {
+    name: "VLAN", full: "IEEE 802.1Q",
+    summary: "Parte un switch en varios switches lógicos: cada VLAN es su propio dominio de difusión. Entre switches, una etiqueta de 4 bytes en cada trama dice a qué VLAN pertenece.",
+    blocks: [
+      { list: [
+        "Un **puerto de acceso** pertenece a una VLAN y no etiqueta las tramas.",
+        "Un **puerto troncal** lleva varias VLAN, cada trama con su etiqueta 802.1Q (VLAN de 1 a 4094).",
+        "Equipos en VLAN distintas **no se ven** aunque compartan red IP; para unirlas hace falta un router.",
+      ] },
+      { code: "# En un switch Linux (bridge con filtrado de VLAN)\n$ bridge vlan show\nport    vlan-id\nFa0-1   10 PVID Egress Untagged\nFa0-3   20 PVID Egress Untagged" },
+      { note: "Fallo típico: un puerto en la VLAN equivocada. El equipo «ve» a los vecinos de la otra VLAN y no a los suyos.", kind: "lab" },
+    ],
+  },
+  routing: {
+    name: "Enrutamiento estático", full: "Rutas, puerta de enlace y ruta por defecto",
+    summary: "Cómo decide un equipo por dónde sigue un paquete hacia otra red: su tabla de rutas, la puerta de enlace y la ruta por defecto. Las rutas estáticas se escriben a mano.",
+    blocks: [
+      { list: [
+        "Las redes **conectadas** aparecen solas; las demás necesitan una ruta.",
+        "Una ruta dice: «para esta red, entrega al **siguiente salto**», que debe estar en una red conectada.",
+        "La **ruta por defecto** (0.0.0.0/0) es la de todo lo demás; en un equipo final, es su puerta de enlace.",
+        "Gana la ruta **más concreta** (prefijo más largo), y la **vuelta** necesita su propia ruta.",
+      ] },
+      { code: "# Linux\nip route add default via 192.168.1.1\nip route add 192.168.2.0/24 via 10.0.0.2\n# RouterOS\n/ip route add dst-address=192.168.2.0/24 gateway=10.0.0.2" },
+      { note: "«El ping sale pero no vuelve» casi siempre es una ruta de vuelta que falta en algún router del camino.", kind: "lab" },
+    ],
+  },
+  tcp: {
+    name: "TCP", full: "Transmission Control Protocol",
+    summary: "El transporte fiable de Internet: abre una conexión con un saludo de tres pasos, numera cada byte, confirma lo recibido y retransmite lo perdido. Lo usan la web, SSH y el correo.",
+    blocks: [
+      { list: [
+        "Va dentro de IP (protocolo **6**) y entrega a un **puerto**: 22 SSH, 80 HTTP, 443 HTTPS.",
+        "Saludo **SYN → SYN-ACK → ACK** antes de los datos; cierre con **FIN** (o corte con **RST**).",
+        "Números de **secuencia** y **confirmación**, **ventana** de control de flujo y control de congestión.",
+      ] },
+      { code: "$ ss -tan\nState   Local Address:Port   Peer Address:Port\nLISTEN  0.0.0.0:80           0.0.0.0:*\nESTAB   192.168.1.10:51514   172.20.0.80:80" },
+      { note: "«Connection refused» significa que el equipo respondió con RST: llega, pero nadie escucha en ese puerto. Un tiempo agotado apunta a una ruta o un firewall.", kind: "lab" },
+    ],
+  },
+  udp: {
+    name: "UDP", full: "User Datagram Protocol",
+    summary: "El transporte simple: envía datagramas sueltos, sin conexión, sin confirmaciones ni orden. Lo usan DNS, DHCP, la voz y el vídeo en directo, y QUIC.",
+    blocks: [
+      { list: [
+        "Va dentro de IP (protocolo **17**) con una cabecera de solo **8 bytes**.",
+        "Si un datagrama se pierde, UDP no hace nada: la aplicación decide si lo pide otra vez.",
+        "Ideal para preguntas cortas (DNS) y tiempo real, donde llegar tarde es como no llegar.",
+      ] },
+      { code: "$ ss -uan\nState   Local Address:Port\nUNCONN  0.0.0.0:53\nUNCONN  0.0.0.0:67" },
+    ],
+  },
+  dhcp: {
+    name: "DHCP", full: "Dynamic Host Configuration Protocol",
+    summary: "Da a cada equipo, al conectarse, su dirección, su máscara, su puerta de enlace y su DNS, en cuatro mensajes: Discover, Offer, Request y Ack.",
+    blocks: [
+      { list: [
+        "Funciona sobre **UDP**: el servidor escucha en el **67** y el cliente en el **68**.",
+        "El cliente empieza sin dirección, así que el **Discover es una difusión** y no cruza routers sin un **relay**.",
+        "La dirección se presta por un tiempo, la **concesión**, y el cliente la renueva a mitad.",
+        "El servidor reparte de un **rango** (pool) que no debe chocar con las direcciones puestas a mano.",
+      ] },
+      { code: "# Cliente Linux (busybox)\n$ udhcpc -i eth0\nudhcpc: sending discover\nudhcpc: lease of 192.168.1.100 obtained, lease time 86400" },
+      { note: "Una dirección 169.254.x.x en el cliente significa que ningún servidor respondió: revisa el rango, la VLAN o el relay.", kind: "lab" },
+    ],
+  },
+  dns: {
+    name: "DNS", full: "Domain Name System",
+    summary: "Traduce nombres como www.ejemplo.com en direcciones IP, preguntando a una jerarquía de servidores. Si el DNS falla, nada que use nombres funciona, aunque la red esté bien.",
+    blocks: [
+      { list: [
+        "Funciona en el puerto **53**, normalmente por **UDP**.",
+        "Cada equipo pregunta a su **resolvedor**, que consulta la raíz, el TLD y el servidor **autoritativo**.",
+        "Registros principales: **A** (IPv4), **AAAA** (IPv6), **CNAME** (alias), **MX** (correo), **PTR** (inverso).",
+        "Las respuestas se guardan en caché durante su **TTL**.",
+      ] },
+      { code: "$ cat /etc/resolv.conf\nnameserver 172.20.0.53\n$ nslookup www.ejemplo.com\nName:    www.ejemplo.com\nAddress: 172.20.0.80" },
+      { note: "La pista clásica: el ping a la IP funciona y al nombre no. La red está bien; falla el servidor configurado o su registro.", kind: "lab" },
+    ],
+  },
+  http: {
+    name: "HTTP", full: "Hypertext Transfer Protocol",
+    summary: "El protocolo de la web: un cliente (el navegador) envía una petición y el servidor devuelve una respuesta con un código de estado y el contenido. Viaja sobre TCP, en el puerto 80 (o 443 cifrado con TLS).",
+    blocks: [
+      { figure: "http", caption: "Una petición HTTP: el navegador resuelve el nombre por DNS, abre una conexión TCP al puerto 80 del servidor, envía GET y recibe la respuesta 200 OK con la página." },
+      { p: "Cada **petición** tiene un **método** (qué se quiere hacer), una **ruta** (qué recurso), unas **cabeceras** (datos de control, como `Host`) y, a veces, un **cuerpo**. La **respuesta** trae un **código de estado**, sus cabeceras y el contenido." },
+      { table: {
+        head: ["Método", "Para qué"],
+        rows: [
+          ["GET", "Pedir un recurso (una página, una imagen)"],
+          ["POST", "Enviar datos (un formulario)"],
+          ["PUT / PATCH", "Sustituir o modificar un recurso"],
+          ["DELETE", "Borrar un recurso"],
+          ["HEAD", "Como GET, pero solo las cabeceras"],
+        ],
+        code: [0],
+      } },
+      { table: {
+        head: ["Código", "Significado"],
+        rows: [
+          ["200", "OK: aquí tienes lo que pediste"],
+          ["301 / 302", "Redirección: está en otra dirección"],
+          ["304", "No ha cambiado: usa tu copia"],
+          ["403", "Prohibido"],
+          ["404", "No existe"],
+          ["500", "Error del servidor"],
+          ["502 / 504", "El servidor intermedio no obtuvo respuesta del de detrás"],
+        ],
+        code: [0],
+      } },
+      { code: "$ wget -qO- http://www.ejemplo.com\n<h1>Hola desde el servidor web</h1>\n$ curl -I http://172.20.0.80\nHTTP/1.1 200 OK\nContent-Type: text/html" },
+      { p: "**HTTPS** es HTTP dentro de un canal **TLS** cifrado, en el puerto 443. **HTTP/2** reutiliza una conexión para muchas peticiones a la vez y **HTTP/3** va sobre QUIC, por UDP." },
+      { note: "Para abrir un nombre hacen falta tres cosas: que el DNS lo resuelva, que haya ruta hasta el servidor y que algo escuche en su puerto. Comprueba en ese orden.", kind: "lab" },
+    ],
+  },
+};
+
+export const walkthroughs: Record<string, Walkthrough> = {
+  "first-network": [
+    { p: "**El problema**: PC 1 (192.168.1.10/24) y PC 2 están en el mismo switch, pero PC 2 no tiene dirección IP. Sin dirección, no puede responder a nada: PC 1 ni siquiera obtiene su MAC por ARP." },
+    { steps: [
+      "**Reconoce**: selecciona PC 1 y apunta su dirección y su máscara: 192.168.1.10/24. Su red es 192.168.1.0/24.",
+      "Elige para PC 2 una dirección **libre de esa misma red**: cualquiera de 192.168.1.1 a 192.168.1.254 menos la .10. Por ejemplo, 192.168.1.20.",
+      "**Fácil**: selecciona PC 2 y escribe en eth0 la dirección 192.168.1.20 con prefijo 24.",
+      "**Medio**: abre la CLI de PC 2 y escribe `ip addr add 192.168.1.20/24 dev eth0`. Comprueba con `ip addr`.",
+      "**Comprueba**: haz ping de PC 1 a PC 2. En Simulación verás antes la pregunta ARP y su respuesta.",
+    ] },
+    { note: "Por qué funciona: con la misma red y la misma máscara, cada PC sabe que el otro es su vecino, le pregunta la MAC por ARP y le envía el ping directamente.", kind: "tip" },
+  ],
+  "subnet-mask": [
+    { p: "**El problema**: PC 1 es 192.168.1.10/24 y PC 2 es 192.168.1.130/**25**. Con /25, PC 2 cree que su red es 192.168.1.128/25 (de .128 a .255), así que considera que PC 1 está en otra red y le enviaría la respuesta a una puerta de enlace que no tiene." },
+    { steps: [
+      "**Reconoce**: compara las máscaras. PC 1 cree que todo 192.168.1.x es su red; PC 2 solo la mitad alta.",
+      "Calcula la red de PC 1 con la máscara de PC 2: 192.168.1.10 AND 255.255.255.128 = 192.168.1.0. No es 192.168.1.128: para PC 2, PC 1 está fuera.",
+      "**Fácil**: selecciona PC 2 y cambia su prefijo de 25 a 24.",
+      "**Medio**: en la CLI de PC 2, `ip addr del 192.168.1.130/25 dev eth0` y después `ip addr add 192.168.1.130/24 dev eth0`.",
+      "**Comprueba**: ping en los dos sentidos.",
+    ] },
+    { note: "La lección: los dos extremos deben estar de acuerdo en qué red comparten. Una máscara distinta rompe la comunicación aunque las direcciones «se parezcan».", kind: "tip" },
+  ],
+  "split-vlans": [
+    { p: "**El problema**: Ventas (A1, A2) y Almacén (B1, B2) están en el mismo switch y en la misma red 10.0.0.0/24, así que todos se ven. Hay que separarlos sin tocar sus direcciones: es trabajo de las VLAN." },
+    { steps: [
+      "**Reconoce**: mira a qué puerto está conectado cada equipo: A1 en Fa0/1, A2 en Fa0/2, B1 en Fa0/3, B2 en Fa0/4.",
+      "Decide las VLAN: Ventas en la 10 y Almacén en la 20, por ejemplo (o deja Ventas en la VLAN por defecto).",
+      "**Fácil**: selecciona el switch y pon la VLAN de acceso de Fa0/3 y Fa0/4 a 20.",
+      "**Medio**: en la CLI del switch, saca los puertos de la VLAN 1 y ponlos en la 20: `bridge vlan del dev Fa0-3 vid 1` y `bridge vlan add dev Fa0-3 vid 20 pvid untagged`; lo mismo con Fa0-4. `bridge vlan show` lo comprueba.",
+      "**Comprueba**: A1 → A2 y B1 → B2 funcionan; A1 → B1 ya no.",
+    ] },
+    { note: "Por qué funciona: el switch ya no reenvía tramas entre puertos de VLAN distintas, ni siquiera las difusiones de ARP: A1 nunca obtiene la MAC de B1.", kind: "tip" },
+  ],
+  "wrong-port": [
+    { p: "**El problema**: las VLAN ya existen (Ventas en la 10, Almacén en la 20), pero B2 no habla con B1 y en cambio llega a Ventas. Su puerto está en la VLAN equivocada." },
+    { steps: [
+      "**Reconoce**: revisa la VLAN de cada puerto del switch. Fa0/1 y Fa0/2 (Ventas) en la 10, Fa0/3 (B1) en la 20… y Fa0/4 (B2) en la 10.",
+      "**Fácil**: selecciona el switch y cambia la VLAN de Fa0/4 a 20.",
+      "**Medio**: en la CLI del switch, `bridge vlan show` muestra Fa0-4 en la 10. `bridge vlan del dev Fa0-4 vid 10` y `bridge vlan add dev Fa0-4 vid 20 pvid untagged`.",
+      "**Comprueba**: B1 → B2 funciona y A1 ya no llega a B2.",
+    ] },
+    { note: "Síntoma clásico de puerto mal asignado: el equipo ve a los de la otra VLAN y no a los suyos. Antes de tocar direcciones, revisa la VLAN del puerto.", kind: "tip" },
+  ],
+  "default-gateway": [
+    { p: "**El problema**: el PC (192.168.1.10/24) quiere llegar al servidor (10.0.0.10), que está en otra red. El router está bien, pero el PC no tiene puerta de enlace: no sabe a quién entregar lo que no es de su red." },
+    { steps: [
+      "**Reconoce**: en el PC, la tabla de rutas solo tiene su red conectada (`ip route`). No hay ruta por defecto.",
+      "La puerta de enlace es la dirección del router **en la red del PC**: 192.168.1.1 (Gi0/0).",
+      "**Fácil**: selecciona el PC y escribe 192.168.1.1 como puerta de enlace.",
+      "**Medio**: en la CLI del PC, `ip route add default via 192.168.1.1`.",
+      "**Comprueba**: ping del PC al servidor. El servidor ya tiene su puerta de enlace (10.0.0.1), así que la respuesta vuelve.",
+    ] },
+    { note: "La puerta de enlace siempre es una dirección de la propia red del equipo. 10.0.0.1 también es del router, pero el PC no puede alcanzarla directamente.", kind: "warn" },
+  ],
+  "static-routes": [
+    { p: "**El problema**: dos oficinas, cada una con su router, unidas por un enlace 10.0.0.0/30. R1 solo conoce 192.168.1.0/24 y el enlace; R2, 192.168.2.0/24 y el enlace. Ninguno sabe llegar a la red del otro." },
+    { steps: [
+      "**Reconoce**: en R1, `ip route` muestra solo sus redes conectadas. Lo mismo en R2.",
+      "R1 necesita una ruta hacia **192.168.2.0/24** con siguiente salto **10.0.0.2** (R2 en el enlace).",
+      "R2 necesita la ruta de vuelta hacia **192.168.1.0/24** con siguiente salto **10.0.0.1**.",
+      "**Fácil**: selecciona cada router y añade su ruta estática.",
+      "**Medio**: en R1, `ip route add 192.168.2.0/24 via 10.0.0.2`; en R2, `ip route add 192.168.1.0/24 via 10.0.0.1`.",
+      "**Comprueba**: ping de PC A a PC B y al revés. Con solo una de las dos rutas, el eco llegaría pero la respuesta se perdería.",
+    ] },
+    { note: "El enrutamiento es salto a salto y la vuelta es independiente de la ida: cada router del camino necesita ruta en los dos sentidos.", kind: "tip" },
+  ],
+  "default-route": [
+    { p: "**El problema**: la oficina sale a Internet por su proveedor (ISP). El router de la oficina conoce su LAN y el enlace con el ISP, pero no qué hacer con destinos como 8.8.8.8. No se pueden escribir rutas para todo Internet: hace falta una ruta por defecto." },
+    { steps: [
+      "**Reconoce**: el PC ya tiene su puerta de enlace (192.168.1.1) y el ISP ya sabe volver a 192.168.1.0/24. Falta la pieza del medio.",
+      "En el router de la oficina, la ruta **0.0.0.0/0** debe apuntar al ISP: **203.0.113.1**.",
+      "**Fácil**: selecciona el router de la oficina y añade la ruta 0.0.0.0/0 vía 203.0.113.1.",
+      "**Medio**: en su CLI, `ip route add default via 203.0.113.1`.",
+      "**Comprueba**: ping del PC a 8.8.8.8 y, si quieres, `traceroute -n 8.8.8.8` para ver los saltos.",
+    ] },
+    { note: "La ruta por defecto es la menos concreta (/0): solo se usa cuando ninguna otra coincide. Por eso convive sin problema con las rutas de la LAN.", kind: "tip" },
+  ],
+  "dhcp-server": [
+    { p: "**El problema**: el PC pide su dirección por DHCP y el servidor DHCP está en su misma red, pero el servidor no tiene ningún rango que repartir: el Discover llega y nadie ofrece nada." },
+    { steps: [
+      "**Reconoce**: el servidor es 192.168.1.2/24; el PC está en modo DHCP. La red es 192.168.1.0/24.",
+      "Elige un rango que no choque con las direcciones fijas: por ejemplo, de 192.168.1.100 a 192.168.1.150.",
+      "**Fácil**: selecciona el servidor y añade en sus servicios un rango DHCP: red 192.168.1.0/24, de .100 a .150 (y la puerta de enlace si la red tuviera router).",
+      "**Medio**: en la CLI del servidor, arranca dnsmasq con ese rango: `dnsmasq --interface=eth0 --dhcp-range=192.168.1.100,192.168.1.150,255.255.255.0,12h`. En el PC, `udhcpc -i eth0` pide la dirección.",
+      "**Comprueba**: el PC recibe una dirección del rango (Discover, Offer, Request, Ack).",
+    ] },
+    { note: "Un servidor DHCP solo responde en redes para las que tiene un rango: el rango debe ser de la red de la interfaz por la que llega el Discover.", kind: "tip" },
+  ],
+  "dhcp-relay": [
+    { p: "**El problema**: el servidor DHCP (10.20.0.5) está en otra red y ya tiene un rango para la red del PC (10.30.0.0/24). Pero el Discover del PC es una difusión y el router no deja pasar difusiones: nunca llega al servidor." },
+    { steps: [
+      "**Reconoce**: el router une 10.20.0.0/24 (Gi0/0, el servidor) y 10.30.0.0/24 (Gi0/1, el PC).",
+      "El router debe hacer de **relay**: recibir el Discover en Gi0/1 y reenviarlo por unicast a 10.20.0.5.",
+      "**Fácil**: selecciona el router y, en su interfaz Gi0/1, pon como relay DHCP la dirección 10.20.0.5.",
+      "**Medio**: en la CLI del router, `dhcrelay -i Gi0-1 -i Gi0-0 10.20.0.5` (o `dnsmasq --dhcp-relay=10.30.0.1,10.20.0.5`). En el PC, `udhcpc -i eth0`.",
+      "**Comprueba**: el PC recibe una dirección de 10.30.0.100 a 10.30.0.199.",
+    ] },
+    { note: "El relay pone su propia dirección de la red del PC (10.30.0.1) en el mensaje: así el servidor sabe de qué rango debe dar la dirección.", kind: "tip" },
+  ],
+  "dns-record": [
+    { p: "**El problema**: el cliente usa como DNS a 172.20.0.53 y pregunta por www.ejemplo.com. El servidor DNS existe y la red funciona, pero no tiene ese nombre: solo ejemplo.com." },
+    { steps: [
+      "**Reconoce**: el servidor web es 172.20.0.80. El DNS tiene un registro para ejemplo.com, pero no para www.ejemplo.com, que es otro nombre.",
+      "**Fácil**: selecciona el servidor DNS y añade un registro: nombre www.ejemplo.com, dirección 172.20.0.80.",
+      "**Medio**: en la CLI del servidor DNS, añade el registro a dnsmasq: `echo 'address=/www.ejemplo.com/172.20.0.80' >> /etc/dnsmasq.conf` y reinícialo; desde el cliente, `nslookup www.ejemplo.com`.",
+      "**Comprueba**: el cliente resuelve www.ejemplo.com a 172.20.0.80.",
+    ] },
+    { note: "Cada nombre es una entrada distinta: ejemplo.com y www.ejemplo.com no son lo mismo para el DNS, aunque a menudo apunten al mismo sitio.", kind: "tip" },
+  ],
+  "reach-web": [
+    { p: "**El problema**: el DNS tiene el registro de www.ejemplo.com y el servidor web responde, pero el cliente no tiene configurado ningún servidor DNS: no puede traducir el nombre y el navegador no sabe a qué IP conectarse." },
+    { steps: [
+      "**Reconoce**: el ping a 172.20.0.80 funciona (la red está bien). Al nombre, no: es un problema de DNS.",
+      "El servidor DNS es 172.20.0.53.",
+      "**Fácil**: selecciona el cliente y pon 172.20.0.53 como servidor DNS.",
+      "**Medio**: en la CLI del cliente, `echo 'nameserver 172.20.0.53' > /etc/resolv.conf` y después `wget -qO- http://www.ejemplo.com`.",
+      "**Comprueba**: el cliente abre http://www.ejemplo.com: resuelve el nombre, abre una conexión TCP al puerto 80 y recibe la página.",
+    ] },
+    { note: "Para abrir una web hacen falta, en orden: resolver el nombre (DNS), llegar a la IP (rutas) y que el servidor escuche en su puerto (HTTP sobre TCP).", kind: "tip" },
+  ],
+  "three-faults": [
+    { p: "**El problema**: dos oficinas unidas por R1 y R2 con tres averías escondidas. Lo mejor es ir objetivo por objetivo, con ping y mirando dónde se pierde cada paquete." },
+    { steps: [
+      "**PC A1 → PC B1**: el eco llega a PC B1, pero la respuesta no vuelve. R1 tiene ruta hacia 192.168.20.0/24, pero **R2 no tiene ruta de vuelta** a 192.168.10.0/24. Añádela en R2 vía 10.9.9.1 (en Medio: `ip route add 192.168.10.0/24 via 10.9.9.1`).",
+      "**PC A2 → PC B1**: PC A2 pregunta por ARP a 192.168.10.254, que no existe. Su **puerta de enlace está mal**: debe ser 192.168.10.1 (en Medio: `ip route replace default via 192.168.10.1`).",
+      "**PC B1 → PC B2**: el switch B no deja pasar las tramas. El puerto de PC B2 (Fa0/3) está en la **VLAN 30** y el resto en la VLAN por defecto. Quítale la VLAN (en Medio: `bridge vlan del dev Fa0-3 vid 30` y `bridge vlan add dev Fa0-3 vid 1 pvid untagged`).",
+      "**Comprueba** los tres objetivos de nuevo.",
+    ] },
+    { note: "El método: un síntoma cada vez, de abajo arriba. Ping, mira hasta dónde llega (Simulación o traceroute) y revisa solo lo de ese tramo.", kind: "tip" },
+  ],
+};
