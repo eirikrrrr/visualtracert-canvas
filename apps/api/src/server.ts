@@ -32,6 +32,14 @@
 //   DELETE /auth/machines/:id         (admin) back to the app's own, or gone
 //   POST   /auth/files                (admin) a file as the body (PNG, JPEG, WebP up to 2 MB; PDF up to 10 MB)
 //   GET    /auth/files/:id            a file
+//   GET    /auth/labs                 the account's labs (id, name, updatedAt, size)
+//   GET    /auth/labs/:id             one, with its document
+//   PUT    /auth/labs/:id             { document, updatedAt }: saved, unless the account's copy is newer ({ kept })
+//   DELETE /auth/labs/:id
+//   GET    /auth/labs/:id/versions    its earlier versions
+//   GET    /auth/labs/:id/versions/:savedAt  one of them, with its document
+//   GET    /auth/me/settings          { data, updatedAt }: profile, preferences, practice's progress
+//   PUT    /auth/me/settings          { data }
 //   GET    /auth/check                nginx asks it before every /api request (auth_request):
 //                                     204 with X-User-* headers, 401 without a session, 403 if not allowed
 // The session is a cookie (HttpOnly, SameSite=Strict; Secure behind HTTPS).
@@ -48,6 +56,8 @@ export const COOKIE = "vt_session";
 const MAX_BODY = 16 * 1024;
 /** a machine of their own carries two labs */
 const MAX_MACHINE = 512 * 1024;
+/** a lab's document (and the settings) come as JSON strings inside the body */
+const MAX_LAB = 600 * 1024;
 const WINDOW = 15 * 60 * 1000;
 /** failed sign-ins allowed per window: from one address, and for one username */
 const LIMITS = { address: 20, username: 8 };
@@ -324,6 +334,22 @@ export function createHandler(accounts: Accounts, practice: Practice, options: S
       if(seasonMatch && method === "PATCH"){ admin(req); send(res, 200, practice.updateSeason(Number(seasonMatch[1]), await bodyOf(req))); return; }
       if(seasonMatch && method === "DELETE"){ admin(req); practice.deleteSeason(Number(seasonMatch[1])); send(res, 204); return; }
 
+      if(path === "/auth/labs" && method === "GET"){ send(res, 200, practice.data.labs(signedIn(req).id)); return; }
+      const labMatch = path.match(/^\/auth\/labs\/([A-Za-z0-9_-]{1,80})(?:\/versions(?:\/(\d{1,16}))?)?$/);
+      if(labMatch){
+        const user = signedIn(req);
+        const [, id, savedAt] = labMatch;
+        if(path.includes("/versions")){
+          if(method !== "GET") throw new HttpError("not-found", 404);
+          send(res, 200, savedAt ? practice.data.version(user.id, id, Number(savedAt)) : practice.data.versions(user.id, id));
+          return;
+        }
+        if(method === "GET"){ send(res, 200, practice.data.lab(user.id, id)); return; }
+        if(method === "PUT"){ send(res, 200, practice.data.saveLab(user.id, id, await bodyOf(req, MAX_LAB))); return; }
+        if(method === "DELETE"){ practice.data.deleteLab(user.id, id); send(res, 204); return; }
+      }
+      if(path === "/auth/me/settings" && method === "GET"){ send(res, 200, practice.data.settings(signedIn(req).id)); return; }
+      if(path === "/auth/me/settings" && method === "PUT"){ const user = signedIn(req); send(res, 200, practice.data.saveSettings(user.id, await bodyOf(req, MAX_LAB))); return; }
       if(path === "/auth/machines" && method === "GET"){ signedIn(req); send(res, 200, practice.machines.list()); return; }
       const machineMatch = path.match(/^\/auth\/machines\/([a-z0-9-]{1,40})$/);
       if(machineMatch && method === "PUT"){ const by = admin(req); send(res, 200, practice.machines.put(machineMatch[1], await bodyOf(req, MAX_MACHINE), by.id)); return; }

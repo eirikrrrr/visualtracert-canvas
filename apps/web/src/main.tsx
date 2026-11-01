@@ -12,6 +12,8 @@ import "@fontsource-variable/source-serif-4/wght.css";
 import "./styles.css";
 import { App } from "./app/App";
 import { AuthGate } from "./app/AuthScreen";
+// the account keeps this browser's labs and settings (phase B)
+import "./app/sync";
 import { loadLang, useLang } from "./i18n";
 
 // drawn once the dictionary of its language is here: no flash of Spanish

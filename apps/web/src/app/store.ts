@@ -6,7 +6,7 @@ import { create } from "zustand";
 import { t, tx, type T } from "../i18n";
 import { emptyTopology, exampleTopology, networkFingerprint, removeDevices, removeLinks, removeZone, templateById, zoneOf, type Topology } from "@visual-tracert/model";
 import { applyLease, PROTOCOLS, simulate, type Protocol, type SimEvent, type SimKind, type SimOutcome, type SimRequest, type SimRun } from "../sim/engine";
-import { deleteLab, listLabs, loadLab, newLabId, saveLab, setCurrentLabId, startingLab, type LabMeta } from "./labs";
+import { deleteLab, listLabs, loadLab, markSeed, newLabId, saveLab, setCurrentLabId, startingLab, type LabMeta } from "./labs";
 
 const THEME_KEY = "visual-tracert.theme";
 const HISTORY_LIMIT = 100;
@@ -190,6 +190,8 @@ interface State {
   redo: () => void;
   replace: (next: Topology) => void;
   switchLab: (id: string) => void;
+  /** the open lab again, as saved now (its account's newer copy came in): no history of before */
+  reloadLab: () => void;
   createLab: (from: "empty" | "example" | "duplicate") => void;
   /** a new lab with a copy of a template */
   openTemplate: (id: string) => void;
@@ -240,6 +242,7 @@ function openingLab(): { id: string; topology: Topology; labs: LabMeta[] } {
   const topology = exampleTopology(t);
   const labs = saveLab(id, topology);
   setCurrentLabId(id);
+  markSeed(labs[0]);
   return { id, topology, labs };
 }
 const opening = openingLab();
@@ -374,6 +377,10 @@ export const useStore = create<State>((set, get) => ({
     if(!topology){ get().notify(t("No se pudo abrir ese laboratorio."), "error"); return; }
     setCurrentLabId(id);
     set({ labId: id, topology, ...freshLab });
+  },
+  reloadLab: () => {
+    const topology = loadLab(get().labId);
+    if(topology) set({ topology, ...freshLab });
   },
   createLab: from => {
     const current = get().topology;
@@ -558,7 +565,15 @@ export function selectedZone(state: Pick<State, "selection" | "topology">): stri
   return device ? zoneOf(state.topology, device)?.id : undefined;
 }
 
+/** while the account's labs come in, the lab open may change without the user choosing it */
+let quiet = false;
+export const isQuiet = () => quiet;
+export function quietly(change: () => void): void {
+  quiet = true;
+  try{ change(); }finally{ quiet = false; }
+}
+
 // a lab opened, made or duplicated from the home page shows on the canvas
 useStore.subscribe((state, previous) => {
-  if(state.labId !== previous.labId && state.mode === "home") useStore.getState().setMode("simulation");
+  if(state.labId !== previous.labId && state.mode === "home" && !quiet) useStore.getState().setMode("simulation");
 });

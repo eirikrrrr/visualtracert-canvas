@@ -10,6 +10,7 @@ import { exerciseById, EXERCISES, rankOf, solvedKey, xpOf, type Difficulty, type
 import type { DatabaseSync } from "node:sqlite";
 import { AccountError, type Role } from "./accounts";
 import { Machines } from "./machines";
+import { UserData } from "./userdata";
 
 export interface Solve {
   exercise: string;
@@ -81,9 +82,12 @@ const checkTime = (time: unknown) => typeof time === "number" && Number.isFinite
 export class Practice {
   /** the machines as the admins changed them */
   readonly machines: Machines;
+  /** what each account keeps: its labs and its settings */
+  readonly data: UserData;
 
   constructor(private readonly db: DatabaseSync, private readonly now: () => number = Date.now) {
     this.machines = new Machines(db, now);
+    this.data = new UserData(db, now);
   }
 
   solves(userId: number): Solve[] {

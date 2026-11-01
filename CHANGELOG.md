@@ -7,6 +7,7 @@ del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más ade
 ## [Sin publicar]
 
 ### Añadido
+- **Todo en tu cuenta (fase B).** Tus laboratorios, tu perfil, tus preferencias (tema, idioma, menú) y tu progreso de Practicar se guardan en el servidor (migración 4) y te siguen a cualquier navegador; el navegador sigue siendo la copia con la que se trabaja, así que nada espera a la red. Al iniciar sesión se juntan las dos copias (gana el cambio más nuevo, los borrados se propagan) y lo que tenías antes pasa a tu cuenta. Cada laboratorio guarda sus versiones anteriores (una cada 10 minutos de cambios, las 10 últimas), que se recuperan desde Panel → Laboratorios. En Panel → Cuenta, el estado de la sincronización. Límite: 50 laboratorios de 512 KB por cuenta (`MAX_SAVED_LABS`).
 - **Menú lateral global.** El menú de Practicar pasa a toda la app (inicio, secciones de Practicar, Simulación y Emulación, con tu rango y la season en curso). El botón ☰ del header lo oculta y lo muestra, y se recuerda; en pantallas estrechas se abre por encima de la página.
 - **Página de inicio.** La app abre en un inicio con tu perfil, nivel y rango, la season en curso con tu puesto, tu racha semanal, la XP de las últimas semanas, máquinas para ti y las que tienes en curso, tu Starting Point, novedades y accesos a Practicar, Simulación y Emulación. El logo lleva a ella; antes la app abría directamente en el lienzo de Emulación.
 - Tracks con tarjetas más grandes, iconos de las máquinas más grandes y, al terminar un quiz, tu respuesta errónea junto a la correcta.

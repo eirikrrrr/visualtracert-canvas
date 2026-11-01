@@ -36,7 +36,7 @@ export type ErrorCode =
   | "bad-request" | "bad-username" | "bad-name" | "bad-password" | "username-taken"
   | "already-set-up" | "invalid-setup-code" | "invalid-invite" | "invalid-credentials" | "disabled" | "too-many-attempts"
   | "wrong-password" | "not-found" | "last-admin" | "unauthorized" | "forbidden" | "emulator-unavailable" | "not-verified"
-  | "bad-machine" | "bad-file" | "too-large";
+  | "bad-machine" | "bad-file" | "too-large" | "bad-lab" | "too-many-labs";
 
 export class AccountError extends Error {
   /** what was wrong: the field of a machine, say */

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { admin, inviteLink, ROLE_LABEL, useAuth, type Invite, type Role, type User } from "../app/auth";
 import { ChangePasswordForm } from "../app/AuthScreen";
 import { useStore } from "../app/store";
+import { syncNow, useSync } from "../app/sync";
 import { Icon } from "../editor/icons";
 import { useLang, useT } from "../i18n";
 import { clock } from "../practice/progress";
@@ -36,11 +37,29 @@ export function AccountSection() {
       <h3>{t("Cambiar la contraseña")}</h3>
       <div className="dash-fields"><ChangePasswordForm /></div>
       <h3>{t("Sesión")}</h3>
-      <p className="muted small">{t("Tus laboratorios, tu progreso y tus preferencias siguen guardados en este navegador. Pronto se guardarán en tu cuenta.")}</p>
+      <SyncStatus />
       <button type="button" className="ghost" onClick={() => { useStore.getState().setDashboard(null); void useAuth.getState().logout(); }}>
         <Icon name="logout" size={16} />{t("Cerrar sesión")}
       </button>
     </>
+  );
+}
+
+/** where the account's copy of this browser's labs and settings stands */
+function SyncStatus() {
+  const t = useT();
+  const sync = useSync();
+  const date = useDate();
+  const text = sync.status === "syncing" ? t("Guardando en tu cuenta…")
+    : sync.status === "error" ? t("No se pudo guardar en tu cuenta: {message}. Se reintentará con el próximo cambio.", { message: sync.message ?? "" })
+    : sync.at ? t("Tus laboratorios, tu perfil, tus preferencias y tu progreso se guardan en tu cuenta. Última sincronización: {date}.", { date: date(sync.at) })
+    : t("Tus laboratorios, tu perfil, tus preferencias y tu progreso se guardan en tu cuenta.");
+  return (
+    <div className="sync-status">
+      <span className={`sync-dot ${sync.status}`} aria-hidden="true" />
+      <p className="small">{text}</p>
+      <button type="button" className="ghost small" disabled={sync.status === "syncing"} onClick={syncNow}><Icon name="restart" size={14} />{t("Sincronizar ahora")}</button>
+    </div>
   );
 }
 

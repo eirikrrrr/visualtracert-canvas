@@ -244,6 +244,15 @@ que cambia algo debe venir como `application/json` y desde el mismo sitio (`Orig
 | `GET /auth/progress` | profesor, admin | El progreso de cada cuenta: XP y retos superados |
 | `GET /auth/seasons` | con sesión | Las seasons: `{ id, name, theme, summary, inspiration, color, icon, startsAt, endsAt, machines }` |
 | `POST /auth/seasons` · `PATCH /auth/seasons/:id` · `DELETE /auth/seasons/:id` | admin | Crea, cambia o borra una season. `machines`: ids de retos que existen |
+| `GET /auth/machines` | con sesión | Lo que los administradores cambiaron de las máquinas, y las suyas: `[{ id, edit? , custom?, updatedAt }]` |
+| `PUT /auth/machines/:id` · `DELETE /auth/machines/:id` | admin | Edita una máquina de la app (o la devuelve a la original) o guarda/borra una propia. Errores: `bad-machine` con `detail` (el campo) |
+| `POST /auth/files` · `GET /auth/files/:id` | admin · con sesión | Sube un archivo como cuerpo (PNG, JPEG, WebP hasta 2 MB; PDF hasta 10 MB, comprobados por sus bytes) y lo sirve con `nosniff` |
+| `GET /auth/labs` | con sesión | Los laboratorios de tu cuenta: `[{ id, name, updatedAt, size }]` |
+| `GET /auth/labs/:id` | con sesión | Uno, con su documento (`document`, el JSON del laboratorio) |
+| `PUT /auth/labs/:id` | con sesión | `{ document, updatedAt }`: lo guarda, salvo que la cuenta tenga una copia más nueva (responde `kept: true` con la suya). Hasta `MAX_SAVED_LABS` (50) laboratorios de 512 KB; si no, `too-many-labs` o `too-large` |
+| `DELETE /auth/labs/:id` | con sesión | Lo borra, con sus versiones |
+| `GET /auth/labs/:id/versions[/:savedAt]` | con sesión | Sus versiones anteriores (una cada 10 minutos de cambios, las 10 últimas), o una con su documento |
+| `GET /auth/me/settings` · `PUT /auth/me/settings` | con sesión | `{ data }`: tu perfil (foto, bio, animaciones), tus preferencias (tema, idioma, menú) y tu progreso de Practicar (lecciones, quizzes, retos en curso), hasta 256 KB |
 | `GET /auth/check` | nginx | `204` con `X-User-Id`, `X-User-Name` y `X-User-Role`; `401` o `403` |
 
 Un usuario:
@@ -257,6 +266,13 @@ Roles: `student` (alumno), `teacher` (profesor) y `admin`. Usuario: de 3 a 32 le
 `.`, `-` o `_`, sin distinguir mayúsculas. Contraseña: al menos 10 caracteres, guardada con scrypt
 (N = 2¹⁵, r = 8, p = 3). Una invitación es un código como `K7QF-9XRM-2PDA`, sin caracteres que se
 confundan; el enlace `/?invite=K7QF-9XRM-2PDA` abre el registro con el código escrito.
+
+La web guarda en la cuenta lo que tiene el navegador (`apps/web/src/app/sync.ts`): el navegador sigue
+siendo la copia con la que se trabaja, y cada cambio sube un momento después; al iniciar sesión se
+juntan las dos (en cada laboratorio gana el cambio más nuevo; uno borrado en otro navegador
+desaparece de este; el ejemplo que crea un navegador nuevo no se sube si la cuenta ya tiene
+laboratorios). Un navegador donde había otra cuenta deja los laboratorios de esa cuenta antes de
+traer los de esta.
 
 Códigos de error: `bad-request`, `bad-username`, `bad-name`, `bad-password`, `username-taken`,
 `already-set-up`, `invalid-setup-code`, `invalid-invite`, `invalid-credentials`, `disabled`,

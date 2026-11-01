@@ -13,7 +13,7 @@
 import { exerciseById, solvedKey, TIME_LIMIT, type Difficulty, type Solved } from "@visual-tracert/model";
 import { create } from "zustand";
 import { useAuth } from "../app/auth";
-import { useStore, type Mode } from "../app/store";
+import { isQuiet, useStore, type Mode } from "../app/store";
 import { emulator } from "../emulation/api";
 import { useEmulation } from "../emulation/store";
 import { t } from "../i18n";
@@ -73,6 +73,8 @@ interface ProgressState extends Saved {
   setDifficulty: (difficulty: Difficulty) => void;
   /** a section of a guide read */
   learn: (lesson: string) => void;
+  /** what the account kept of practice (./sync): added to this browser's */
+  absorb: (change: Pick<Saved, "lessons" | "scores" | "labs"> & { difficulty?: Difficulty }) => void;
   /** a guide's quiz finished with a share of right answers (passed or not) */
   score: (tier: string, share: number, passed: boolean) => void;
   /** the account's progress, from the server */
@@ -106,6 +108,13 @@ export const useProgress = create<ProgressState>((set, get) => {
     unlink: labs => save({ labs: Object.fromEntries(Object.entries(get().labs).filter(([lab]) => !labs.includes(lab))) }),
     setDifficulty: difficulty => save({ difficulty }),
     learn: lesson => { if(!get().lessons[lesson]) save({ lessons: { ...get().lessons, [lesson]: Date.now() } }); },
+    absorb: change => save({
+      lessons: { ...change.lessons, ...get().lessons },
+      scores: Object.fromEntries([...new Set([...Object.keys(change.scores), ...Object.keys(get().scores)])]
+        .map(tier => [tier, Math.max(change.scores[tier] ?? 0, get().scores[tier] ?? 0)])),
+      labs: { ...change.labs, ...get().labs },
+      ...(change.difficulty ? { difficulty: change.difficulty } : {}),
+    }),
     score: (tier, share, passed) => save({
       scores: share > (get().scores[tier] ?? -1) ? { ...get().scores, [tier]: share } : get().scores,
       lessons: passed && !get().lessons[`quiz:${tier}`] ? { ...get().lessons, [`quiz:${tier}`]: Date.now() } : get().lessons,
@@ -154,7 +163,7 @@ useStore.subscribe((state, previous) => {
     try{ localStorage.setItem(WORK_KEY, workLab); }catch(_){ /* full or blocked */ }
   }
   // an exercise's lab opened from the menu: in its own mode
-  if(attempt && state.mode !== "practice") resumeMode(attempt);
+  if(attempt && state.mode !== "practice" && state.mode !== "home" && !isQuiet()) resumeMode(attempt);
 });
 
 const resumeMode = (attempt: LabExercise) => {

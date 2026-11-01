@@ -5,9 +5,10 @@
 // what the server offers (the emulator, its images and profiles) and the
 // keyboard shortcuts. A dialog over the workspace, opened from the avatar of
 // the top bar.
-import { IMAGES, LANGS, type Topology } from "@visual-tracert/model";
+import { IMAGES, LANGS, parse, type Topology } from "@visual-tracert/model";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { loadLab } from "../app/labs";
+import { loadLab, saveLab } from "../app/labs";
+import { labVersion, labVersions } from "../app/sync";
 import { useAuth } from "../app/auth";
 import { squarePhoto, useProfile } from "../app/profile";
 import { SPEEDS, THEMES, useStore, type DashboardSection } from "../app/store";
@@ -173,6 +174,7 @@ function LabsSection() {
   const current = useStore(state => state.labId);
   const totals = useTotals(labs);
   const [confirm, setConfirm] = useState<string | null>(null);
+  const [history, setHistory] = useState<string | null>(null);
   const locale = LANGS.find(item => item.id === useLang.getState().lang)!.html;
   const date = (time: number) => new Date(time).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
   const state = useStore.getState;
@@ -206,15 +208,54 @@ function LabsSection() {
                   <button type="button" className="ghost small" onClick={() => setConfirm(null)}>{t("Cancelar")}</button>
                 </span>
               ) : (
-                <button type="button" className="icon-button" aria-label={t("Eliminar «{name}»", { name: lab.name })} title={t("Eliminar")} onClick={() => setConfirm(lab.id)}>
-                  <Icon name="trash" size={15} />
-                </button>
+                <>
+                  <button type="button" className="icon-button" aria-expanded={history === lab.id} aria-label={t("Versiones de «{name}»", { name: lab.name })} title={t("Versiones anteriores")}
+                    onClick={() => setHistory(history === lab.id ? null : lab.id)}>
+                    <Icon name="realtime" size={15} />
+                  </button>
+                  <button type="button" className="icon-button" aria-label={t("Eliminar «{name}»", { name: lab.name })} title={t("Eliminar")} onClick={() => setConfirm(lab.id)}>
+                    <Icon name="trash" size={15} />
+                  </button>
+                </>
               )}
+              {history === lab.id && <LabVersions id={lab.id} date={date} />}
             </li>
           );
         })}
       </ul>
     </>
+  );
+}
+
+/** a lab's earlier versions, kept by the account: one brought back becomes
+ * the lab's next change (the open one's can be undone) */
+function LabVersions({ id, date }: { id: string; date: (time: number) => string }) {
+  const t = useT();
+  const [versions, setVersions] = useState<{ savedAt: number; name: string; size: number }[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { labVersions(id).then(setVersions).catch(() => setFailed(true)); }, [id]);
+  const restore = async (savedAt: number) => {
+    try{
+      const topology = parse((await labVersion(id, savedAt)).document, "json").topology;
+      if(!topology) throw new Error(t("Esa versión no se pudo leer."));
+      const store = useStore.getState();
+      if(store.labId === id) store.commit(topology);
+      else useStore.setState({ labs: saveLab(id, topology) });
+      store.notify(t("Versión del {date} recuperada.", { date: date(savedAt) }), "ok");
+    }catch(error){ useStore.getState().notify((error as Error).message, "error"); }
+  };
+  return (
+    <div className="lab-versions">
+      {failed ? <p className="muted small">{t("Este laboratorio aún no está guardado en tu cuenta.")}</p>
+        : !versions ? <p className="muted small">{t("Cargando…")}</p>
+        : !versions.length ? <p className="muted small">{t("Aún no hay versiones anteriores: se guarda una cada diez minutos de cambios, hasta diez.")}</p>
+        : <ul>{versions.map(version => (
+            <li key={version.savedAt}>
+              <span className="small">{date(version.savedAt)} · <span className="muted">{version.name}</span></span>
+              <button type="button" className="ghost small" onClick={() => void restore(version.savedAt)}>{t("Recuperar")}</button>
+            </li>
+          ))}</ul>}
+    </div>
   );
 }
 

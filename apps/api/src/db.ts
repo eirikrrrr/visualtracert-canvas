@@ -91,6 +91,37 @@ const MIGRATIONS = [
     created_by INTEGER REFERENCES users (id) ON DELETE SET NULL
   );
   `,
+  // 4: what each account keeps (phase B): its labs, with a short history of
+  // versions, and its settings (profile, preferences, practice's progress)
+  `
+  CREATE TABLE labs (
+    user_id INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    -- the topology document, as JSON
+    document TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    -- the browser's time of its last change (the newer one wins)
+    updated_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, id)
+  );
+  CREATE TABLE lab_versions (
+    user_id INTEGER NOT NULL,
+    lab_id TEXT NOT NULL,
+    saved_at INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    document TEXT NOT NULL,
+    PRIMARY KEY (user_id, lab_id, saved_at),
+    FOREIGN KEY (user_id, lab_id) REFERENCES labs (user_id, id) ON DELETE CASCADE
+  );
+  CREATE TABLE user_settings (
+    user_id INTEGER PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+    -- { profile, prefs, practice }, as JSON
+    data TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  `,
 ];
 
 /** opens (or creates) the database at that path (":memory:" for tests), migrated */

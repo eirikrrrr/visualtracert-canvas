@@ -274,4 +274,18 @@ describe("practice: solves, ranking, machines and seasons", () => {
     expect((await admin.call("DELETE", "/auth/machines/first-network")).status).toBe(204);
     expect((await ana.call("GET", "/auth/rankings")).data.me).toMatchObject({ xp: 30 });
   });
+
+  it("keeps each account's labs and settings, out of the others' reach", async () => {
+    const document = JSON.stringify({ version: 4, name: "Mi red", topology: [], links: [] });
+    expect((await browser().call("GET", "/auth/labs")).status).toBe(401);
+    expect((await ana.call("PUT", "/auth/labs/lab-a", { document, updatedAt: Date.now() })).data).toMatchObject({ id: "lab-a", name: "Mi red" });
+    expect((await ana.call("GET", "/auth/labs")).data).toMatchObject([{ id: "lab-a" }]);
+    expect((await ana.call("GET", "/auth/labs/lab-a")).data.document).toBe(document);
+    expect((await ana.call("GET", "/auth/labs/lab-a/versions")).data).toEqual([]);
+    expect((await admin.call("GET", "/auth/labs/lab-a")).status).toBe(404);
+    expect((await ana.call("PUT", "/auth/me/settings", { data: { prefs: { lang: "pt" } } })).status).toBe(200);
+    expect((await ana.call("GET", "/auth/me/settings")).data.data).toEqual({ prefs: { lang: "pt" } });
+    expect((await admin.call("GET", "/auth/me/settings")).data.data).toBeNull();
+    expect((await ana.call("DELETE", "/auth/labs/lab-a")).status).toBe(204);
+  });
 });
