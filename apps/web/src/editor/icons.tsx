@@ -134,6 +134,9 @@ const paths: Record<string, string[]> = {
 
 export type IconName = keyof typeof paths;
 
+/** a line icon's strokes (24×24), to draw it inside another SVG */
+export const iconPaths = (name: string): string[] => paths[name] ?? paths.pc;
+
 export function Icon({ name, size = 20, title }: { name: IconName | DeviceType; size?: number; title?: string }) {
   const Brand = BRANDS[name];
   if(Brand) return <Brand size={size} />;

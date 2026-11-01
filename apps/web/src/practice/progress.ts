@@ -1,6 +1,6 @@
 // The user's progress in practice, in this browser: the exercises solved (and
 // when, in each difficulty, and their best time; the account's, from the
-// server), the Starting Point's lessons done, the difficulty chosen, and
+// server), the Starting Point's sections read and quizzes passed, the difficulty chosen, and
 // the attempts: which lab was opened for which exercise and difficulty (its
 // challenge card comes back with the lab, and a medium one keeps the
 // interface locked), when it started, its deadline and how it ended.
@@ -43,8 +43,11 @@ interface Saved {
   times: Record<string, number>;
   labs: Record<string, LabExercise>;
   difficulty: Difficulty;
-  /** the Starting Point's lessons done (their question answered right): id → when */
+  /** the Starting Point's guides: each section read ("tier/section") and each
+   * quiz passed ("quiz:tier") → when */
   lessons: Record<string, number>;
+  /** each guide's best quiz score, as a share of right answers */
+  scores: Record<string, number>;
 }
 
 function load(): Saved {
@@ -54,10 +57,10 @@ function load(): Saved {
       // the first version kept only the exercise's id (easy)
       const labs = Object.fromEntries(Object.entries(saved.labs as Record<string, string | LabExercise>)
         .map(([lab, value]) => [lab, typeof value === "string" ? { exercise: value, difficulty: "easy" as const } : value]));
-      return { user: typeof saved.user === "number" ? saved.user : undefined, done: saved.done, times: saved.times ?? {}, labs, difficulty: saved.difficulty === "medium" ? "medium" : "easy", lessons: saved.lessons ?? {} };
+      return { user: typeof saved.user === "number" ? saved.user : undefined, done: saved.done, times: saved.times ?? {}, labs, difficulty: saved.difficulty === "medium" ? "medium" : "easy", lessons: saved.lessons ?? {}, scores: saved.scores ?? {} };
     }
   }catch(_){ /* none */ }
-  return { done: {}, times: {}, labs: {}, difficulty: "easy", lessons: {} };
+  return { done: {}, times: {}, labs: {}, difficulty: "easy", lessons: {}, scores: {} };
 }
 
 interface ProgressState extends Saved {
@@ -68,15 +71,17 @@ interface ProgressState extends Saved {
   /** forgets attempts (their labs were thrown away) */
   unlink: (labs: string[]) => void;
   setDifficulty: (difficulty: Difficulty) => void;
-  /** a lesson done */
+  /** a section of a guide read */
   learn: (lesson: string) => void;
+  /** a guide's quiz finished with a share of right answers (passed or not) */
+  score: (tier: string, share: number, passed: boolean) => void;
   /** the account's progress, from the server */
   adopt: (user: number, solves: Solve[], fresh: boolean) => void;
 }
 
 export const useProgress = create<ProgressState>((set, get) => {
   const save = (change: Partial<Saved>) => {
-    const next = { user: get().user, done: get().done, times: get().times, labs: get().labs, difficulty: get().difficulty, lessons: get().lessons, ...change };
+    const next = { user: get().user, done: get().done, times: get().times, labs: get().labs, difficulty: get().difficulty, lessons: get().lessons, scores: get().scores, ...change };
     try{ localStorage.setItem(KEY, JSON.stringify(next)); }catch(_){ /* full or blocked */ }
     set(next);
   };
@@ -101,6 +106,10 @@ export const useProgress = create<ProgressState>((set, get) => {
     unlink: labs => save({ labs: Object.fromEntries(Object.entries(get().labs).filter(([lab]) => !labs.includes(lab))) }),
     setDifficulty: difficulty => save({ difficulty }),
     learn: lesson => { if(!get().lessons[lesson]) save({ lessons: { ...get().lessons, [lesson]: Date.now() } }); },
+    score: (tier, share, passed) => save({
+      scores: share > (get().scores[tier] ?? -1) ? { ...get().scores, [tier]: share } : get().scores,
+      lessons: passed && !get().lessons[`quiz:${tier}`] ? { ...get().lessons, [`quiz:${tier}`]: Date.now() } : get().lessons,
+    }),
     adopt: (user, solves, fresh) => {
       const done: Solved = fresh ? {} : { ...get().done };
       const times: Record<string, number> = fresh ? {} : { ...get().times };
@@ -109,7 +118,7 @@ export const useProgress = create<ProgressState>((set, get) => {
         done[key] = Math.min(done[key] ?? Infinity, solve.solvedAt);
         if(solve.timeMs !== null) times[key] = Math.min(times[key] ?? Infinity, solve.timeMs);
       }
-      save({ user, done, times, ...(fresh ? { labs: {}, lessons: {} } : {}) });
+      save({ user, done, times, ...(fresh ? { labs: {}, lessons: {}, scores: {} } : {}) });
     },
   };
 });

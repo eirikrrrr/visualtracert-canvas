@@ -72,12 +72,11 @@ describe("exercises", () => {
 });
 
 describe("learning: the starting point and the tracks", () => {
-  it("names only machines that exist, and lessons that can be answered", async () => {
+  it("names only machines that exist", async () => {
     const { EXERCISES, TIERS, TRACKS } = await import("@visual-tracert/model");
     const ids = new Set(EXERCISES.map(item => item.id));
     for(const tier of TIERS){
       for(const id of tier.machines ?? []) expect(ids.has(id), id).toBe(true);
-      for(const lesson of tier.lessons ?? []) expect(lesson.question.options[lesson.question.answer], lesson.id).toBeDefined();
     }
     for(const track of TRACKS){
       for(const id of track.machines) expect(ids.has(id), `${track.id}: ${id}`).toBe(true);
@@ -85,6 +84,17 @@ describe("learning: the starting point and the tracks", () => {
       // the CLI track: only machines with a medium difficulty
       if(track.difficulty === "medium") for(const id of track.machines) expect(EXERCISES.find(item => item.id === id)!.cli, id).toBeDefined();
     }
-    expect(new Set(TIERS.flatMap(tier => tier.lessons ?? []).map(lesson => lesson.id)).size).toBe(TIERS.flatMap(tier => tier.lessons ?? []).length);
+  });
+});
+
+describe("the starting point's guides", () => {
+  it("draws every figure they name, with a quiz of 40 questions or more", async () => {
+    const { guides } = await import("@visual-tracert/model/guides/es");
+    const { FIGURES } = await import("./figures");
+    for(const [tier, guide] of Object.entries(guides)){
+      const figures = guide.sections.flatMap(section => section.blocks.flatMap(block => ("figure" in block ? [block.figure] : [])));
+      for(const id of figures) expect(FIGURES[id], `${tier}: ${id}`).toBeDefined();
+      expect(guide.quiz.length, tier).toBeGreaterThanOrEqual(40);
+    }
   });
 });
