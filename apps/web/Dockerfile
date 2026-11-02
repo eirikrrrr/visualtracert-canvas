@@ -14,7 +14,7 @@ RUN npm run build -w @visual-tracert/web
 
 # --- Runtime: nginx serves the static files -----------------------------------
 FROM nginx:alpine
-LABEL org.opencontainers.image.title="visual-tracert" \
+LABEL org.opencontainers.image.title="visualtracert-canvas" \
       org.opencontainers.image.description="Laboratorio de redes en el navegador: editor de topologías y simulación de paquetes"
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /repo/apps/web/dist /usr/share/nginx/html

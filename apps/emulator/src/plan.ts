@@ -24,7 +24,7 @@ export const LABELS = {
   device: "visual-tracert.device",
   fingerprint: "visual-tracert.fingerprint",
   image: "visual-tracert.image",
-  /** when the lab is stopped by itself (an exercise's time limit), in ms since the epoch */
+  /** when the lab is stopped by itself (?expires=), in ms since the epoch */
   expires: "visual-tracert.expires",
   /** when the lab was deployed (kept by the devices made anew), in ms since the epoch */
   started: "visual-tracert.started",

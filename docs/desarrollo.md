@@ -10,24 +10,17 @@
 
 ```sh
 npm install                     # instala y enlaza los workspaces
-npm run dev                     # el editor en Vite, con /api reenviado al emulador y /auth a las cuentas
-docker compose up -d --build    # la app completa: editor en :9150, emulador en 127.0.0.1:9151,
-                                # cuentas en 127.0.0.1:9152
+npm run dev                     # el editor en Vite (:5180), con /api reenviado al emulador
+docker compose up -d --build    # la app completa: editor en 127.0.0.1:9160, emulador en 127.0.0.1:9161
 ```
 
-La primera vez, la web pide crear la cuenta de administrador con el **código de instalación** que
-el servicio de cuentas escribe en su registro (`docker compose logs api`). Es aleatorio en cada
-arranque mientras no haya cuentas, o el de `SETUP_CODE=… docker compose up -d`. Después, cada
-cuenta nueva necesita una invitación que el administrador crea en el panel de usuario → Usuarios.
-
-En `npm run dev`, Vite reenvía `/api` directamente al emulador, sin la comprobación de sesión de
-nginx; la web pide igualmente iniciar sesión (contra `/auth`).
+No hay cuentas ni inicio de sesión: se abre y se usa. Por eso todo escucha solo en este equipo.
 
 Con `ALLOW_PRIVILEGED=1 docker compose up -d` el emulador permite imágenes que necesitan un
 contenedor privilegiado (Nokia SR Linux).
 
 Tras cambiar algo visual o de comportamiento, reconstruye con `docker compose up -d --build` y
-compruébalo en `:9150`.
+compruébalo en `127.0.0.1:9160`.
 
 ## Comprobar
 
@@ -81,7 +74,7 @@ Todo el repositorio comparte una versión ([SemVer](https://semver.org/lang/es/)
 
 1. Pasa lo de «Sin publicar» del [CHANGELOG](../CHANGELOG.md) a la nueva versión, con su fecha.
 2. `npm version X.Y.Z --workspaces --include-workspace-root --no-git-tag-version`
-3. Commit `chore: release X.Y.Z`, etiqueta `git tag -a vX.Y.Z -m "visual-tracert X.Y.Z"` y
+3. Commit `chore: release X.Y.Z`, etiqueta `git tag -a vX.Y.Z -m "visualtracert-canvas X.Y.Z"` y
    `git push --follow-tags`.
 
 La app muestra su versión junto al nombre, y el emulador en `/api/health`.

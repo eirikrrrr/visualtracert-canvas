@@ -5,45 +5,26 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
-    image: visual-tracert:latest
-    container_name: visual-tracert
+    image: visualtracert-canvas:latest
+    container_name: visualtracert-canvas
     restart: unless-stopped
-    # every address of the host: reachable from the other machines of the LAN
+    # this host only: there are no accounts, and through the web the emulator
+    # is root on this machine. To reach it from elsewhere, put it behind a
+    # proxy that asks who you are (or an SSH tunnel)
     ports:
-      - "0.0.0.0:9150:80"
-
-  # Accounts: users, sessions and invitations, in SQLite (the api-data volume).
-  # Unprivileged; nginx asks it before every emulator request. While there is
-  # no account, its log has the setup code the first one (the admin) needs:
-  #   docker compose logs api
-  api:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-    image: visual-tracert-api:latest
-    container_name: visual-tracert-api
-    restart: unless-stopped
-    environment:
-      # Secure cookies: 1 always, 0 never, unset when the request came by HTTPS
-      COOKIE_SECURE: "${COOKIE_SECURE:-}"
-      # the code to create the admin (random, in the log, if unset)
-      SETUP_CODE: "${SETUP_CODE:-}"
-    volumes:
-      - api-data:/data
-    ports:
-      - "127.0.0.1:9152:8090"
+      - "127.0.0.1:9160:80"
 
   # Emulation: creates the devices' containers and the veth cables between
   # them. It needs Docker's socket and to enter other containers' network
   # namespaces (privileged, host PIDs): that is root on this machine, so it is
   # only reachable through the web's nginx (/api) and, for development, from
-  # this host on 127.0.0.1:9151.
+  # this host on 127.0.0.1:9161.
   emulator:
     build:
       context: .
       dockerfile: apps/emulator/Dockerfile
-    image: visual-tracert-emulator:latest
-    container_name: visual-tracert-emulator
+    image: visualtracert-canvas-emulator:latest
+    container_name: visualtracert-canvas-emulator
     restart: unless-stopped
     privileged: true
     pid: host
@@ -52,17 +33,13 @@ services:
       # with ALLOW_PRIVILEGED=1: such a container, and its CLI, is root on
       # this host. Off unless started as ALLOW_PRIVILEGED=1 docker compose up -d
       ALLOW_PRIVILEGED: "${ALLOW_PRIVILEGED:-0}"
-      # what one account may have running at once (admins: no limit)
-      MAX_LABS_PER_USER: "${MAX_LABS_PER_USER:-3}"
-      MAX_CONTAINERS_PER_USER: "${MAX_CONTAINERS_PER_USER:-24}"
       DATA_DIR: /data
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       # the image profiles (profiles.json): they outlive the container
       - emulator-data:/data
     ports:
-      - "127.0.0.1:9151:8080"
+      - "127.0.0.1:9161:8080"
 
 volumes:
   emulator-data:
-  api-data:

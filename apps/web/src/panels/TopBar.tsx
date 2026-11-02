@@ -5,13 +5,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { LabMeta } from "../app/labs";
 import { initials, useProfile } from "../app/profile";
-import { chooseMode, useProgress } from "../practice/progress";
 import { THEMES, useStore, type Mode } from "../app/store";
 import { Icon } from "../editor/icons";
 import { LANGS, tx, useLang, useT, type T } from "../i18n";
 
 const MODES: { id: Mode; label: string; title: string }[] = [
-  { id: "practice", label: tx("Practicar"), title: tx("Retos por temas para poner a prueba lo que sabes, con su comprobación") },
   { id: "emulation", label: tx("Emulación"), title: tx("Cada equipo es un contenedor real y cada cable, un enlace virtual: los comandos se ejecutan de verdad") },
   { id: "simulation", label: tx("Simulación"), title: tx("La red se simula aquí: cada acción se ve trama a trama sobre el lienzo") },
 ];
@@ -51,7 +49,7 @@ function Dropdown({ className, label, title, button, children, align = "end" }: 
 }
 
 /** a lab of the menu: open it, or (its bin) delete it, confirmed in place */
-function LabRow({ lab, current, exercise, close }: { lab: LabMeta; current: boolean; exercise?: string; close: () => void }) {
+function LabRow({ lab, current, close }: { lab: LabMeta; current: boolean; close: () => void }) {
   const t = useT();
   const [confirming, setConfirming] = useState(false);
   const locale = LANGS.find(item => item.id === useLang.getState().lang)!.html;
@@ -67,8 +65,8 @@ function LabRow({ lab, current, exercise, close }: { lab: LabMeta; current: bool
   return (
     <div className={`lab-row${current ? " current" : ""}`}>
       <button type="button" role="menuitemradio" aria-checked={current} onClick={() => { useStore.getState().switchLab(lab.id); close(); }}>
-        <Icon name={exercise ? "practice" : "file"} size={16} />
-        <span className="menu-text"><span>{lab.name}</span><small>{exercise ? t("Reto · {when}", { when: ago(lab.updatedAt, t, locale) }) : ago(lab.updatedAt, t, locale)}</small></span>
+        <Icon name="file" size={16} />
+        <span className="menu-text"><span>{lab.name}</span><small>{ago(lab.updatedAt, t, locale)}</small></span>
         {current && <span className="check" aria-hidden="true">✓</span>}
       </button>
       <button type="button" className="icon-button lab-row-delete" aria-label={t("Eliminar «{name}»", { name: lab.name })} title={t("Eliminar")}
@@ -82,14 +80,11 @@ function LabRow({ lab, current, exercise, close }: { lab: LabMeta; current: bool
 function LabMenu() {
   const labs = useStore(state => state.labs);
   const labId = useStore(state => state.labId);
-  const attempts = useProgress(state => state.labs);
   const [query, setQuery] = useState("");
   const store = useStore.getState;
   const t = useT();
   const words = query.trim().toLowerCase();
   const shown = [...labs].sort((p, q) => q.updatedAt - p.updatedAt).filter(lab => !words || lab.name.toLowerCase().includes(words));
-  const exercises = shown.filter(lab => attempts[lab.id]);
-  const own = shown.filter(lab => !attempts[lab.id]);
   return (
     <Dropdown className="lab-menu" label={t("Laboratorios")} title={t("Laboratorios: cambiar, crear, duplicar o eliminar")}
       button={<Icon name="chevron" size={18} />} align="start">
@@ -99,18 +94,10 @@ function LabMenu() {
             <input className="menu-search" type="search" value={query} placeholder={t("Buscar un laboratorio…")} aria-label={t("Buscar un laboratorio")}
               onChange={event => setQuery(event.target.value)} />
           )}
-          {exercises.length > 0 && (
-            <>
-              <div className="menu-label">{t("Reto en curso")}</div>
-              <div className="menu-list">
-                {exercises.map(lab => <LabRow key={lab.id} lab={lab} current={lab.id === labId} exercise={attempts[lab.id].exercise} close={close} />)}
-              </div>
-            </>
-          )}
-          <div className="menu-label">{t("Tus laboratorios ({n})", { n: labs.length - Object.keys(attempts).filter(id => labs.some(lab => lab.id === id)).length })}</div>
+          <div className="menu-label">{t("Tus laboratorios ({n})", { n: labs.length })}</div>
           <div className="menu-list">
-            {own.map(lab => <LabRow key={lab.id} lab={lab} current={lab.id === labId} close={close} />)}
-            {!own.length && <p className="menu-empty small muted">{t("Ningún laboratorio con ese nombre.")}</p>}
+            {shown.map(lab => <LabRow key={lab.id} lab={lab} current={lab.id === labId} close={close} />)}
+            {!shown.length && <p className="menu-empty small muted">{t("Ningún laboratorio con ese nombre.")}</p>}
           </div>
           <div className="menu-sep" role="separator" />
           <button type="button" role="menuitem" onClick={() => { store().createLab("empty"); close(); }}>
@@ -193,7 +180,6 @@ function ProfileButton() {
 export function TopBar() {
   const name = useStore(state => state.topology.name);
   const mode = useStore(state => state.mode);
-  const sidebar = useStore(state => state.sidebar);
   const inspectLab = useStore(state => state.inspectLab);
   const t = useT();
   const [draft, setDraft] = useState(name);
@@ -209,21 +195,15 @@ export function TopBar() {
   return (
     <header className="topbar">
       <div className="brand">
-        <button type="button" className="icon-button sidebar-toggle" aria-pressed={sidebar} aria-label={sidebar ? t("Ocultar el menú") : t("Mostrar el menú")}
-          title={sidebar ? t("Ocultar el menú") : t("Mostrar el menú")} onClick={() => useStore.getState().setSidebar(!sidebar)}>
-          <Icon name="menu" size={20} />
-        </button>
-        <button type="button" className="brand-home" aria-current={mode === "home" ? "page" : undefined} title={t("Inicio")} onClick={() => chooseMode("home")}>
-          <span className="brand-mark"><Icon name="logo" size={20} /></span>
-          <span className="brand-name">visual-tracert</span>
-        </button>
+        <span className="brand-mark"><Icon name="logo" size={20} /></span>
+        <span className="brand-name">visualtracert-canvas</span>
         <span className="brand-version" title={t("Versión {version} ({stage})", { version: __APP_VERSION__, stage: __APP_STAGE__ })}>v{__APP_VERSION__}{__APP_STAGE__ !== "stable" && <b> {__APP_STAGE__}</b>}</span>
       </div>
 
       <div className="modes" role="radiogroup" aria-label={t("Modo")}>
         {MODES.map(item => (
           <button key={item.id} type="button" role="radio" aria-checked={mode === item.id} title={t(item.title)}
-            className={mode === item.id ? "active" : ""} onClick={() => chooseMode(item.id)}>
+            className={mode === item.id ? "active" : ""} onClick={() => useStore.getState().setMode(item.id)}>
             <Icon name={item.id} size={17} />{t(item.label)}
           </button>
         ))}

@@ -8,10 +8,7 @@
     ".": "./src/index.ts",
     "./dictionaries": "./src/i18n/dictionaries.ts",
     "./i18n/en": "./src/i18n/en.ts",
-    "./i18n/pt": "./src/i18n/pt.ts",
-    "./guides/es": "./src/guides/es.ts",
-    "./guides/en": "./src/guides/en.ts",
-    "./guides/pt": "./src/guides/pt.ts"
+    "./i18n/pt": "./src/i18n/pt.ts"
   },
   "scripts": {
     "test": "vitest run",

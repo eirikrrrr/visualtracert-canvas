@@ -5,7 +5,7 @@
 // ports), or of the lab when asked (its notes, its topologies). Nothing
 // selected, it is not there. A device's properties are also those of its
 // window (a double click on it).
-import { useId, type ReactNode } from "react";
+import { useId } from "react";
 import { deleteSelection, useStore } from "../app/store";
 import { Icon } from "../editor/icons";
 import { t as translate, tx, useT } from "../i18n";
@@ -508,27 +508,6 @@ export function HelpList() {
   );
 }
 
-/** what can be changed from the interface, read only while the lab is locked
- * (an exercise in medium difficulty: from the CLI) */
-export function Locked({ children, device }: { children: ReactNode; device?: string }) {
-  const t = useT();
-  const locked = useStore(state => state.locked);
-  if(!locked) return <>{children}</>;
-  return (
-    <>
-      <div className="emu-note small locked-note">
-        <Icon name="lock" size={14} />
-        <span>{t("Solo lectura en modo Medio: configura este equipo desde su CLI.")}</span>
-        {device && (
-          <button type="button" className="primary small" onClick={() => useStore.getState().openWindow(device, "cli")}>
-            <Icon name="emulation" size={14} />{t("Abrir su CLI")}
-          </button>
-        )}
-      </div>
-      <fieldset className="locked" disabled>{children}</fieldset>
-    </>
-  );
-}
 
 const KIND_LABEL = { device: tx("Dispositivo"), zone: tx("Topología"), link: tx("Cable"), lab: tx("Laboratorio") } as const;
 
@@ -561,7 +540,7 @@ export function Inspector() {
         </button>
       </header>
       {/* a new key, a new card: it slides in again for each thing selected */}
-      <div className="inspector-body" key={`${kind}:${selection?.id ?? ""}`}><Locked device={kind === "device" ? selection?.id : undefined}>{content}</Locked></div>
+      <div className="inspector-body" key={`${kind}:${selection?.id ?? ""}`}>{content}</div>
     </aside>
   );
 }

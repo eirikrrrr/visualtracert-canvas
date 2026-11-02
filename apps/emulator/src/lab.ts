@@ -126,7 +126,7 @@ async function stateOf(lab: string, containers: ContainerSummary[]): Promise<Lab
   };
 }
 
-/** Stops the labs whose time is up (an exercise's), every so often: they go
+/** Stops the labs whose time is up (deployed with ?expires=), every so often: they go
  * even when no page is open to stop them. */
 export function sweepExpired(every = 30_000): () => void {
   const sweep = async () => {
@@ -440,12 +440,6 @@ export async function execute(lab: string, device: string, command: Command, tar
     return { command: line, ...(await docker.exec(container.Id, ["vr-cli", line], 120_000)) };
   }
   return { command: argv.join(" "), ...(await docker.exec(container.Id, argv)) };
-}
-
-/** a command run on a device for the server's own checks (verify.ts), not the user's */
-export async function probe(lab: string, device: string, argv: string[], t: T = spanish) {
-  const container = await containerOf(lab, device, t);
-  return docker.exec(container.Id, argv);
 }
 
 /** the terminal size a shell starts with, and is changed to */

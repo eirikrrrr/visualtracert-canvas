@@ -1,15 +1,12 @@
-// The user's dashboard: their profile (the account's name; a photo and a few
-// words, in this browser; what they have built), their account (password,
-// signing out) and, for an admin, the users and invitations; their
-// preferences (language, theme, simulation speed, animations), their labs,
+// The user's dashboard: their profile (a name, a photo and a few words, in
+// this browser; what they have built), their preferences (language, theme,
+// simulation speed, animations), their labs,
 // what the server offers (the emulator, its images and profiles) and the
 // keyboard shortcuts. A dialog over the workspace, opened from the avatar of
 // the top bar.
-import { IMAGES, LANGS, parse, type Topology } from "@visual-tracert/model";
+import { IMAGES, LANGS, type Topology } from "@visual-tracert/model";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { loadLab, saveLab } from "../app/labs";
-import { labVersion, labVersions } from "../app/sync";
-import { useAuth } from "../app/auth";
+import { loadLab } from "../app/labs";
 import { squarePhoto, useProfile } from "../app/profile";
 import { SPEEDS, THEMES, useStore, type DashboardSection } from "../app/store";
 import { Icon } from "../editor/icons";
@@ -17,18 +14,11 @@ import { useImages } from "../emulation/images";
 import { emulator, type RunningLab } from "../emulation/api";
 import { useEmulation } from "../emulation/store";
 import { tx, useLang, useT } from "../i18n";
-import { useProgress } from "../practice/progress";
-import { MachinesSection } from "./MachinesSection";
-import { AccountSection, StudentsSection, UsersSection } from "./AccountSections";
 import { HelpList } from "./Inspector";
 import { Avatar } from "./TopBar";
 
 const SECTIONS: { id: DashboardSection; label: string; icon: string }[] = [
   { id: "profile", label: tx("Perfil"), icon: "user" },
-  { id: "account", label: tx("Cuenta"), icon: "key" },
-  { id: "users", label: tx("Usuarios"), icon: "users" },
-  { id: "machines", label: tx("Máquinas"), icon: "flag" },
-  { id: "students", label: tx("Alumnos"), icon: "practice" },
   { id: "preferences", label: tx("Preferencias"), icon: "settings" },
   { id: "labs", label: tx("Laboratorios"), icon: "topology" },
   { id: "server", label: tx("Servidor"), icon: "emulation" },
@@ -68,15 +58,11 @@ function ProfileSection() {
   const labs = useStore(state => state.labs);
   const profiles = useImages(state => state.profiles);
   const totals = useTotals(labs);
-  const solved = Object.keys(useProgress(state => state.done)).length;
   const fileInput = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState({ name, bio: bio ?? "" });
   useEffect(() => setDraft({ name, bio: bio ?? "" }), [name, bio]);
   const save = () => {
-    const next = draft.name.trim();
-    useProfile.getState().update({ bio: draft.bio.trim() });
-    // the name is the account's
-    if(next && next !== name) useAuth.getState().rename(next).catch(error => { setDraft(value => ({ ...value, name })); useStore.getState().notify((error as Error).message, "error"); });
+    useProfile.getState().update({ name: draft.name.trim() || name, bio: draft.bio.trim() });
   };
   return (
     <>
@@ -113,9 +99,8 @@ function ProfileSection() {
         <div><strong>{totals.devices}</strong><span>{t("dispositivos")}</span></div>
         <div><strong>{totals.links}</strong><span>{t("cables")}</span></div>
         <div><strong>{profiles.length}</strong><span>{t("perfiles de imagen")}</span></div>
-        <div><strong>{solved}</strong><span>{t("retos superados")}</span></div>
       </div>
-      <p className="muted small">{t("Tu nombre es el de tu cuenta. La foto y la descripción viven aún en este navegador.")}</p>
+      <p className="muted small">{t("Tu perfil y tus laboratorios viven en este navegador.")}</p>
     </>
   );
 }
@@ -174,7 +159,6 @@ function LabsSection() {
   const current = useStore(state => state.labId);
   const totals = useTotals(labs);
   const [confirm, setConfirm] = useState<string | null>(null);
-  const [history, setHistory] = useState<string | null>(null);
   const locale = LANGS.find(item => item.id === useLang.getState().lang)!.html;
   const date = (time: number) => new Date(time).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
   const state = useStore.getState;
@@ -208,17 +192,10 @@ function LabsSection() {
                   <button type="button" className="ghost small" onClick={() => setConfirm(null)}>{t("Cancelar")}</button>
                 </span>
               ) : (
-                <>
-                  <button type="button" className="icon-button" aria-expanded={history === lab.id} aria-label={t("Versiones de «{name}»", { name: lab.name })} title={t("Versiones anteriores")}
-                    onClick={() => setHistory(history === lab.id ? null : lab.id)}>
-                    <Icon name="realtime" size={15} />
-                  </button>
-                  <button type="button" className="icon-button" aria-label={t("Eliminar «{name}»", { name: lab.name })} title={t("Eliminar")} onClick={() => setConfirm(lab.id)}>
-                    <Icon name="trash" size={15} />
-                  </button>
-                </>
+                <button type="button" className="icon-button" aria-label={t("Eliminar «{name}»", { name: lab.name })} title={t("Eliminar")} onClick={() => setConfirm(lab.id)}>
+                  <Icon name="trash" size={15} />
+                </button>
               )}
-              {history === lab.id && <LabVersions id={lab.id} date={date} />}
             </li>
           );
         })}
@@ -227,50 +204,15 @@ function LabsSection() {
   );
 }
 
-/** a lab's earlier versions, kept by the account: one brought back becomes
- * the lab's next change (the open one's can be undone) */
-function LabVersions({ id, date }: { id: string; date: (time: number) => string }) {
-  const t = useT();
-  const [versions, setVersions] = useState<{ savedAt: number; name: string; size: number }[] | null>(null);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => { labVersions(id).then(setVersions).catch(() => setFailed(true)); }, [id]);
-  const restore = async (savedAt: number) => {
-    try{
-      const topology = parse((await labVersion(id, savedAt)).document, "json").topology;
-      if(!topology) throw new Error(t("Esa versión no se pudo leer."));
-      const store = useStore.getState();
-      if(store.labId === id) store.commit(topology);
-      else useStore.setState({ labs: saveLab(id, topology) });
-      store.notify(t("Versión del {date} recuperada.", { date: date(savedAt) }), "ok");
-    }catch(error){ useStore.getState().notify((error as Error).message, "error"); }
-  };
-  return (
-    <div className="lab-versions">
-      {failed ? <p className="muted small">{t("Este laboratorio aún no está guardado en tu cuenta.")}</p>
-        : !versions ? <p className="muted small">{t("Cargando…")}</p>
-        : !versions.length ? <p className="muted small">{t("Aún no hay versiones anteriores: se guarda una cada diez minutos de cambios, hasta diez.")}</p>
-        : <ul>{versions.map(version => (
-            <li key={version.savedAt}>
-              <span className="small">{date(version.savedAt)} · <span className="muted">{version.name}</span></span>
-              <button type="button" className="ghost small" onClick={() => void restore(version.savedAt)}>{t("Recuperar")}</button>
-            </li>
-          ))}</ul>}
-    </div>
-  );
-}
-
-/** the labs with containers on the server: the user's (an admin: everyone's),
+/** the labs with containers on the server (all of them: there are no accounts),
  * whose and since when, each one stopped from here */
 function RunningLabs() {
   const t = useT();
-  const role = useAuth(state => state.user?.role);
-  const quota = useEmulation(state => state.health?.quota);
   const names = useStore(state => state.labs);
   const [labs, setLabs] = useState<RunningLab[] | null>(null);
   const [stopping, setStopping] = useState<string | null>(null);
   const load = () => { emulator.labs().then(setLabs).catch(() => setLabs([])); };
   useEffect(load, []);
-  const admin = role === "admin";
   const stop = async (lab: string) => {
     setStopping(lab);
     try{
@@ -282,10 +224,7 @@ function RunningLabs() {
   };
   return (
     <>
-      <h3>{admin ? t("Laboratorios encendidos en el servidor ({n})", { n: labs?.length ?? 0 }) : t("Tus laboratorios encendidos ({n})", { n: labs?.length ?? 0 })}</h3>
-      {quota && !admin && (
-        <p className="muted small">{t("Puedes tener hasta {labs} laboratorios y {containers} equipos encendidos a la vez. Usas {used} equipos.", { labs: quota.labs, containers: quota.containers, used: labs?.reduce((sum, lab) => sum + lab.containers, 0) ?? 0 })}</p>
-      )}
+      <h3>{t("Laboratorios encendidos en el servidor ({n})", { n: labs?.length ?? 0 })}</h3>
       {labs === null ? <p className="muted small">{t("Cargando…")}</p> : labs.length === 0 ? <p className="muted small">{t("Ningún laboratorio encendido.")}</p> : (
         <ul className="dash-labs">
           {labs.map(lab => (
@@ -293,7 +232,7 @@ function RunningLabs() {
               <div className="dash-lab-text">
                 <strong>{names.find(item => item.id === lab.lab)?.name ?? lab.lab}</strong>
                 <span className="muted small">
-                  {admin && lab.owner && <>{lab.owner.name} · </>}
+                  {lab.owner && <>{lab.owner.name} · </>}
                   {t("{n} equipos", { n: lab.containers })} · {t("desde hace {time}", { time: span(Date.now() - lab.since) })}
                   {lab.expires && <> · {t("caduca en {time}", { time: span(lab.expires - Date.now()) })}</>}
                 </span>
@@ -393,10 +332,7 @@ export function Dashboard() {
     if(!section && element.open) element.close();
   }, [section]);
 
-  const role = useAuth(state => state.user?.role);
-  // the users: an admin's only; the students' progress: a teacher's or an admin's
-  const sections = SECTIONS.filter(item => (item.id !== "users" || role === "admin") && (item.id !== "machines" || role === "admin") && (item.id !== "students" || role === "admin" || role === "teacher"));
-  const current = sections.find(item => item.id === section);
+  const current = SECTIONS.find(item => item.id === section);
   return (
     <dialog ref={dialog} className="gallery dashboard" aria-labelledby="dash-title" onClose={close}
       onClick={event => { if(event.target === dialog.current) close(); }}>
@@ -407,15 +343,12 @@ export function Dashboard() {
               <Avatar size={40} />
               <div className="dash-lab-text"><strong>{name}</strong>{bio && <span className="muted small">{bio}</span>}</div>
             </div>
-            {sections.map(item => (
+            {SECTIONS.map(item => (
               <button key={item.id} type="button" className={item.id === section ? "active" : ""} aria-current={item.id === section ? "page" : undefined}
                 onClick={() => useStore.getState().setDashboard(item.id)}>
                 <Icon name={item.icon} size={17} />{t(item.label)}
               </button>
             ))}
-            <button type="button" className="dash-logout" onClick={() => { useStore.getState().setDashboard(null); void useAuth.getState().logout(); }}>
-              <Icon name="logout" size={17} />{t("Cerrar sesión")}
-            </button>
           </nav>
           <section className="dash-main">
             <header className="gallery-head">
@@ -424,10 +357,6 @@ export function Dashboard() {
             </header>
             <div className="dash-body" key={current.id}>
               {current.id === "profile" && <ProfileSection />}
-              {current.id === "account" && <AccountSection />}
-              {current.id === "users" && <UsersSection />}
-              {current.id === "machines" && <MachinesSection />}
-              {current.id === "students" && <StudentsSection />}
               {current.id === "preferences" && <PreferencesSection />}
               {current.id === "labs" && <LabsSection />}
               {current.id === "server" && <ServerSection />}

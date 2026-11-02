@@ -16,7 +16,7 @@ RUN npm run build -w @visual-tracert/emulator
 # plus vrnetlab/: what the images of virtual machines (RouterOS) are built from
 FROM node:22-alpine
 RUN apk add --no-cache iproute2 util-linux tcpdump
-LABEL org.opencontainers.image.title="visual-tracert-emulator" \
+LABEL org.opencontainers.image.title="visualtracert-canvas-emulator" \
       org.opencontainers.image.description="Emulación de visual-tracert: dispositivos en contenedores unidos por cables veth"
 WORKDIR /app
 COPY --from=build /repo/apps/emulator/dist/main.js ./main.js

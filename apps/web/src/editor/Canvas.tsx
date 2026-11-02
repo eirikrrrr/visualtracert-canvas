@@ -9,12 +9,11 @@ import {
   type Connection, type NodeChange, type NodeMouseHandler, type EdgeMouseHandler,
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { CHALLENGE_SPACE, isLightTheme, selectedZone, useStore } from "../app/store";
+import { isLightTheme, selectedZone, useStore } from "../app/store";
 import { addDevice, CATALOG, connect, decorated, devicesOf, isStarted, moveDevices, moveToZone, updateZone, zoneOf, type DeviceType } from "@visual-tracert/model";
 import { useLiveAddresses } from "../emulation/live";
 import { useEmulation } from "../emulation/store";
 import { t } from "../i18n";
-import { useProgress } from "../practice/progress";
 import { addressOf } from "../sim/engine";
 import { DeviceNode, TILE, type DeviceNodeType } from "./DeviceNode";
 import { LinkEdge, type LinkEdgeType } from "./LinkEdge";
@@ -51,13 +50,11 @@ export function Canvas() {
   const emulating = useStore(state => state.mode === "emulation");
   const { screenToFlowPosition, fitView } = useReactFlow<AppNode, LinkEdgeType>();
 
-  // another lab: frame it once its devices are drawn (an exercise's, clear of
-  // its challenge card on the left)
-  const challenge = useProgress(state => Boolean(state.labs[labId]));
+  // another lab: frame it once its devices are drawn
   useEffect(() => {
-    const timer = setTimeout(() => fitView(challenge ? { ...FIT, padding: { top: "60px", right: "60px", bottom: "110px", left: `${CHALLENGE_SPACE + 90}px` } } : FIT), 60);
+    const timer = setTimeout(() => fitView(FIT), 60);
     return () => clearTimeout(timer);
-  }, [labId, challenge, fitView]);
+  }, [labId, fitView]);
 
   const current = run && step >= 0 ? run.events[step] : null;
 

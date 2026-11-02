@@ -1,4 +1,4 @@
-// The local profile of this browser (there are no accounts yet): a name, an
+// The local profile of this browser (there are no accounts): a name, an
 // optional photo (the round avatar of the top bar), a few words about the user
 // and how the interface moves. The user's dashboard edits it.
 import { t } from "../i18n";

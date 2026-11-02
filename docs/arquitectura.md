@@ -1,12 +1,12 @@
 # Arquitectura
 
-visual-tracert es un monorepo con tres aplicaciones y un paquete compartido:
+visualtracert-canvas es un monorepo con dos aplicaciones y un paquete compartido. Es una
+herramienta local, sin cuentas: la web escucha solo en este equipo.
 
 | Pieza | Dónde | Qué es |
 |---|---|---|
 | **web** | `apps/web` | El editor y la simulación: React 19, React Flow (lienzo), Monaco (documento), xterm.js (terminales) y Zustand (estado). Se sirve con nginx. |
 | **emulador** | `apps/emulator` | El backend: un servicio Node sin frameworks (`node:http` y `ws`) que convierte un laboratorio en contenedores reales y cables veth, hablando con Docker por su socket. |
-| **cuentas** | `apps/api` | Usuarios, sesiones e invitaciones en SQLite (`node:sqlite`), sin privilegios. nginx le pregunta antes de cada llamada al emulador. |
 | **modelo** | `packages/model` | Lo que ambos comparten, en TypeScript puro: los tipos de la topología, el documento YAML/JSON, el catálogo de dispositivos e imágenes, las plantillas y las traducciones. |
 
 ## Vista general
@@ -20,10 +20,8 @@ flowchart LR
   end
 
   subgraph Servidor["Servidor (Docker)"]
-    NGINX["nginx :80<br/>(publicado en :9150)"]
-    API["cuentas (Node) :8090<br/>(solo 127.0.0.1:9152)"]
-    DB[("volumen api-data<br/>/data/visual-tracert.db")]
-    EMU["emulador (Node) :8080<br/>(solo 127.0.0.1:9151)"]
+    NGINX["nginx :80<br/>(solo 127.0.0.1:9160)"]
+    EMU["emulador (Node) :8080<br/>(solo 127.0.0.1:9161)"]
     DATA[("volumen emulator-data<br/>/data/profiles.json")]
     SOCK[["/var/run/docker.sock"]]
     subgraph Lab["un laboratorio"]
@@ -35,10 +33,7 @@ flowchart LR
 
   UI -- "estáticos" --> NGINX
   UI -- "HTTP /api y WebSocket" --> NGINX
-  NGINX -- "/auth" --> API
-  NGINX -. "auth_request<br/>antes de cada /api" .-> API
-  API <--> DB
-  NGINX -- "proxy /api<br/>(con sesión)" --> EMU
+  NGINX -- "proxy /api" --> EMU
   EMU <--> DATA
   EMU -- "API de Docker" --> SOCK
   SOCK -. "crea y borra" .-> Lab
@@ -47,16 +42,12 @@ flowchart LR
 
 - **La web funciona sola.** La simulación, el editor y el documento corren en el navegador; sin
   emulador, todo eso sigue funcionando y solo falta la emulación.
-- **El emulador solo se alcanza a través de nginx, y con sesión.** Es root en la práctica (socket
-  de Docker, `privileged`, `pid: host`), así que no se publica: nginx lo expone en `/api` y, para
-  desarrollo, escucha solo en `127.0.0.1:9151`. Antes de cada petición, también las CLI y
-  capturas por WebSocket, nginx pregunta al servicio de cuentas (`auth_request`): sin sesión
-  responde 401; desde otro sitio, o si la acción es de administrador (cambiar imágenes y perfiles
-  del servidor), 403. El usuario llega al emulador en las cabeceras `X-User-Id`, `X-User-Name` y
-  `X-User-Role`: cada laboratorio es de quien lo desplegó, otra cuenta no lo alcanza y cada una
-  tiene un límite de laboratorios y equipos encendidos.
-- **Las cuentas son un servicio aparte.** El emulador no guarda contraseñas: `apps/api` corre sin
-  privilegios, con su base SQLite en el volumen `api-data`.
+- **Todo se queda en este equipo.** El emulador es root en la práctica (socket de Docker,
+  `privileged`, `pid: host`) y no hay cuentas, así que nada se publica: la web escucha en
+  `127.0.0.1:9160` y el emulador, para desarrollo, en `127.0.0.1:9161`. Quien llega a la web llega
+  a todo. Para usarlo desde otra máquina, un túnel SSH o un proxy que pida quién eres y lo diga
+  en `X-User-Id`, `X-User-Name` y `X-User-Role`: con esas cabeceras, el emulador da a cada
+  laboratorio su dueño y pone cuotas.
 - **El modelo es la misma pieza en los dos lados.** La web serializa la topología a JSON con
   `serialize()` y el emulador la lee con el mismo `parse()`: los dos validan igual y producen los
   mismos mensajes de error, en el idioma de quien pide (`Accept-Language`).
@@ -88,8 +79,6 @@ flowchart TB
 
 | Dato | Dónde | Notas |
 |---|---|---|
-| Cuentas, sesiones e invitaciones | `/data/visual-tracert.db` (volumen `api-data`) | SQLite en modo WAL; contraseñas con scrypt y solo el SHA-256 de cada sesión |
-| Retos superados, seasons | La misma base | Dan el ranking y las cifras de cada máquina; los de Medio, comprobados por el emulador |
 | Laboratorios | `localStorage` del navegador | Un documento JSON por laboratorio (`visual-tracert.lab.*`) |
 | Perfil local y preferencias | `localStorage` | Nombre, foto, «sobre ti», tema, idioma, velocidad, animaciones |
 | Disposición de paneles y barras | `localStorage` | Ancho del panel lateral, posición de las barras, registro |
@@ -97,15 +86,8 @@ flowchart TB
 | Imágenes | Docker del servidor | Descargadas, construidas (perfiles) o construidas desde `vrnetlab/` |
 | Estado de un laboratorio | Etiquetas de sus contenedores | `visual-tracert.lab`, `.device`, `.fingerprint`, `.image`: sobrevive a un reinicio del emulador |
 
-Las cuentas y los retos superados viven en el servidor (el navegador guarda una copia del
-progreso, de la cuenta con que inició sesión); los laboratorios, la foto y las preferencias
-siguen en el navegador hasta que pasen a la base de datos (fase B).
-
-Un reto de Medio cuenta para el ranking solo si el servidor lo comprueba: la web pide a
-`/auth/solves`, el servicio de cuentas pide al emulador `POST /api/labs/:lab/verify` (con el
-usuario en `X-User-*`), y el emulador comprueba que el laboratorio es el reto tal como empieza y
-hace los pings en los equipos. Los de Fácil se resuelven en la simulación del navegador: se
-apuntan tal como llegan.
+Los laboratorios, el perfil y las preferencias viven en el navegador: para llevarlos a otro,
+exporta el documento YAML/JSON de cada laboratorio desde la pestaña Documento.
 
 ## La web por dentro
 
@@ -133,9 +115,6 @@ flowchart LR
     shell["DeviceShell<br/>(xterm.js)"]
   end
   sim["sim/engine.ts<br/>simulación de paquetes"]
-  practice["practice/<br/>retos: camino, tarjeta,<br/>comprobación, progreso"]
-  practice --> sim
-  practice --> store
   cap["capture/<br/>lector pcap"]
 
   store <--> canvas
@@ -154,15 +133,6 @@ flowchart LR
   modo, las ventanas abiertas). `emulation/store.ts` es el estado de lo que corre en el servidor.
 - `sim/engine.ts` es la simulación completa en el navegador: ARP, ICMP, traceroute, DHCP (con
   relay), DNS y TCP/HTTP, evento a evento.
-- `practice/` es la sección Practicar. Los retos (`exercises.ts` del modelo) traen su
-  laboratorio inicial, sus objetivos, sus pistas y su solución. `check.ts` comprueba cada
-  objetivo contra el laboratorio con la propia simulación (un ping, una concesión DHCP, un nombre
-  resuelto, una página web) o leyendo lo que dice (la VLAN de un puerto), así que vale cualquier
-  solución correcta. Un test comprueba que cada reto empieza sin resolver y que su solución
-  cumple todos los objetivos. En dificultad Medio, `checkGoalsLive` comprueba en los equipos
-  reales: busca la dirección que el destino tiene ahora en su contenedor (`ip addr`) y hace el
-  ping desde el origen por la API del emulador. El bloqueo de la interfaz es un único guardia en
-  `commit` y `replace` del estado: rechaza lo que cambia la huella de la red.
 - `capture/pcap.ts` decodifica en la página el pcap que manda el emulador (Ethernet, VLAN, ARP,
   IPv4/IPv6, ICMP, UDP, TCP, DNS, DHCP, HTTP).
 

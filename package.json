@@ -1,9 +1,9 @@
 {
-  "name": "visual-tracert",
+  "name": "visualtracert-canvas",
   "private": true,
   "version": "0.5.0",
   "stage": "alpha",
-  "description": "Laboratorio de redes en el navegador: editor visual de topologías y simulación de paquetes.",
+  "description": "El lienzo de redes de visual-tracert: editor visual de topologías, simulación de paquetes y emulación con equipos reales, como herramienta local.",
   "type": "module",
   "workspaces": [
     "apps/*",

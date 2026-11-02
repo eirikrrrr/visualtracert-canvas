@@ -1,4 +1,4 @@
-# Diseño de visual-tracert
+# Diseño de visualtracert-canvas
 
 Cómo está diseñada la web: principios, estructura de la pantalla, temas, colores, tipografía,
 componentes, lienzo, interacción, idiomas y accesibilidad. Es la referencia para cualquier
@@ -43,10 +43,10 @@ con un comentario de cabecera para cada uno.
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Menú de laboratorios:** el reto en curso en su sección, y cada laboratorio con su papelera
+- **Menú de laboratorios:** cada laboratorio con su papelera
   (aparece al pasar el ratón; la confirmación ocupa la misma fila). Con más de seis, un buscador.
 - **Barra superior** (`TopBar.tsx`): marca y versión (`v{__APP_VERSION__}`), selector de modo
-  **Practicar / Emulación / Simulación**, el laboratorio (su nombre, ⓘ para ver sus datos en el inspector y
+  **Emulación / Simulación**, el laboratorio (su nombre, ⓘ para ver sus datos en el inspector y
   el menú de laboratorios), idioma, tema y el avatar, que abre el panel de usuario.
 - **Barra de herramientas** (`Toolbar.tsx`, izquierda): seleccionar (V), ping (P),
   captura (C), eliminar (Supr), zoom, encuadrar (F), deshacer y rehacer.
@@ -273,100 +273,6 @@ Los atajos no actúan mientras se escribe en un campo, en el documento o en una 
   - **Huella:** el cambio se detecta con una huella de la red (`networkFingerprint`) que no tiene
     en cuenta posiciones ni textos.
 
-## Practicar
-
-Una página propia en lugar del lienzo (`practice/PracticeHub.tsx`), al estilo de un laboratorio
-de hacking: cada reto es una **máquina**. Como la app no tiene barra lateral, Practicar trae la
-suya (248 px, en una tarjeta `--surface`):
-- arriba, **el jugador** (rango, nivel, XP y la barra al siguiente rango) y, si hay una en curso,
-  **la season** con su color, su tema en una etiqueta y tu puesto en ella («Sin clasificar» si aún
-  no);
-- debajo, cinco secciones: **Starting Point**, **Máquinas**, **Tracks**, **Seasons** y
-  **Ranking**, con el icono de la activa en `--accent`.
-
-Por debajo de 900 px, el menú es una fila desplazable sobre el contenido. Cada sección empieza
-con su cabecera (`SectionHead`): un icono en `--accent-soft`, el título en `--heading` y qué es.
-
-- **Starting Point** (`StartingPoint.tsx`, contenido en `learn.ts` del modelo): una portada con
-  un halo de `--accent-soft`, «Aprende las bases de las redes» y tres rasgos. Debajo, cuatro
-  niveles en pestañas: Nivel 0 · Fundamentos, Nivel 1 · Conceptos, Nivel 2 · Referencias y
-  Nivel 3 · Máquinas (✓ en `--ok` cuando están completos). Cada nivel tiene:
-  - en dos columnas, «Sobre el nivel» y «Lo que aprenderás»;
-  - la barra de progreso con su porcentaje;
-  - sus elementos como filas: lecciones (lectura y una pregunta de tres opciones, «Hecha» al
-    acertar; la lectura en 15,5 px con un máximo de 68 caracteres por línea), hojas de
-    referencia (una tabla con la primera columna en `--mono`) o la tabla de máquinas.
-- **Tracks** (`Tracks.tsx`): caminos guiados por las máquinas, en tarjetas con el icono grande
-  sobre su color y una trama de puntos, la esquina con el icono de track, el nivel en
-  `--mono` y su color, el título, cuántas superaste y la barra. Los próximos van en gris. Su
-  página: la cabecera con su color, el objetivo, la dificultad para la que está pensado (con un
-  aviso para cambiarla si tienes otra elegida) y sus máquinas en orden.
-- **Seasons** (`Seasons.tsx`): tarjetas verticales como carteles (230 px de dibujo con un
-  degradado de su color, su icono en blanco y su tema arriba a la izquierda), su estado (en
-  curso en `--ok`, próxima en `--arp`, terminada en gris y desaturada), nombre, resumen, fechas
-  y máquinas. Su página: la cabecera, «En qué se basan sus máquinas» con un borde de su color,
-  sus máquinas y su ranking. Un administrador las crea y edita en un formulario (nombre, tema,
-  fechas, color, icono, resumen, inspiración y máquinas).
-
-- **Cada máquina** tiene un nombre para recordarla («Hola, Vecino», «El Infiltrado»), una
-  historia corta y un **avatar** (`MachineAvatar.tsx`): un disco con el color de su tema
-  (`BOX_COLOR`), el icono de su equipo protagonista y un anillo del color de su nivel (Básico
-  `--ok`, Intermedio `--arp`, Avanzado `--danger`), discontinuo hasta superarla y lleno después.
-- **Máquinas:** el selector de dificultad (Fácil / Medio), la siguiente máquina del camino y una
-  tabla con avatar, nombre, nivel · tema, un medidor de dificultad de diez barras (más y más
-  rojas cuanto más difícil), los modos, el tiempo, los XP, cuántos la resolvieron y tu estado
-  (mejor tiempo si está superada). Búsqueda y filtros por estado, dificultad y tema; una fila
-  abre su página. La misma tabla aparece en los tracks, las seasons y el último nivel de
-  Starting Point.
-- **La página de una máquina:** una cabecera con un degradado del color de su tema, el avatar
-  grande, su nombre y sus datos (recompensa, tiempo, dificultad, tu mejor tiempo), y tres
-  pestañas: **Jugar** (el modo, «Iniciar máquina» o por qué no se puede, y sus tareas, con
-  candado hasta superarla), **Información** (la historia en una cita, qué harás, el tema y los
-  equipos del laboratorio) y **Solución** (bloqueada hasta superarla, en cualquier modo).
-- **XP y rangos:** 10, 20 o 40 XP según el nivel, el doble en Medio; Novato, Aprendiz, Técnico,
-  Ingeniero y Arquitecto.
-- **Dentro de un tema**, cada nivel se desbloquea al superar el anterior.
-
-Al empezar un reto se abre como laboratorio con la **tarjeta del reto** (`ChallengeCard.tsx`),
-fija a la izquierda del todo del lienzo (340 px). Mientras está (`--reserved-left`,
-`CHALLENGE_SPACE` en `store.ts`):
-
-- en su sitio por defecto, la barra de herramientas empieza a su derecha y la barra inferior se
-  centra en el resto; las dos se siguen moviendo libremente, también por encima de la tarjeta;
-- el lienzo se encuadra dejándole sitio, y las ventanas de los equipos se abren a su derecha.
-
-En Medio, el doble clic en un equipo abre su ventana directamente en la CLI, y la nota de solo
-lectura de sus propiedades lleva «Abrir su CLI».
-
-Cada intento tiene su tiempo (Fácil: 5, 8 o 12 minutos según el nivel; Medio: 10, 15 o 20).
-Bajo el título, junto a la dificultad, una píldora monoespaciada con la cuenta atrás, que en su
-último minuto pasa a `--danger` y late. Superado, muestra el tiempo empleado en `--ok`; agotado,
-«Tiempo agotado» y un aviso en `--danger-soft` con «Reintentar» (el reto de cero, con un tiempo
-nuevo). El mejor tiempo de cada reto aparece en la tabla de máquinas.
-
-La tarjeta muestra:
-
-- qué hacer y los objetivos, cada uno con su marca (pendiente, ✓ en `--ok`, ✕ en `--danger`) y
-  lo que pasó;
-- su dificultad en una etiqueta junto al título y, en Medio, una nota que dice cómo se resuelve
-  (desde la CLI) y que reiniciar un equipo borra lo hecho en ella; si el laboratorio no está
-  desplegado, «Iniciar el laboratorio» en lugar de «Comprobar»;
-- «Comprobar» (que gira mientras comprueba en los equipos reales) y las pistas, de una en una:
-  en Medio, con los comandos de la CLI;
-- al superarlo, un aviso en `--ok-soft` con todas las pistas como solución de referencia (y una
-  nota: otra forma que pase la comprobación también es correcta), «Siguiente» y «Volver a
-  Practicar».
-
-Los laboratorios de los retos son desechables: empezar un reto detiene los contenedores de los
-retos que sigan encendidos, y «Volver a Practicar» tras superar uno detiene el suyo. «← Todos
-los retos» lo deja encendido, para volver con «Seguir» sin perder lo hecho en la CLI.
-
-El laboratorio de un reto vive en Practicar: no tiene pestaña Documento, y los botones Simulación
-y Emulación abren el último laboratorio propio del usuario (o el primero, o uno vacío). «Seguir»
-y el menú de laboratorios vuelven al reto en su modo: Fácil en Simulación, Medio en Emulación.
-
-Se pliega a su título.
-
 ## Marketplace
 
 - **Pestaña Imágenes:** una tarjeta por imagen, con su logo, referencia, estado (Incluida,
@@ -431,48 +337,17 @@ Wireshark, como `Echo (ping) request` o `Who has … ? Tell …`.
 - **Movimiento reducido:** con `prefers-reduced-motion` o la preferencia del panel de usuario,
   las animaciones y transiciones se reducen al mínimo.
 
-### Ranking y cifras
+## Servidor
 
-La sección **Ranking**: un podio con los tres primeros (oro, plata y bronce, el primero más alto
-y en el centro) y una tabla con puesto, jugador (iniciales), rango y nivel, XP, máquinas,
-verificadas (superadas en Medio y comprobadas por el servidor) y la última. La fila del usuario se
-resalta y, si no está entre los 100, se añade al final. Un selector cambia a la de una season.
-En la tabla de máquinas, **Resuelta** (`#n`, en `--ok`) dice cuántos la superaron en esa
-dificultad, con quién fue el primero en su título; la página de la máquina lo muestra entero.
-
-## Cuentas
-
-Antes de la app, una tarjeta centrada (420 px) sobre `--bg` con un halo de `--accent-soft`: la
-marca, el idioma, el título en `--heading` y un formulario de una columna con el botón principal a
-todo el ancho. Los errores, en una caja `--danger` suave bajo los campos (`role="alert"`). Cuatro
-pantallas:
-- **Inicia sesión**, con «Crea tu cuenta» si se tiene una invitación;
-- **Crea tu cuenta:** código de invitación (en `--mono`; el enlace `?invite=` lo escribe), nombre,
-  usuario y contraseña dos veces;
-- **Crea la cuenta de administrador:** la primera vez, con el código de instalación del registro
-  del servicio (`docker compose logs api`), para que nadie se adelante;
-- **Elige tu contraseña:** tras una contraseña provisional de un administrador, antes de seguir.
-
-Para profesores y administradores, **Alumnos**: cada cuenta con su XP y sus máquinas, que se
-despliega en sus retos (dificultad, «Verificada», tiempo y fecha).
-
-En el panel de usuario, **Cuenta** (usuario, rol, cambiar la contraseña, cerrar sesión) y, para un
-administrador, **Usuarios**: el formulario de invitación (rol, usos, días, una nota), las
-invitaciones vivas con «Copiar enlace», «Copiar código» y anular, y las cuentas, cada una con su
-rol en un desplegable, una contraseña provisional (🔑), activar o desactivar y eliminar (con
-confirmación en la fila). El nombre del perfil es el de la cuenta. Si la sesión termina (una
-respuesta 401), la app vuelve a «Inicia sesión» con el aviso.
-
-En **Servidor**, los laboratorios encendidos: los del usuario, con su límite («hasta 3
-laboratorios y 24 equipos; usas 9»), o para un administrador los de todos con su dueño. Cada fila
-dice cuántos equipos, desde cuándo y cuándo caduca, con «Detener».
+En el panel de usuario, **Servidor**: el emulador, los laboratorios encendidos (cada uno con
+cuántos equipos, desde cuándo y cuándo caduca, con «Detener»), las imágenes de este servidor y
+los perfiles de imagen. No hay cuentas: todo es de quien usa el equipo.
 
 ## Qué guarda el navegador
 
 `localStorage`, con el prefijo `visual-tracert.`:
 - los laboratorios (cada uno como documento JSON);
-- el perfil local (foto, «sobre ti», la preferencia de animaciones y una copia del nombre de la
-  cuenta);
+- el perfil local (nombre, foto, «sobre ti» y la preferencia de animaciones);
 - el tema, el idioma y la velocidad;
 - la disposición del panel lateral y del registro;
 - la posición de las barras.

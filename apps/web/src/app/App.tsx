@@ -10,28 +10,23 @@ import { LogPanel } from "../panels/LogPanel";
 
 import { Palette } from "../panels/Palette";
 import { Inspector } from "../panels/Inspector";
-import { ChallengeCard } from "../practice/ChallengeCard";
 import { DeviceWindows } from "../panels/DeviceWindow";
 import { EmulationPanel } from "../emulation/EmulationPanel";
 import { useImages } from "../emulation/images";
 import { SimulationPanel } from "../panels/SimulationPanel";
 import { Toolbar } from "../panels/Toolbar";
-import { errorMessage, oauthResult } from "./auth";
-import { Sidebar } from "./Sidebar";
 import { TopBar } from "../panels/TopBar";
 import { Icon } from "../editor/icons";
 import { Grip } from "../panels/Grip";
 import { tx, useT } from "../i18n";
 import { followPointer } from "./movable";
 import { useProfile } from "./profile";
-import { CHALLENGE_SPACE, deleteSelection, SIDE_DEFAULT, useStore, type Tab } from "./store";
+import { deleteSelection, SIDE_DEFAULT, useStore, type Tab } from "./store";
 
 // the dialogs load when they first open: the workspace starts lighter
 const TemplateGallery = lazy(() => import("../panels/TemplateGallery").then(module => ({ default: module.TemplateGallery })));
 const Marketplace = lazy(() => import("../panels/Marketplace").then(module => ({ default: module.Marketplace })));
 const Dashboard = lazy(() => import("../panels/Dashboard").then(module => ({ default: module.Dashboard })));
-const PracticeHub = lazy(() => import("../practice/PracticeHub").then(module => ({ default: module.PracticeHub })));
-const Home = lazy(() => import("./Home").then(module => ({ default: module.Home })));
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "simulation", label: tx("Simulación") },
@@ -47,9 +42,8 @@ function Shortcuts() {
     const onKey = (event: KeyboardEvent) => {
       if(typing(event.target)) return;
       const state = useStore.getState();
-      // the gallery and the Marketplace are modal dialogs: their own keys only
-      // the dialogs, and practice (no canvas), have their own keys only
-      if(state.gallery || state.marketplace || state.dashboard || state.mode === "practice" || state.mode === "home") return;
+      // the gallery, the Marketplace and the dashboard are modal dialogs: their own keys only
+      if(state.gallery || state.marketplace || state.dashboard) return;
       const key = event.key.toLowerCase();
       if((event.ctrlKey || event.metaKey) && key === "z"){ event.preventDefault(); event.shiftKey ? state.redo() : state.undo(); return; }
       if((event.ctrlKey || event.metaKey) && key === "y"){ event.preventDefault(); state.redo(); return; }
@@ -131,11 +125,7 @@ const FLOAT_MIN = { width: 340, height: 300 };
 
 function SidePanel() {
   const t = useT();
-  // an exercise's lab has no document: it is solved on the canvas, or on its devices' CLI
-  const challenge = useStore(state => state.challenge);
-  const chosen = useStore(state => state.tab);
-  const tab = challenge && chosen === "document" ? "simulation" : chosen;
-  const tabs = challenge ? TABS.filter(item => item.id !== "document") : TABS;
+  const tab = useStore(state => state.tab);
   const events = useStore(state => state.run?.events.length ?? 0);
   const emulating = useStore(state => state.mode === "emulation");
   const full = useStore(state => state.sideFull);
@@ -181,7 +171,7 @@ function SidePanel() {
       {!full && !floating && <SideResizer />}
       <div className="tabs" role="tablist" aria-label={t("Panel")}>
         {floating && <Grip vertical onPointerDown={move} label={t("Mover el panel")} title={t("Arrastra para mover el panel")} />}
-        {tabs.map(item => (
+        {TABS.map(item => (
           <button key={item.id} type="button" role="tab" id={`tab-${item.id}`} aria-selected={tab === item.id} aria-controls={`panel-${item.id}`}
             className={tab === item.id ? "active" : ""} onClick={() => useStore.getState().setTab(item.id)}>
             {item.id === "simulation" && emulating ? t("Emulación") : t(item.label)}
@@ -218,33 +208,21 @@ export function App() {
   const gallery = useStore(state => state.gallery);
   const marketplace = useStore(state => state.marketplace);
   const dashboard = useStore(state => state.dashboard);
-  const practicing = useStore(state => state.mode === "practice");
-  const home = useStore(state => state.mode === "home");
-  const sidebar = useStore(state => state.sidebar);
-  const challenge = useStore(state => state.challenge);
   const motion = useProfile(state => state.motion ?? "full");
   useEffect(() => { document.body.dataset.theme = theme; }, [theme]);
   useEffect(() => { document.body.dataset.motion = motion; }, [motion]);
   // what images this server has: the palette offers their devices
   useEffect(() => { void useImages.getState().refresh(); }, []);
-  // back from linking GitHub or Google to the account
-  useEffect(() => {
-    if(oauthResult.linked) useStore.getState().notify(t("{service} vinculado a tu cuenta.", { service: oauthResult.linked === "github" ? "GitHub" : "Google" }), "ok");
-    else if(oauthResult.error) useStore.getState().notify(errorMessage(oauthResult.error), "error");
-  }, []);
 
   return (
     <ReactFlowProvider>
       <Shortcuts />
       <div className="app">
         <TopBar />
-        <div className={`app-body${sidebar ? " with-sidebar" : ""}`}>
-        {sidebar && <Sidebar />}
-        <div className="app-main">
-        {home ? <Suspense fallback={null}><Home /></Suspense> : practicing ? <Suspense fallback={null}><PracticeHub /></Suspense> : (
+        {(
           <main className={`workspace${sideFull ? " side-full" : sideFloating ? " side-undocked" : ""}`} style={{ "--side-width": `${sideWidth}px` } as CSSProperties}>
             <div className="stage">
-              <div className={`canvas-area${challenge ? " with-challenge" : ""}`} style={{ "--reserved-left": `${challenge ? CHALLENGE_SPACE : 0}px` } as CSSProperties}>
+              <div className="canvas-area">
               <Canvas />
               <Toolbar />
               <Palette />
@@ -260,7 +238,6 @@ export function App() {
                   <button type="button" className="link" onClick={() => useStore.getState().setTool("select")}>{t("Cancelar")}</button>
                 </div>
               )}
-              <ChallengeCard />
               <Inspector />
               <DeviceWindows />
               <Toasts />
@@ -270,8 +247,6 @@ export function App() {
             <SidePanel />
           </main>
         )}
-        </div>
-        </div>
       </div>
       <Suspense fallback={null}>
         {gallery && <TemplateGallery />}

@@ -13,7 +13,7 @@ import { Icon } from "../editor/icons";
 
 import { useEmulation } from "../emulation/store";
 import { useT } from "../i18n";
-import { DeviceProperties, Locked } from "./Inspector";
+import { DeviceProperties } from "./Inspector";
 import { Popup } from "./Popup";
 
 // the terminal (xterm.js) and the capture load when a window first shows them
@@ -102,7 +102,7 @@ function DeviceWindowView({ state, device, layer }: { state: WindowState; device
         ))}
       </div>
       <div className="dw-body" hidden={state.tab !== "properties"}>
-        <Locked device={device.id}><DeviceProperties device={device} topology={topology} windowed /></Locked>
+        <DeviceProperties device={device} topology={topology} windowed />
       </div>
       <div className="dw-body dw-cli" hidden={state.tab !== "cli"}>
         {cliShown && <DeviceCli device={device} />}

@@ -9,12 +9,10 @@ export default defineConfig({
   define: { __APP_VERSION__: JSON.stringify(version), __APP_STAGE__: JSON.stringify(stage) },
   server: {
     port: 5180,
-    // the emulator and the accounts service, as docker compose publishes them
-    // for development (the devices' CLI is a WebSocket). Here the emulator is
-    // reached directly: nginx's session check is not in between
+    // the emulator, as docker compose publishes it for development (the
+    // devices' CLI is a WebSocket)
     proxy: {
-      "/api": { target: "http://127.0.0.1:9151", ws: true },
-      "/auth": { target: "http://127.0.0.1:9152" },
+      "/api": { target: "http://127.0.0.1:9161", ws: true },
     },
   },
   build: {

@@ -1,14 +1,32 @@
 # Cambios
 
-Todas las versiones de visual-tracert. El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
+Todas las versiones de visualtracert-canvas. El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
 y las versiones, [SemVer](https://semver.org/lang/es/): mientras sea 0.x, una función nueva sube el número
 del medio y un arreglo, el último. Todo el repositorio (web, modelo y, más adelante, emulador) comparte versión.
 
 ## [Sin publicar]
 
-### Añadido
-- **Entrar con GitHub y Google, con registro abierto:** cualquiera crea su cuenta (como alumno) con un clic; el mismo correo verificado lleva a la misma cuenta. En Panel → Cuenta, las cuentas vinculadas (vincular, desvincular) y crear una contraseña para entrar también con el usuario. El registro con usuario y contraseña sigue siendo con invitación hasta que haya verificación por correo. Cada proveedor se activa con su id y su secreto (migración 5).
-- **Cerrar sesión** al pie del menú lateral y del panel de usuario.
+visualtracert-canvas se separa de [visual-tracert](https://github.com/eirikrrrr/visual-tracert):
+aquí queda solo el lienzo de redes con su emulación personalizada, como herramienta local. Las
+versiones de abajo son la historia común de los dos proyectos.
+
+### Quitado
+- **Todo lo de la plataforma de retos:** Practicar (máquinas, Starting Point y sus guías, tracks,
+  seasons, ranking, protocolos), la página de inicio, el menú lateral, la landing, la tarjeta del
+  reto y el bloqueo del modo Medio.
+- **Las cuentas:** el servicio `apps/api` (usuarios, invitaciones, GitHub y Google, progreso,
+  laboratorios en la cuenta y sus versiones), la pantalla de acceso y la comprobación de sesión de
+  nginx.
+- **El despliegue en producción** (`deploy/`, Caddy, copias de seguridad, GitHub Actions).
+- En el emulador, la comprobación de retos (`POST /api/labs/:lab/verify`).
+
+### Cambiado
+- Sin cuentas, la web escucha solo en este equipo (`127.0.0.1:9160`; el emulador, para
+  desarrollo, en `127.0.0.1:9161`), y la app abre directamente en Emulación.
+- El panel de usuario: perfil local (el nombre vuelve a ser de este navegador), preferencias,
+  laboratorios, servidor y atajos.
+- Nombres propios para las imágenes y contenedores de Docker (`visualtracert-canvas`,
+  `visualtracert-canvas-emulator`), para no chocar con los de visual-tracert en la misma máquina.
 
 ## [0.5.0] - 2026-11-01 · alpha
 

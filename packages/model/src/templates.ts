@@ -33,7 +33,7 @@ interface HostSpec {
   description?: string;
 }
 
-/** A lab drawn by code (the templates', the exercises'): fixed MACs per seed,
+/** A lab drawn by code (the templates'): fixed MACs per seed,
  * so the same lab always comes out the same. */
 export function drawLab(seed: number, name: string) {
   let count = 0;

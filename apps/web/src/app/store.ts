@@ -4,15 +4,14 @@
 // views of it, and every change goes through commit().
 import { create } from "zustand";
 import { t, tx, type T } from "../i18n";
-import { emptyTopology, exampleTopology, networkFingerprint, removeDevices, removeLinks, removeZone, templateById, zoneOf, type Topology } from "@visual-tracert/model";
+import { emptyTopology, exampleTopology, removeDevices, removeLinks, removeZone, templateById, zoneOf, type Topology } from "@visual-tracert/model";
 import { applyLease, PROTOCOLS, simulate, type Protocol, type SimEvent, type SimKind, type SimOutcome, type SimRequest, type SimRun } from "../sim/engine";
-import { deleteLab, listLabs, loadLab, markSeed, newLabId, saveLab, setCurrentLabId, startingLab, type LabMeta } from "./labs";
+import { deleteLab, listLabs, loadLab, newLabId, saveLab, setCurrentLabId, startingLab, type LabMeta } from "./labs";
 
 const THEME_KEY = "visual-tracert.theme";
 const HISTORY_LIMIT = 100;
 const SIDE_KEY = "visual-tracert.side-width";
 const SIDE_FLOAT_KEY = "visual-tracert.side-float";
-const SIDEBAR_KEY = "visual-tracert.sidebar";
 export interface SideFloat { x: number; y: number; width: number; height: number }
 const SIDE_FLOAT_DEFAULT: SideFloat = { x: -1, y: 16, width: 420, height: 640 };
 export const SIDE_DEFAULT = 380;
@@ -21,9 +20,7 @@ export const SIDE_MIN = 320;
 export type Selection = { kind: "device" | "link" | "zone"; id: string } | null;
 export type Tool = "select" | "ping" | "capture";
 /** simulation: the network is modelled here; emulation: real containers */
-/** practice: the exercises; simulation: the network is modelled here;
- * emulation: real containers */
-export type Mode = "home" | "practice" | "simulation" | "emulation";
+export type Mode = "simulation" | "emulation";
 /** how a run is played back: at once ("realtime") or frame by frame at a speed */
 export type Speed = "realtime" | 0.5 | 1 | 2 | 4;
 export const SPEEDS: Speed[] = ["realtime", 0.5, 1, 2, 4];
@@ -37,16 +34,11 @@ function loadSpeed(): Speed {
   }catch(_){ /* no storage */ }
   return 1;
 }
-/** the challenge card's width, and the room it takes on the canvas's left
- * (with its margins): the bars start beside it, and move freely */
-export const CHALLENGE_WIDTH = 340;
-export const CHALLENGE_SPACE = CHALLENGE_WIDTH + 28;
-
 /** the side panel: the mode's (simulation or emulation) and the document */
 export type Tab = "simulation" | "document";
 
 /** the sections of the user's dashboard */
-export type DashboardSection = "profile" | "account" | "users" | "machines" | "students" | "preferences" | "labs" | "server" | "shortcuts";
+export type DashboardSection = "profile" | "preferences" | "labs" | "server" | "shortcuts";
 export type Theme = "azul" | "marron" | "editorial" | "morado";
 
 export const THEMES: { id: Theme; label: string; light: boolean; swatch: [string, string, string] }[] = [
@@ -143,8 +135,6 @@ interface State {
   speed: Speed;
   tab: Tab;
   theme: Theme;
-  /** the app's side menu is shown */
-  sidebar: boolean;
   run: SimRun | null;
   /** the action being prepared in the simulation panel, with a target per kind */
   draft: SimDraft;
@@ -163,11 +153,6 @@ interface State {
   inspectLab: boolean;
   /** the user's dashboard, open on one of its sections */
   dashboard: DashboardSection | null;
-  /** the lab's network cannot be changed from the interface (an exercise in
-   * medium difficulty: its devices are configured from their CLI) */
-  locked: boolean;
-  /** the open lab is an exercise: its challenge card is on the canvas's left */
-  challenge: boolean;
   /** the Marketplace is open, on its images or on the profiles */
   marketplace: "images" | "profiles" | null;
   /** device windows, the last one on top */
@@ -190,15 +175,11 @@ interface State {
   redo: () => void;
   replace: (next: Topology) => void;
   switchLab: (id: string) => void;
-  /** the open lab again, as saved now (its account's newer copy came in): no history of before */
-  reloadLab: () => void;
   createLab: (from: "empty" | "example" | "duplicate") => void;
   /** a new lab with a copy of a template */
   openTemplate: (id: string) => void;
   setGallery: (open: boolean) => void;
   setInspectLab: (open: boolean) => void;
-  setLocked: (locked: boolean) => void;
-  setChallenge: (challenge: boolean) => void;
   setDashboard: (section: DashboardSection | null) => void;
   setMarketplace: (open: State["marketplace"]) => void;
   openWindow: (device: string, tab?: DeviceWindow["tab"], detached?: boolean, capture?: string) => void;
@@ -212,7 +193,6 @@ interface State {
   setTool: (tool: Tool) => void;
   setPingFrom: (id: string | null) => void;
   setMode: (mode: Mode) => void;
-  setSidebar: (shown: boolean) => void;
   setSpeed: (speed: Speed) => void;
   setTab: (tab: Tab) => void;
   setTheme: (theme: Theme) => void;
@@ -242,20 +222,11 @@ function openingLab(): { id: string; topology: Topology; labs: LabMeta[] } {
   const topology = exampleTopology(t);
   const labs = saveLab(id, topology);
   setCurrentLabId(id);
-  markSeed(labs[0]);
   return { id, topology, labs };
 }
 const opening = openingLab();
 
 // what a fresh lab starts with: no history, nothing selected, no simulation
-/** a change the lock refuses: it changes the network (said to the user) */
-function refused(next: Topology): boolean {
-  const state = useStore.getState();
-  if(!state.locked || networkFingerprint(next) === networkFingerprint(state.topology)) return false;
-  state.notify(t("Modo Medio: configura los equipos desde su CLI (doble clic en un equipo → CLI)."), "error");
-  return true;
-}
-
 const freshLab = { past: [], future: [], selection: null, run: null, request: null, step: -1, playing: false, pingFrom: null, windows: [] };
 
 function loadTheme(): Theme {
@@ -291,15 +262,6 @@ function loadSideWidth(): number {
 
 let toastId = 0;
 
-/** the side menu as it was left; at first, shown except on a narrow screen */
-function loadSidebar(): boolean {
-  try{
-    const saved = localStorage.getItem(SIDEBAR_KEY);
-    if(saved === "1" || saved === "0") return saved === "1";
-  }catch(_){ /* no storage */ }
-  return typeof window === "undefined" || !window.matchMedia("(max-width: 900px)").matches;
-}
-
 export const useStore = create<State>((set, get) => ({
   labId: opening.id,
   labs: opening.labs,
@@ -311,12 +273,10 @@ export const useStore = create<State>((set, get) => ({
   tool: "select",
   pingFrom: null,
   // the app opens emulating: real containers (the simulation, one click away)
-  // the app opens at its home page, not straight onto a lab
-  mode: "home",
+  mode: "emulation",
   speed: loadSpeed(),
   tab: "simulation",
   theme: loadTheme(),
-  sidebar: loadSidebar(),
   run: null,
   draft: { kind: "ping", from: "", targets: {}, ttl: 64, maxHops: 30 },
   request: null,
@@ -328,8 +288,6 @@ export const useStore = create<State>((set, get) => ({
   gallery: false,
   inspectLab: false,
   dashboard: null,
-  locked: false,
-  challenge: false,
   marketplace: null,
   windows: [],
   sideWidth: loadSideWidth(),
@@ -339,10 +297,9 @@ export const useStore = create<State>((set, get) => ({
   log: [],
   logLayout: loadLogLayout(),
 
-  // a change of the topology invalidates a simulation computed on the old one;
-  // locked, only what does not change the network (positions, notes) goes in
+  // a change of the topology invalidates a simulation computed on the old one
   commit: next => {
-    if(next === get().topology || refused(next)) return;
+    if(next === get().topology) return;
     set(state => ({
       topology: next,
       past: [...state.past, state.topology].slice(-HISTORY_LIMIT),
@@ -369,7 +326,7 @@ export const useStore = create<State>((set, get) => ({
   }),
   // a new or loaded lab: no history of the previous one
   // the same lab, rewritten: its device windows stay (those of devices it still has)
-  replace: next => { if(!refused(next)) set({ topology: next, ...freshLab, windows: get().windows }); },
+  replace: next => set({ topology: next, ...freshLab, windows: get().windows }),
   switchLab: id => {
     if(id === get().labId) return;
     flushSave();
@@ -377,10 +334,6 @@ export const useStore = create<State>((set, get) => ({
     if(!topology){ get().notify(t("No se pudo abrir ese laboratorio."), "error"); return; }
     setCurrentLabId(id);
     set({ labId: id, topology, ...freshLab });
-  },
-  reloadLab: () => {
-    const topology = loadLab(get().labId);
-    if(topology) set({ topology, ...freshLab });
   },
   createLab: from => {
     const current = get().topology;
@@ -398,18 +351,15 @@ export const useStore = create<State>((set, get) => ({
   },
   setGallery: gallery => set({ gallery }),
   setInspectLab: inspectLab => set({ inspectLab }),
-  setLocked: locked => set({ locked }),
-  setChallenge: challenge => set({ challenge }),
   setDashboard: dashboard => set({ dashboard }),
   setMarketplace: marketplace => set({ marketplace }),
   openWindow: (device, tab, detached, capture) => {
     const open = get().windows.find(item => item.device === device);
     if(open){ get().raiseWindow(device, { ...(tab ? { tab } : {}), ...(detached !== undefined ? { detached } : {}), ...(capture !== undefined ? { capture } : {}) }); return; }
-    // each one a little apart from the last opened; beside the challenge card,
-    // if there is one; locked, on the CLI (where the device is configured)
+    // each one a little apart from the last opened
     const n = get().windows.length % 6;
-    const x = (get().challenge ? CHALLENGE_SPACE + 84 : 72) + n * 28;
-    set({ windows: [...get().windows, { device, x, y: 56 + n * 28, tab: tab ?? (get().locked ? "cli" : "properties"), ...(detached ? { detached } : {}), ...(capture !== undefined ? { capture } : {}) }] });
+    const x = 72 + n * 28;
+    set({ windows: [...get().windows, { device, x, y: 56 + n * 28, tab: tab ?? "properties", ...(detached ? { detached } : {}), ...(capture !== undefined ? { capture } : {}) }] });
   },
   closeWindow: device => set({ windows: get().windows.filter(item => item.device !== device) }),
   raiseWindow: (device, change) => {
@@ -444,10 +394,6 @@ export const useStore = create<State>((set, get) => ({
   setTool: tool => set({ tool, pingFrom: null }),
   setPingFrom: pingFrom => set({ pingFrom }),
   // the third tab is the one of the mode; a simulated run stays off the canvas while emulating
-  setSidebar: sidebar => {
-    try{ localStorage.setItem(SIDEBAR_KEY, sidebar ? "1" : "0"); }catch(_){ /* ignore */ }
-    set({ sidebar });
-  },
   setMode: mode => set(state => ({ mode, playing: false, tab: state.mode === mode ? state.tab : "simulation", ...(mode === "emulation" ? { run: null, request: null, step: -1 } : {}) })),
   setSpeed: speed => {
     try{ localStorage.setItem(SPEED_KEY, String(speed)); }catch(_){ /* ignore */ }
@@ -564,16 +510,3 @@ export function selectedZone(state: Pick<State, "selection" | "topology">): stri
   const device = selection?.kind === "device" ? state.topology.devices.find(item => item.id === selection.id) : undefined;
   return device ? zoneOf(state.topology, device)?.id : undefined;
 }
-
-/** while the account's labs come in, the lab open may change without the user choosing it */
-let quiet = false;
-export const isQuiet = () => quiet;
-export function quietly(change: () => void): void {
-  quiet = true;
-  try{ change(); }finally{ quiet = false; }
-}
-
-// a lab opened, made or duplicated from the home page shows on the canvas
-useStore.subscribe((state, previous) => {
-  if(state.labId !== previous.labId && state.mode === "home" && !quiet) useStore.getState().setMode("simulation");
-});

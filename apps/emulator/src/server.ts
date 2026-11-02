@@ -6,8 +6,6 @@
 //                                   (ms since the epoch): stopped by itself then
 //   DELETE /api/labs/:lab           remove it
 //   GET    /api/labs/:lab/addresses the addresses its running devices have now, by device
-//   POST   /api/labs/:lab/verify    { exercise, definition? }: that exercise (medium) checked on the lab's devices,
-//                                   for its owner: { ok, results, startedAt }
 //   POST   /api/labs/:lab/run       { device, command, target? } on a device
 //   POST   /api/labs/:lab/start     { devices, document }: those devices, if stopped; the rest left running
 //   POST   /api/labs/:lab/restart   { devices, document }: those devices again
@@ -27,11 +25,11 @@
 //   WS     /api/labs/:lab/devices/:device/capture?iface=&filter=
 //          a traffic capture on a port ("any": all): binary frames are pcap
 //          (its header first); text frames {"type":"status"|"error",message}
-// Who calls comes from nginx (X-User-Id, -Name, -Role, after the session
-// check): a lab is its deployer's (labels owner, owner-name), and only they or
-// an admin reach it, its CLI and captures too; each account has a quota of
-// labs and containers running (admins: none). With no X-User-* (this host
-// directly, in development) everything is reachable.
+// This is a local tool, with no accounts: with no X-User-* everything is
+// reachable and there is no quota. Behind a proxy that checks sessions and
+// says who calls (X-User-Id, -Name, -Role), a lab is its deployer's (labels
+// owner, owner-name), only they or an admin reach it, its CLI and captures
+// too, and each one has a quota of labs and containers running.
 // Messages come in the language the request asks for (Accept-Language, or
 // ?lang= on the WebSocket). The topology comes as the editor's JSON document
 // and is checked by the same parser as the editor.
@@ -47,7 +45,6 @@ import { CAPTURE_LIMIT, CaptureError, startCapture } from "./capture";
 import { docker, DockerError } from "./docker";
 import { buildProfile, loadProfiles, profileStatus, removeProfile, saveProfile } from "./profiles";
 import { ALLOW_PRIVILEGED, COMMANDS, deploy, destroy, execute, imageStatus, liveAddresses, openShell, ownerOf, QUOTA, QuotaError, relaunch, runningLabs, status, stopDevices, type Command, type Owner, type Size } from "./lab";
-import { verifyExercise, VerifyError, type Definition } from "./verify";
 import { ensureImage } from "./vrnetlab";
 
 const MAX_BODY = 2 * 1024 * 1024;
@@ -183,22 +180,13 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     send(res, 200, await runningLabs(isAdmin(caller) ? undefined : caller!.id));
     return;
   }
-  const match = url.pathname.match(/^\/api\/labs\/([^/]+)(\/run|\/start|\/restart|\/stop|\/addresses|\/verify)?$/);
+  const match = url.pathname.match(/^\/api\/labs\/([^/]+)(\/run|\/start|\/restart|\/stop|\/addresses)?$/);
   if(!match) throw new HttpError(404, t("No existe esa ruta del emulador."));
   const lab = decodeURIComponent(match[1]);
   if(!LAB_ID.test(lab)) throw new HttpError(400, t("El identificador del laboratorio no es válido."));
   const owner = await reach(lab, caller, t);
 
-  // an exercise checked on its devices, for its owner (the accounts service asks)
-  if(match[2] === "/verify"){
-    if(method !== "POST") throw new HttpError(405, "POST");
-    if(caller && owner?.id !== caller.id) throw new HttpError(404, t("No existe ese laboratorio."));
-    const body = (await bodyOf(req)) as { exercise?: unknown; definition?: unknown };
-    if(typeof body.exercise !== "string") throw new HttpError(400, t("Falta el reto."));
-    try{ send(res, 200, await verifyExercise(lab, body.exercise, t, body.definition as Definition | undefined)); }
-    catch(error){ if(error instanceof VerifyError) throw new HttpError(409, error.message); throw error; }
-    return;
-  }
+
   if(match[2] === "/addresses"){
     if(method !== "GET") throw new HttpError(405, "GET");
     send(res, 200, await liveAddresses(lab));
@@ -230,7 +218,7 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     if(!parsed.topology) throw new HttpError(400, parsed.problems.map(problem => problem.message).join(" "));
     // another's lab is not deployed over, not even by an admin: it would become theirs
     if(owner && caller && owner.id !== caller.id) throw new HttpError(409, t("Ese laboratorio es de {name}: no se puede desplegar encima.", { name: owner.name }));
-    // an exercise's lab: stopped by itself when its time is up
+    // a lab deployed with ?expires=: stopped by itself then
     const expires = Number(url.searchParams.get("expires")) || undefined;
     send(res, 200, await deploy(lab, parsed.topology, t, { expires, ...(caller ? { owner: { id: caller.id, name: caller.name }, limited: !isAdmin(caller) } : {}) }));
     return;
